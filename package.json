@@ -1,0 +1,40 @@
+{
+    "name": "grayjay-bilibili.com-plugin",
+    "version": "1.0.0",
+    "description": "make bilibili work",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "module": "script.ts",
+    "scripts": {
+        "test": "npm run build && node --test",
+        "build": "tsc && cp src/script.js build/script.js && sed -i '/^export/ d' build/script.js",
+        "serve": "npm run build && npx http-server build"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin.git"
+    },
+    "keywords": [
+        "bilibili",
+        "grayjay"
+    ],
+    "author": "Kai DeLorenzo",
+    "license": "MPL-2.0",
+    "bugs": {
+        "url": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin/issues"
+    },
+    "homepage": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
+    "peerDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "type": "module",
+    "devDependencies": {
+        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types",
+        "@types/node": "^20.11.30",
+        "eslint": "^8.57.0",
+        "eslint-plugin-node": "^11.1.0",
+        "http-server": "^14.1.1",
+        "typescript-eslint": "^7.4.0"
+    }
+}

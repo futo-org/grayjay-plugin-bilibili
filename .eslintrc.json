@@ -1,0 +1,20 @@
+{
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/strict",
+        "plugin:node/recommended"
+    ],
+    "rules": {
+        "node/file-extension-in-import": [
+            "error",
+            "always"
+        ],
+        "node/no-unpublished-import": [
+            "off"
+        ]
+    }
+}
