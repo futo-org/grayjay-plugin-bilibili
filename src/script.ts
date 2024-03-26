@@ -21,7 +21,7 @@ const source_temp: RequiredSource = {
     },
     saveState: function () { return undefined },
     isChannelUrl: function (url: string) {
-        return false
+        return url === "a string"
     },
     getChannel: function (url: string) {
         return new PlatformChannel({
@@ -31,11 +31,11 @@ const source_temp: RequiredSource = {
             banner: "a string",
             subscribers: 69,
             description: "a string",
-            url: "a string",
+            url: url,
         })
     },
     isContentDetailsUrl: function (url: string) {
-        return false
+        return url === "a string"
     },
     getContentDetails: function (url: string) {
         const platform_video_ID = new PlatformID(PLATFORM, "video_ID", config.id)
@@ -53,7 +53,7 @@ const source_temp: RequiredSource = {
             ),
             duration: 69,
             viewCount: 69,
-            url: "a string",
+            url: url,
             isLive: false, // hardcoded for now
             description: "a string",
             video: new VideoSourceDescriptor([new DashSource({
