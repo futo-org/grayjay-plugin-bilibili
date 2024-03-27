@@ -1,4 +1,4 @@
-import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON } from "./types.d.ts"
+import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON } from "./types.ts"
 
 const PLATFORM = "bilibili" as const
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/" as const
