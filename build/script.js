@@ -15,7 +15,7 @@ const source_temp = {
         log(savedState);
     },
     disable() {
-        // console.log("disabling")
+        log("disabling");
     },
     saveState() { return ""; },
     getHome() {
@@ -142,12 +142,6 @@ const source_temp = {
 for (const key of Object.keys(source_temp)) {
     // @ts-expect-error TODO make it so that the ts-expect-error is no longer required
     source[key] = source_temp[key];
-}
-function get_jwt() {
-    const authentication_url = "https://vimeo.com/_next/viewer";
-    const authentication_response_json = http.GET(authentication_url, {}, false).body;
-    const authentication_response = JSON.parse(authentication_response_json);
-    return authentication_response.jwt;
 }
 function get_video_details_json(url) {
     const video_details_regex = /<script>window\.__playinfo__=(.*?)<\/script><script>window\.__INITIAL_STATE__=(.*?);.*?<\/script>/;

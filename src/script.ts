@@ -1,4 +1,4 @@
-import type { RequiredSource, AuthenticationResponse, VideoInfoJSON, HomePageJSON, VideoPlayJSON } from "./types.d.ts"
+import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON } from "./types.d.ts"
 
 const PLATFORM = "bilibili" as const
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/" as const
@@ -164,14 +164,6 @@ for (const key of Object.keys(source_temp)) {
     source[key] = source_temp[key]
 }
 
-function get_jwt() {
-    const authentication_url = "https://vimeo.com/_next/viewer"
-
-    const authentication_response_json = http.GET(authentication_url, {}, false).body
-    const authentication_response: AuthenticationResponse = JSON.parse(authentication_response_json)
-    return authentication_response.jwt
-}
-
 function get_video_details_json(url: string): [VideoPlayJSON, VideoInfoJSON]{
     const video_details_regex = /<script>window\.__playinfo__=(.*?)<\/script><script>window\.__INITIAL_STATE__=(.*?);.*?<\/script>/
     const main_video_html_body = http.GET(url, {}, false).body
@@ -197,4 +189,4 @@ function get_home_json(): HomePageJSON {
 }
 
 // export statements removed during build step
-export { get_jwt, get_video_details_json }
+export { get_video_details_json }
