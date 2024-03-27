@@ -17,6 +17,7 @@
     ],
     "allowEval": false,
     "allowUrls": [
-        "bilibili.com"
+        "www.bilibili.com",
+        "api.bilibili.com"
     ]
 }

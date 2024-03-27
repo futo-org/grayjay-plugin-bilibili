@@ -9,7 +9,8 @@
     "scripts": {
         "eslint": "npx eslint .",
         "test": "npm run build && node --test",
-        "build": "npm run eslint && tsc && cp src/script.js build/script.js && sed -i '/^export/ d' build/script.js",
+        "build": "tsc && cp src/script.js build/script.js && sed -i '/^export/ d' build/script.js",
+        "publish": "npm run eslint && npm test",
         "serve": "npm run build && npx http-server build"
     },
     "repository": {
