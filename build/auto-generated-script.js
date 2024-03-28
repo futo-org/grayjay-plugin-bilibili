@@ -164,5 +164,6 @@ function get_home_json() {
     const home = JSON.parse(home_json);
     return home;
 }
+export {};
 // export statements removed during build step
-//# sourceMappingURL=script.js.map
+//# sourceMappingURL=auto-generated-script.js.map

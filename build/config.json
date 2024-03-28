@@ -6,7 +6,7 @@
     "platformUrl": "https://bilibili.com",
     "sourceUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin/-/blob/main/config.json",
     "repositoryUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
-    "scriptUrl": "./script.js",
+    "scriptUrl": "./auto-generated-script.js",
     "version": 1,
     "iconUrl": "./vimeo_icon_white_on_blue_rounded.png",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
