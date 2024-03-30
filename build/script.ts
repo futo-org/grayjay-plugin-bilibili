@@ -91,9 +91,11 @@ const source_temp: RequiredSource = {
         const buvid3 = get_buvid3()
         const space_json = http.GET(info_url, { Referer: "https://www.bilibili.com", Host: "api.bilibili.com", "User-Agent": REAL_USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body
         // log(space_json)
-        log(buvid3)
-        log(info_url)
+        // log(buvid3)
+        // log(info_url)
         const space: SpaceInfoJSON = JSON.parse(space_json)
+
+        // log(space)
 
         return new PlatformChannel({
             id: new PlatformID(PLATFORM, space_id.toString(), config.id),
@@ -102,7 +104,7 @@ const source_temp: RequiredSource = {
             banner: space.data.top_photo,
             subscribers: num_fans,
             description: space.data.sign,
-            url: url,
+            url: `${SPACE_URL_PREFIX}${space_id}`,
         })
     },
     isContentDetailsUrl(url: string) {
@@ -194,12 +196,12 @@ const source_temp: RequiredSource = {
             ),
             duration: video_play_details.data.dash.duration,
             viewCount: video_info.data.View.stat.view,
-            url: url,
+            url: `${CONTENT_DETAILS_URL_PREFIX}${video_id}`,
             isLive: false, // hardcoded for now
             description: description.raw_text,
             video: new UnMuxVideoSourceDescriptor([video_source], [audio_source]),
             rating: new RatingLikes(video_info.data.View.stat.like),
-            shareUrl: url,
+            shareUrl: `${CONTENT_DETAILS_URL_PREFIX}${video_id}`,
             uploadDate: video_info.data.View.pubdate
         })
         return details
@@ -299,11 +301,12 @@ function get_fan_count(space_id: number): number {
 }
 
 function get_home_json(): HomePageJSON {
-    const home_json = http.GET(HOME_URL, {}, false).body
+    const home_json = http.GET(`${HOME_URL}?ps=12&fresh_idx=0`, {}, false).body // grab the first 12
     const home: HomePageJSON = JSON.parse(home_json)
     return home
 }
 
+// "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
 function getMixinKey(e: string, encryption_info: readonly number[]) {
     return encryption_info.filter((value) => {
         return e[value] !== undefined
