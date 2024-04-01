@@ -1,9 +1,10 @@
-import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON } from "./types.js"
+import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON, SearchResultsJSON, SpaceVideosJSON, PlaylistJSON } from "./types.js"
 
 const PLATFORM = "bilibili" as const
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/" as const
 const HOME_URL = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd" as const
 const SPACE_URL_PREFIX = "https://space.bilibili.com/" as const
+const PLAYLIST_PREFIX = "https://space.bilibili.com/490505561/channel/collectiondetail?sid=" as const
 const USER_AGENT = "Grayjay" as const
 const REAL_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" as const
 // const USER_AGENT = "HTTPie" as const
@@ -57,6 +58,39 @@ const source_temp: RequiredSource = {
         })
         return new VideoPager(platform_videos, false) // TODO hardcoded
     },
+    searchSuggestions(query: string) {
+        return [`empathy ${query}`, `${query} empathy`]
+    },
+    getSearchCapabilities(){
+        return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], [])
+    },
+    search(query: string, type: string, order: string, filters: FilterCapability[]){
+        log(type)
+        log(order)
+        log(filters)
+        const results = get_search_results(query)
+
+        const videos = results.data.result.map((item) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`
+            const video_id = new PlatformID(PLATFORM, item.bvid, config.id)
+            const author_id = new PlatformID(PLATFORM, item.mid.toString(), config.id)
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, 69), // TODO hardcoded 69
+                duration: parseInt(item.duration), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.play,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: item.pubdate
+            })
+        })
+
+        return new VideoPager(videos, false)
+    },
     isChannelUrl(url: string) {
         if (!url.startsWith(SPACE_URL_PREFIX)) {
             return false
@@ -76,9 +110,9 @@ const source_temp: RequiredSource = {
         const info_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info?"
         const params: Params = {
             mid: space_id,
-            platform: "web",
-            token: "",
-            web_location: 1550101, // TODO hardcoded
+            // platform: "web",
+            // token: "",
+            // web_location: 1550101, // TODO hardcoded
             // current timestamp Math.round(Date.now() / 1e3)
             wts: Math.round(Date.now() / 1e3),
             // device fingerprint values
@@ -106,6 +140,37 @@ const source_temp: RequiredSource = {
             description: space.data.sign,
             url: `${SPACE_URL_PREFIX}${space_id}`,
         })
+    },
+    getChannelContents(url: string, type: FeedType, order: Order, filters: FilterCapability[]){
+        log(type)
+        log(order)
+        log(filters)
+        const space_id = parseInt(url.slice(SPACE_URL_PREFIX.length))
+        const results = load_channel_videos(space_id)
+
+        const videos = results.data.list.vlist.map((item) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`
+            const video_id = new PlatformID(PLATFORM, item.bvid, config.id)
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id)
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(item.pic, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69), // TODO hardcoded 69 and image url
+                duration: parseInt(item.length), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.play,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: 420 // TODO hardcoded 420
+            })
+        })
+
+        return new VideoPager(videos, false)
+    },
+    getChannelCapabilities(){
+        return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], [])
     },
     isContentDetailsUrl(url: string) {
         if (!url.startsWith(CONTENT_DETAILS_URL_PREFIX)) {
@@ -163,7 +228,7 @@ const source_temp: RequiredSource = {
             bitrate: audio_source_info.bandwidth,
             duration: video_play_details.data.dash.duration,
             url: audio_source_info.base_url,
-            language: "Unknown",
+            language: Language.UNKNOWN,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
@@ -206,12 +271,160 @@ const source_temp: RequiredSource = {
         })
         return details
     },
+    getComments(url: string): CommentPager {
+        log(url)
+        return new CommentPager([], false)
+    },
+    getSubComments(comment: PlatformComment): CommentPager {
+        log(comment)
+        return new CommentPager([], false)
+    },
+    isPlaylistUrl(url: string) {
+        if (!url.startsWith(PLAYLIST_PREFIX)) {
+            return false
+        }
+        /*
+        const space_id = url.slice(PLAYLIST_PREFIX.length)
+        // verify that the space_id consists only of digits
+        if (!/^\d+$/.test(space_id)) {
+            return false
+        }
+        */
+        return true
+    },
+    getPlaylist(url: string) {
+        const playlist_id = parseInt(url.slice(PLAYLIST_PREFIX.length))
+        const space_id = 490505561
+        const playlist_data = load_playlist(space_id, playlist_id)
+
+        const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id)
+        const author = new PlatformAuthorLink(author_id, "a name", `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69) // TODO hardcoded 69 and image url and name
+        const videos = playlist_data.data.archives.map((video) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${video.bvid}`
+            const video_id = new PlatformID(PLATFORM, video.bvid, config.id)
+            return new PlatformVideo({
+                id: video_id,
+                name: video.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(video.pic, 1080)]), // TODO hardcoded 1080
+                author,
+                duration: parseInt(video.duration), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: video.stat.view,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: 420 // TODO hardcoded 420
+            })
+        })
+        log(playlist_data.data.meta.cover)
+        return new PlatformPlaylistDetails({
+            id: new PlatformID(PLATFORM, playlist_id.toString(), config.id),
+            name: playlist_data.data.meta.name,
+            author,
+            url: `${PLAYLIST_PREFIX}${playlist_id}`,
+            contents: new VideoPager(videos ,false),
+            videoCount: 69,
+            thumbnail: playlist_data.data.meta.cover // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
+        })
+    }
+    
 }
 // assign the methods to the source object
 for (const key of Object.keys(source_temp)) {
     // @ts-expect-error TODO make it so that the ts-expect-error is no longer required
     source[key] = source_temp[key]
 }
+
+function load_playlist(space_id: number, playlist_id: number) {
+    const playlist_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list?"
+    /*
+    const params: Params = {
+        mid: space_id,
+        season_id: playlist_id,
+        // ps: 25,
+        // keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    */
+    const playlist_url = `${playlist_prefix}mid=${space_id}&season_id=${playlist_id}`
+    const buvid3 = get_buvid3()
+    const results: PlaylistJSON = JSON.parse(http.GET(playlist_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    // const results: SpaceVideosJSON = JSON.parse(http.GET(playlist_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return results
+}
+
+function load_channel_videos(space_id: number): SpaceVideosJSON {
+    const space_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search?"
+    const params: Params = {
+        mid: space_id,
+        pn: 1,
+        ps: 25,
+        // keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const space_search_url = space_search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const results: SpaceVideosJSON = JSON.parse(http.GET(space_search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return results
+}
+
+function get_search_results(search_term: string): SearchResultsJSON{
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type?"
+    const params: Params = {
+        search_type: "video",
+        page: 1,
+        page_size: 42,
+        keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const search_url = search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    // const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    return search_results
+}
+
+/*
+function old_get_search_results(search_term: string): OldSearchResultsJSON{
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/all/v2?"
+    const params: Params = {
+        page: 1,
+        page_size: 42,
+        keyword: search_term,
+        web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const search_url = search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const search_results: OldSearchResultsJSON = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return search_results
+}*/
 
 function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON] {
     const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail?"
@@ -222,9 +435,9 @@ function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON
         // fnver: 0,
         // avid: 1101695476,
         // cid: 1466542760,
-        platform: "web",
-        token: "",
-        web_location: 1315873, // TODO hardcoded
+        // platform: "web",
+        // token: "",
+        // web_location: 1315873, // TODO hardcoded
         // current timestamp Math.round(Date.now() / 1e3)
         wts: Math.round(Date.now() / 1e3),
         // device fingerprint values
@@ -272,9 +485,9 @@ function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON
         // avid: 1101695476,
         // cid: 1466542760,
         cid: video_info.data.View.cid,
-        platform: "web",
-        token: "",
-        web_location: 1315873, // TODO hardcoded
+        // platform: "web",
+        // token: "",
+        // web_location: 1315873, // TODO hardcoded
         // current timestamp Math.round(Date.now() / 1e3)
         wts: Math.round(Date.now() / 1e3),
         // device fingerprint values
@@ -367,4 +580,4 @@ function md5(input: string): string {
 var MD5: { generate?: any }; (() => { var r = { d: (n, t) => { for (var e in t) r.o(t, e) && !r.o(n, e) && Object.defineProperty(n, e, { enumerable: !0, get: t[e] }) }, o: (r, n) => Object.prototype.hasOwnProperty.call(r, n), r: r => { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(r, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(r, "__esModule", { value: !0 }) } }, n = {}; (() => { r.r(n), r.d(n, { MD5: () => d, generate: () => e }); var t = function (r) { r = r.replace(/\r\n/g, "\n"); for (var n = "", t = 0; t < r.length; t++) { var e = r.charCodeAt(t); e < 128 ? n += String.fromCharCode(e) : e > 127 && e < 2048 ? (n += String.fromCharCode(e >> 6 | 192), n += String.fromCharCode(63 & e | 128)) : (n += String.fromCharCode(e >> 12 | 224), n += String.fromCharCode(e >> 6 & 63 | 128), n += String.fromCharCode(63 & e | 128)) } return n }; function e(r) { var n, e, o, d, l, C, h, v, S, m; for (n = function (r) { for (var n, t = r.length, e = t + 8, o = 16 * ((e - e % 64) / 64 + 1), u = Array(o - 1), a = 0, f = 0; f < t;)a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | r.charCodeAt(f) << a, f++; return a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | 128 << a, u[o - 2] = t << 3, u[o - 1] = t >>> 29, u }(t(r)), h = 1732584193, v = 4023233417, S = 2562383102, m = 271733878, e = 0; e < n.length; e += 16)o = h, d = v, l = S, C = m, h = a(h, v, S, m, n[e + 0], 7, 3614090360), m = a(m, h, v, S, n[e + 1], 12, 3905402710), S = a(S, m, h, v, n[e + 2], 17, 606105819), v = a(v, S, m, h, n[e + 3], 22, 3250441966), h = a(h, v, S, m, n[e + 4], 7, 4118548399), m = a(m, h, v, S, n[e + 5], 12, 1200080426), S = a(S, m, h, v, n[e + 6], 17, 2821735955), v = a(v, S, m, h, n[e + 7], 22, 4249261313), h = a(h, v, S, m, n[e + 8], 7, 1770035416), m = a(m, h, v, S, n[e + 9], 12, 2336552879), S = a(S, m, h, v, n[e + 10], 17, 4294925233), v = a(v, S, m, h, n[e + 11], 22, 2304563134), h = a(h, v, S, m, n[e + 12], 7, 1804603682), m = a(m, h, v, S, n[e + 13], 12, 4254626195), S = a(S, m, h, v, n[e + 14], 17, 2792965006), h = f(h, v = a(v, S, m, h, n[e + 15], 22, 1236535329), S, m, n[e + 1], 5, 4129170786), m = f(m, h, v, S, n[e + 6], 9, 3225465664), S = f(S, m, h, v, n[e + 11], 14, 643717713), v = f(v, S, m, h, n[e + 0], 20, 3921069994), h = f(h, v, S, m, n[e + 5], 5, 3593408605), m = f(m, h, v, S, n[e + 10], 9, 38016083), S = f(S, m, h, v, n[e + 15], 14, 3634488961), v = f(v, S, m, h, n[e + 4], 20, 3889429448), h = f(h, v, S, m, n[e + 9], 5, 568446438), m = f(m, h, v, S, n[e + 14], 9, 3275163606), S = f(S, m, h, v, n[e + 3], 14, 4107603335), v = f(v, S, m, h, n[e + 8], 20, 1163531501), h = f(h, v, S, m, n[e + 13], 5, 2850285829), m = f(m, h, v, S, n[e + 2], 9, 4243563512), S = f(S, m, h, v, n[e + 7], 14, 1735328473), h = i(h, v = f(v, S, m, h, n[e + 12], 20, 2368359562), S, m, n[e + 5], 4, 4294588738), m = i(m, h, v, S, n[e + 8], 11, 2272392833), S = i(S, m, h, v, n[e + 11], 16, 1839030562), v = i(v, S, m, h, n[e + 14], 23, 4259657740), h = i(h, v, S, m, n[e + 1], 4, 2763975236), m = i(m, h, v, S, n[e + 4], 11, 1272893353), S = i(S, m, h, v, n[e + 7], 16, 4139469664), v = i(v, S, m, h, n[e + 10], 23, 3200236656), h = i(h, v, S, m, n[e + 13], 4, 681279174), m = i(m, h, v, S, n[e + 0], 11, 3936430074), S = i(S, m, h, v, n[e + 3], 16, 3572445317), v = i(v, S, m, h, n[e + 6], 23, 76029189), h = i(h, v, S, m, n[e + 9], 4, 3654602809), m = i(m, h, v, S, n[e + 12], 11, 3873151461), S = i(S, m, h, v, n[e + 15], 16, 530742520), h = c(h, v = i(v, S, m, h, n[e + 2], 23, 3299628645), S, m, n[e + 0], 6, 4096336452), m = c(m, h, v, S, n[e + 7], 10, 1126891415), S = c(S, m, h, v, n[e + 14], 15, 2878612391), v = c(v, S, m, h, n[e + 5], 21, 4237533241), h = c(h, v, S, m, n[e + 12], 6, 1700485571), m = c(m, h, v, S, n[e + 3], 10, 2399980690), S = c(S, m, h, v, n[e + 10], 15, 4293915773), v = c(v, S, m, h, n[e + 1], 21, 2240044497), h = c(h, v, S, m, n[e + 8], 6, 1873313359), m = c(m, h, v, S, n[e + 15], 10, 4264355552), S = c(S, m, h, v, n[e + 6], 15, 2734768916), v = c(v, S, m, h, n[e + 13], 21, 1309151649), h = c(h, v, S, m, n[e + 4], 6, 4149444226), m = c(m, h, v, S, n[e + 11], 10, 3174756917), S = c(S, m, h, v, n[e + 2], 15, 718787259), v = c(v, S, m, h, n[e + 9], 21, 3951481745), h = u(h, o), v = u(v, d), S = u(S, l), m = u(m, C); return g(h) + g(v) + g(S) + g(m) } function o(r, n) { return r << n | r >>> 32 - n } function u(r, n) { var t, e, o, u, a; return o = 2147483648 & r, u = 2147483648 & n, a = (1073741823 & r) + (1073741823 & n), (t = 1073741824 & r) & (e = 1073741824 & n) ? 2147483648 ^ a ^ o ^ u : t | e ? 1073741824 & a ? 3221225472 ^ a ^ o ^ u : 1073741824 ^ a ^ o ^ u : a ^ o ^ u } function a(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & n | ~r & t }(n, t, e), a), i)), u(o(r, f), n) } function f(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & t | n & ~t }(n, t, e), a), i)), u(o(r, f), n) } function i(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r ^ n ^ t }(n, t, e), a), i)), u(o(r, f), n) } function c(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return n ^ (r | ~t) }(n, t, e), a), i)), u(o(r, f), n) } function g(r) { var n, t = "", e = ""; for (n = 0; n <= 3; n++)t += (e = "0" + (r >>> 8 * n & 255).toString(16)).substr(e.length - 2, 2); return t } var d = { generate: e } })(), MD5 = n })();
 
 // export statements removed during build step
-export { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_wbi_keys }
+export { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_wbi_keys, get_search_results }

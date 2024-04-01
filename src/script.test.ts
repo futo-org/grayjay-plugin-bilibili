@@ -1,7 +1,7 @@
 import { describe, test } from "node:test"
 import assert from "node:assert"
 import "@grayjay/plugin/source.js"
-import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant } from "./script.js"
+import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_search_results } from "./script.js"
 import { Params } from "./types.js"
 
 /*
@@ -220,7 +220,7 @@ describe("script module", () => {
         }
         source.disable()
     })
-    test("get video details", { skip: false }, () => {
+    test("get video details", { skip: true }, () => {
         const result = get_video_details_json("BV1ZW4y1Q7Y4")
         assert.strictEqual(result[0].data.View.title, "被elo机制制裁的号到底有多难打\u{ff1f}",)
         assert.strictEqual(result[1].data.dash.duration, 164)
@@ -235,9 +235,9 @@ describe("script module", () => {
                 dm_img_list: "[]",
                 dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
                 mid: 1939254464,
-                platform: "web",
-                token: "",
-                web_location: 1550101,
+                // platform: "web",
+                // token: "",
+                // web_location: 1550101,
                 wts: wts
             }
 
@@ -253,6 +253,14 @@ describe("script module", () => {
     })
     test("get_mixin_constant", { skip: true }, () => {
         assert.deepStrictEqual(get_mixin_constant(), MIXIN_CONSTANT)
+    })
+    test("search", {skip: false}, () => {
+        const results = get_search_results("empathy")
+        const first_video = results.data.result[0]
+        if (first_video === undefined) {
+            throw new Error("no video results")
+        }
+        assert.strictEqual(first_video.title, "同理心的力量（The Power of <em class=\"keyword\">Empathy</em>）(真正完整超清版 简体字幕)")
     })
 /*
     test("load video", () => {

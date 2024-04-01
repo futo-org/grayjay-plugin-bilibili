@@ -1,9 +1,10 @@
-import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON } from "./types.js"
+import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON, SearchResultsJSON, SpaceVideosJSON, PlaylistJSON } from "./types.js"
 
 const PLATFORM = "bilibili" as const
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/" as const
 const HOME_URL = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd" as const
 const SPACE_URL_PREFIX = "https://space.bilibili.com/" as const
+const PLAYLIST_PREFIX = "https://space.bilibili.com/490505561/channel/collectiondetail?sid=" as const
 const USER_AGENT = "Grayjay" as const
 const REAL_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" as const
 // const USER_AGENT = "HTTPie" as const
@@ -57,6 +58,39 @@ const source_temp: RequiredSource = {
         })
         return new VideoPager(platform_videos, false) // TODO hardcoded
     },
+    searchSuggestions(query: string) {
+        return [`empathy ${query}`, `${query} empathy`]
+    },
+    getSearchCapabilities(){
+        return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], [])
+    },
+    search(query: string, type: string, order: string, filters: FilterCapability[]){
+        log(type)
+        log(order)
+        log(filters)
+        const results = get_search_results(query)
+
+        const videos = results.data.result.map((item) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`
+            const video_id = new PlatformID(PLATFORM, item.bvid, config.id)
+            const author_id = new PlatformID(PLATFORM, item.mid.toString(), config.id)
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, 69), // TODO hardcoded 69
+                duration: parseInt(item.duration), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.play,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: item.pubdate
+            })
+        })
+
+        return new VideoPager(videos, false)
+    },
     isChannelUrl(url: string) {
         if (!url.startsWith(SPACE_URL_PREFIX)) {
             return false
@@ -76,9 +110,9 @@ const source_temp: RequiredSource = {
         const info_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info?"
         const params: Params = {
             mid: space_id,
-            platform: "web",
-            token: "",
-            web_location: 1550101, // TODO hardcoded
+            // platform: "web",
+            // token: "",
+            // web_location: 1550101, // TODO hardcoded
             // current timestamp Math.round(Date.now() / 1e3)
             wts: Math.round(Date.now() / 1e3),
             // device fingerprint values
@@ -106,6 +140,37 @@ const source_temp: RequiredSource = {
             description: space.data.sign,
             url: `${SPACE_URL_PREFIX}${space_id}`,
         })
+    },
+    getChannelContents(url: string, type: FeedType, order: Order, filters: FilterCapability[]){
+        log(type)
+        log(order)
+        log(filters)
+        const space_id = parseInt(url.slice(SPACE_URL_PREFIX.length))
+        const results = load_channel_videos(space_id)
+
+        const videos = results.data.list.vlist.map((item) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`
+            const video_id = new PlatformID(PLATFORM, item.bvid, config.id)
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id)
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(item.pic, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69), // TODO hardcoded 69 and image url
+                duration: parseInt(item.length), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.play,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: 420 // TODO hardcoded 420
+            })
+        })
+
+        return new VideoPager(videos, false)
+    },
+    getChannelCapabilities(){
+        return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], [])
     },
     isContentDetailsUrl(url: string) {
         if (!url.startsWith(CONTENT_DETAILS_URL_PREFIX)) {
@@ -163,7 +228,7 @@ const source_temp: RequiredSource = {
             bitrate: audio_source_info.bandwidth,
             duration: video_play_details.data.dash.duration,
             url: audio_source_info.base_url,
-            language: "Unknown",
+            language: Language.UNKNOWN,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
@@ -206,12 +271,160 @@ const source_temp: RequiredSource = {
         })
         return details
     },
+    getComments(url: string): CommentPager {
+        log(url)
+        return new CommentPager([], false)
+    },
+    getSubComments(comment: PlatformComment): CommentPager {
+        log(comment)
+        return new CommentPager([], false)
+    },
+    isPlaylistUrl(url: string) {
+        if (!url.startsWith(PLAYLIST_PREFIX)) {
+            return false
+        }
+        /*
+        const space_id = url.slice(PLAYLIST_PREFIX.length)
+        // verify that the space_id consists only of digits
+        if (!/^\d+$/.test(space_id)) {
+            return false
+        }
+        */
+        return true
+    },
+    getPlaylist(url: string) {
+        const playlist_id = parseInt(url.slice(PLAYLIST_PREFIX.length))
+        const space_id = 490505561
+        const playlist_data = load_playlist(space_id, playlist_id)
+
+        const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id)
+        const author = new PlatformAuthorLink(author_id, "a name", `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69) // TODO hardcoded 69 and image url and name
+        const videos = playlist_data.data.archives.map((video) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${video.bvid}`
+            const video_id = new PlatformID(PLATFORM, video.bvid, config.id)
+            return new PlatformVideo({
+                id: video_id,
+                name: video.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(video.pic, 1080)]), // TODO hardcoded 1080
+                author,
+                duration: parseInt(video.duration), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: video.stat.view,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: 420 // TODO hardcoded 420
+            })
+        })
+        log(playlist_data.data.meta.cover)
+        return new PlatformPlaylistDetails({
+            id: new PlatformID(PLATFORM, playlist_id.toString(), config.id),
+            name: playlist_data.data.meta.name,
+            author,
+            url: `${PLAYLIST_PREFIX}${playlist_id}`,
+            contents: new VideoPager(videos ,false),
+            videoCount: 69,
+            thumbnail: playlist_data.data.meta.cover // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
+        })
+    }
+    
 }
 // assign the methods to the source object
 for (const key of Object.keys(source_temp)) {
     // @ts-expect-error TODO make it so that the ts-expect-error is no longer required
     source[key] = source_temp[key]
 }
+
+function load_playlist(space_id: number, playlist_id: number) {
+    const playlist_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list?"
+    /*
+    const params: Params = {
+        mid: space_id,
+        season_id: playlist_id,
+        // ps: 25,
+        // keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    */
+    const playlist_url = `${playlist_prefix}mid=${space_id}&season_id=${playlist_id}`
+    const buvid3 = get_buvid3()
+    const results: PlaylistJSON = JSON.parse(http.GET(playlist_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    // const results: SpaceVideosJSON = JSON.parse(http.GET(playlist_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return results
+}
+
+function load_channel_videos(space_id: number): SpaceVideosJSON {
+    const space_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search?"
+    const params: Params = {
+        mid: space_id,
+        pn: 1,
+        ps: 25,
+        // keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const space_search_url = space_search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const results: SpaceVideosJSON = JSON.parse(http.GET(space_search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return results
+}
+
+function get_search_results(search_term: string): SearchResultsJSON{
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type?"
+    const params: Params = {
+        search_type: "video",
+        page: 1,
+        page_size: 42,
+        keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const search_url = search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    // const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    return search_results
+}
+
+/*
+function old_get_search_results(search_term: string): OldSearchResultsJSON{
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/all/v2?"
+    const params: Params = {
+        page: 1,
+        page_size: 42,
+        keyword: search_term,
+        web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+    const search_url = search_prefix + compute_parameters(params)
+    const buvid3 = get_buvid3()
+    const search_results: OldSearchResultsJSON = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    return search_results
+}*/
 
 function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON] {
     const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail?"
@@ -222,9 +435,9 @@ function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON
         // fnver: 0,
         // avid: 1101695476,
         // cid: 1466542760,
-        platform: "web",
-        token: "",
-        web_location: 1315873, // TODO hardcoded
+        // platform: "web",
+        // token: "",
+        // web_location: 1315873, // TODO hardcoded
         // current timestamp Math.round(Date.now() / 1e3)
         wts: Math.round(Date.now() / 1e3),
         // device fingerprint values
@@ -272,9 +485,9 @@ function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON
         // avid: 1101695476,
         // cid: 1466542760,
         cid: video_info.data.View.cid,
-        platform: "web",
-        token: "",
-        web_location: 1315873, // TODO hardcoded
+        // platform: "web",
+        // token: "",
+        // web_location: 1315873, // TODO hardcoded
         // current timestamp Math.round(Date.now() / 1e3)
         wts: Math.round(Date.now() / 1e3),
         // device fingerprint values

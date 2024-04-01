@@ -13,6 +13,13 @@ export type SpaceInfoJSON = {
 
 // make sure that these keys don't have any invalid URI characters. if they do them we need to update the code to encode them
 export type Params = {
+    // season_id?: number
+    search_type?: "video"
+    pn?: number
+    page?: number
+    ps?: number
+    page_size?: number
+    keyword?: string
     fnval?: number
     // fourk?: number
     // fnver?: number
@@ -21,9 +28,9 @@ export type Params = {
     bvid?: string
     mid?: number
     cid?: number
-    platform: string
-    token: ""
-    web_location: number
+    // platform?: string
+    // token?: ""
+    // web_location: number
     // current timestamp Math.round(Date.now() / 1e3)
     wts: number
     // device fingerprint values
@@ -32,6 +39,78 @@ export type Params = {
     dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ"
     dm_img_list: "[]"
 }
+
+export type PlaylistJSON = {
+    data: {
+        archives: {
+            bvid: string
+            duration: string
+            pic: string
+            pubdate: number
+            title: string
+            stat: {
+                view: number
+            }
+        }[]
+        meta: {
+            cover: string
+            name: string
+        }
+    }
+}
+
+export type SpaceVideosJSON = {
+    data: {
+        list: {
+            vlist: {
+                bvid: string
+                title: string
+                length: string
+                pic: string
+                // upic: string
+                play: number
+                // pubdate: number
+                // mid: number
+                author: string
+            }[]
+        }
+    }
+}
+
+export type SearchResultsJSON = {
+    data: {
+        result: {
+            bvid: string
+            title: string
+            duration: string
+            pic: string
+            upic: string
+            play: number
+            pubdate: number
+            mid: number
+            author: string
+        }[]
+    }
+}
+
+/*
+export type OldSearchResultsJSON = {
+    data: {
+        result: {
+            result_type: string
+            data: {
+                bvid: string
+                title: string
+                arcurl: string
+                duration: string
+                pic: string
+                upic: string
+                play: number
+                pubdate: number
+            }[]
+        }[]
+    }
+}*/
 
 export type VideoInfoJSON = {
     data: {
@@ -51,7 +130,7 @@ export type VideoInfoJSON = {
             }
             desc_v2: null | {
                 raw_text: string
-            }[] 
+            }[]
         }
         Card: {
             card: {
