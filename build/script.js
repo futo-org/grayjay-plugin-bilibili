@@ -297,6 +297,9 @@ const source_temp = {
             thumbnail: playlist_data.data.meta.cover // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
         });
     }
+    // live url
+    // hls
+    // https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=22508204&no_playurl=0&mask=1&qn=0&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2&dolby=5&panorama=1
 };
 // assign the methods to the source object
 for (const key of Object.keys(source_temp)) {
