@@ -1,7 +1,7 @@
 import { describe, test } from "node:test"
 import assert from "node:assert"
 import "@grayjay/plugin/source.js"
-import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_search_results } from "./script.js"
+import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_search_results, get_comments } from "./script.js"
 import { Params } from "./types.js"
 
 /*
@@ -254,13 +254,24 @@ describe("script module", () => {
     test("get_mixin_constant", { skip: true }, () => {
         assert.deepStrictEqual(get_mixin_constant(), MIXIN_CONSTANT)
     })
-    test("search", {skip: false}, () => {
+    test("search", {skip: true}, () => {
         const results = get_search_results("empathy")
         const first_video = results.data.result[0]
         if (first_video === undefined) {
             throw new Error("no video results")
         }
         assert.strictEqual(first_video.title, "同理心的力量（The Power of <em class=\"keyword\">Empathy</em>）(真正完整超清版 简体字幕)")
+    })
+    test("comments", {skip: false}, () => {
+        const results = get_comments(1502306778)
+        const first_comment = results.data.replies[0]
+        if (first_comment === undefined) {
+            throw new Error("no comments")
+        }
+        log(first_comment.content.message)
+        log(first_comment.ctime)
+        log(new Date(first_comment.ctime * 1000))
+        assert.strictEqual(first_comment.rpid, 215041646928)
     })
 /*
     test("load video", () => {

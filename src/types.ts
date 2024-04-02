@@ -13,6 +13,10 @@ export type SpaceInfoJSON = {
 
 // make sure that these keys don't have any invalid URI characters. if they do them we need to update the code to encode them
 export type Params = {
+    mode?: number
+    pagination_str?: string
+    type?: number
+    oid?: number
     // season_id?: number
     search_type?: "video"
     pn?: number
@@ -34,10 +38,48 @@ export type Params = {
     // current timestamp Math.round(Date.now() / 1e3)
     wts: number
     // device fingerprint values
-    dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ"
-    dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`
-    dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ"
-    dm_img_list: "[]"
+    dm_cover_img_str?: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ"
+    dm_img_inter?: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`
+    dm_img_str?: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ"
+    dm_img_list?: "[]"
+}
+
+export type SubCommentsJSON = {
+    data: {
+        replies: {
+            ctime: number
+            like: number
+            member: {
+                mid: number
+                uname: string
+                avatar: string
+            }
+            content: {
+                message: string
+            }
+        }[]
+    }
+}
+
+export type CommentsJSON = {
+    data: {
+        replies: {
+            rpid: number
+            ctime: number
+            like: number
+            member: {
+                mid: number
+                uname: string
+                avatar: string
+            }
+            content: {
+                message: string
+            }
+            replies: {
+                rpid: number
+            }[]
+        }[]
+    }
 }
 
 export type PlaylistJSON = {
@@ -119,6 +161,7 @@ export type VideoInfoJSON = {
             pic: string
             pubdate: number
             cid: number
+            aid: number
             owner: {
                 mid: number
                 name: string

@@ -1,4 +1,4 @@
-import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON, SearchResultsJSON, SpaceVideosJSON, PlaylistJSON } from "./types.js"
+import type { RequiredSource, VideoInfoJSON, HomePageJSON, VideoPlayJSON, Params, Wbi, SpaceInfoJSON, SearchResultsJSON, SpaceVideosJSON, PlaylistJSON, CommentsJSON } from "./types.js"
 
 const PLATFORM = "bilibili" as const
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/" as const
@@ -80,7 +80,7 @@ const source_temp: RequiredSource = {
                 name: item.title,
                 url: url,
                 thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, 1080)]), // TODO hardcoded 1080
-                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, 69), // TODO hardcoded 69
+                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, 11), // TODO hardcoded 11
                 duration: parseInt(item.duration), // TODO this doesn't work duration is like "2:54" not a number in seconds
                 viewCount: item.play,
                 isLive: false, // TODO hardcoded false
@@ -273,10 +273,31 @@ const source_temp: RequiredSource = {
     },
     getComments(url: string): CommentPager {
         log(url)
-        return new CommentPager([], false)
+        const video_id = url.slice(CONTENT_DETAILS_URL_PREFIX.length)
+        const video_info = get_video_details_json(video_id)[0]
+        // log(video_info.data)
+        // log(video_info.data.View.avid)
+        const comment_data = get_comments(video_info.data.View.aid).data.replies
+        const comments = comment_data.map((data) => {
+            const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), config.id)
+            return new PlatformComment({
+                id: new PlatformID(PLATFORM, data.rpid.toString(), config.id),
+                name: "test", // TODO hardcoded
+                url: "test", // TODO add this
+                author: new PlatformAuthorLink(author_id, data.member.uname, `${SPACE_URL_PREFIX}${data.member.mid}`, data.member.avatar, 69), // TODO hardcoded 69
+                message: data.content.message,
+                rating: new RatingLikes(data.like),
+                replyCount: data.replies.length,
+                date: data.ctime,
+                contextUrl: "idk", // TODO hardcoded
+                context: {test: "ASdf"} // TODO hardcoded
+            })
+        }) 
+        return new CommentPager(comments, false)
     },
     getSubComments(comment: PlatformComment): CommentPager {
         log(comment)
+        // get_replies()
         return new CommentPager([], false)
     },
     isPlaylistUrl(url: string) {
@@ -315,7 +336,7 @@ const source_temp: RequiredSource = {
                 uploadDate: 420 // TODO hardcoded 420
             })
         })
-        log(playlist_data.data.meta.cover)
+        // log(playlist_data.data.meta.cover)
         return new PlatformPlaylistDetails({
             id: new PlatformID(PLATFORM, playlist_id.toString(), config.id),
             name: playlist_data.data.meta.name,
@@ -334,6 +355,56 @@ const source_temp: RequiredSource = {
 for (const key of Object.keys(source_temp)) {
     // @ts-expect-error TODO make it so that the ts-expect-error is no longer required
     source[key] = source_temp[key]
+}
+
+// function get_comment_context_url
+/*
+function get_replies(avid: number, rpid: number){
+    const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply?type=1&"
+    const json = http.GET(`${thread_prefix}oid=${avid}&root=${rpid}`, { }, false).body
+
+    const results: SubCommentsJSON = JSON.parse(json)
+    return results
+}
+*/
+
+function get_comments(avid: number){
+    log(avid)
+    const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main?"
+    const params: Params = {
+        type: 1,
+        mode: 2,
+        // pagination_str: "%7B%22offset%22:%22%22%7D",
+        // pagination_str: '{"offset":""}',
+        // pagination_str: JSON.stringify({offset:{type:1,direction:1,data:{}}}),
+        // pagination_str: `{"offset":"{\\"type\\":1,\\"direction\\":1,\\"data\\":{\\"pn\\":0}}"}`,
+        pagination_str: `{"offset":"{\\"type\\":3,\\"direction\\":1,\\"Data\\":{\\"cursor\\":764}}"}`,
+        // plat: 1,
+        // seek_rpid: "",
+        // web_location: 1315875,
+        oid: avid,
+        // pn: 1,
+        // ps: 25,
+        // keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        // dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        // dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        // dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        // dm_img_list: "[]",
+    }
+    const comment_url = comments_preix + compute_parameters(params)
+    // log(comment_url)
+    // const buvid3 = get_buvid3()
+    // const results: SpaceVideosJSON = JSON.parse(http.GET(space_search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
+    const json = http.GET(comment_url, { }, false).body
+    log(json.length)
+    // log(json.slice(0,10000))
+    
+    const results: CommentsJSON = JSON.parse(json)
+    return results
 }
 
 function load_playlist(space_id: number, playlist_id: number) {
