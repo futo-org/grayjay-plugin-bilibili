@@ -1,7 +1,7 @@
 import { describe, test } from "node:test"
 import assert from "node:assert"
 import "@grayjay/plugin/source.js"
-import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_search_results, get_comments } from "./script.js"
+import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_video_search_results, get_comments, interleave } from "./script.js"
 import { Params } from "./types.js"
 
 /*
@@ -255,7 +255,7 @@ describe("script module", () => {
         assert.deepStrictEqual(get_mixin_constant(), MIXIN_CONSTANT)
     })
     test("search", {skip: true}, () => {
-        const results = get_search_results("empathy")
+        const results = get_video_search_results("empathy")
         const first_video = results.data.result[0]
         if (first_video === undefined) {
             throw new Error("no video results")
@@ -273,6 +273,28 @@ describe("script module", () => {
         log(new Date(first_comment.ctime * 1000))
         assert.strictEqual(first_comment.rpid, 215041646928)
     })
+    test("interleave same length", {skip: false}, () => {
+        const a = [1, 2, 3]
+        const b = ["a", "b", "c"]
+        assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c"])
+    })
+    test("interleave first longer", {skip: false}, () => {
+        const a = [1, 2, 3, 4]
+        const b = ["a", "b", "c"]
+        assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c", 4])
+    })
+    /*
+    test("posts", {skip: false}, () => {
+        const buvid3 = get_buvid3()
+
+        const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
+        const body = String.raw`{"{"payload":"{\"5062\":1712258314864,\"39c8\":\"333.999.fp.risk\",\"920b\":\"0\",\"df35\":\"8D8CB6D2-AF0C-53DF-A3FE-611AE8DCFBFC12914infoc\",\"03bf\":\"https://space.bilibili.com/438074196/dynamic\",\"3c43\":{\"2673\":0,\"5766\":24,\"6527\":0,\"7003\":1,\"807e\":1,\"b8ce\":\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36\",\"641c\":0,\"07a4\":\"en-US\",\"1c57\":8,\"0bd0\":8,\"748e\":[2560,1440],\"d61f\":[2560,1386],\"fc9d\":300,\"6aa9\":\"America/Chicago\",\"75b8\":1,\"3b21\":1,\"8a1c\":0,\"d52f\":\"not available\",\"adca\":\"Linux x86_64\",\"80c9\":[[\"PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chrome PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chromium PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Microsoft Edge PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"WebKit built-in PDF\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]]],\"13ab\":\"1eiwAAAAAElFTkSuQmCC\",\"bfe9\":\"QDFMhGAYCVjdUkigL2Ffg/2CYKtfwp4HgAAAAASUVORK5CYII=\",\"a3c1\":[\"extensions:ANGLE_instanced_arrays;EXT_blend_minmax;EXT_clip_control;EXT_color_buffer_half_float;EXT_depth_clamp;EXT_disjoint_timer_query;EXT_float_blend;EXT_frag_depth;EXT_polygon_offset_clamp;EXT_shader_texture_lod;EXT_texture_compression_bptc;EXT_texture_compression_rgtc;EXT_texture_filter_anisotropic;EXT_sRGB;KHR_parallel_shader_compile;OES_element_index_uint;OES_fbo_render_mipmap;OES_standard_derivatives;OES_texture_float;OES_texture_float_linear;OES_texture_half_float;OES_texture_half_float_linear;OES_vertex_array_object;WEBGL_blend_func_extended;WEBGL_color_buffer_float;WEBGL_compressed_texture_s3tc;WEBGL_compressed_texture_s3tc_srgb;WEBGL_debug_renderer_info;WEBGL_debug_shaders;WEBGL_depth_texture;WEBGL_draw_buffers;WEBGL_lose_context;WEBGL_multi_draw;WEBGL_polygon_mode\",\"webgl aliased line width range:[1, 2048]\",\"webgl aliased point size range:[1, 2048]\",\"webgl alpha bits:8\",\"webgl antialiasing:yes\",\"webgl blue bits:8\",\"webgl depth bits:24\",\"webgl green bits:8\",\"webgl max anisotropy:16\",\"webgl max combined texture image units:64\",\"webgl max cube map texture size:16384\",\"webgl max fragment uniform vectors:1024\",\"webgl max render buffer size:16384\",\"webgl max texture image units:32\",\"webgl max texture size:16384\",\"webgl max varying vectors:32\",\"webgl max vertex attribs:16\",\"webgl max vertex texture image units:32\",\"webgl max vertex uniform vectors:1024\",\"webgl max viewport dims:[16384, 16384]\",\"webgl red bits:8\",\"webgl renderer:WebKit WebGL\",\"webgl shading language version:WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)\",\"webgl stencil bits:0\",\"webgl vendor:WebKit\",\"webgl version:WebGL 1.0 (OpenGL ES 2.0 Chromium)\",\"webgl unmasked vendor:Google Inc. (AMD)\",\"webgl unmasked renderer:ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"webgl vertex shader high float precision:23\",\"webgl vertex shader high float precision rangeMin:127\",\"webgl vertex shader high float precision rangeMax:127\",\"webgl vertex shader medium float precision:23\",\"webgl vertex shader medium float precision rangeMin:127\",\"webgl vertex shader medium float precision rangeMax:127\",\"webgl vertex shader low float precision:23\",\"webgl vertex shader low float precision rangeMin:127\",\"webgl vertex shader low float precision rangeMax:127\",\"webgl fragment shader high float precision:23\",\"webgl fragment shader high float precision rangeMin:127\",\"webgl fragment shader high float precision rangeMax:127\",\"webgl fragment shader medium float precision:23\",\"webgl fragment shader medium float precision rangeMin:127\",\"webgl fragment shader medium float precision rangeMax:127\",\"webgl fragment shader low float precision:23\",\"webgl fragment shader low float precision rangeMin:127\",\"webgl fragment shader low float precision rangeMax:127\",\"webgl vertex shader high int precision:0\",\"webgl vertex shader high int precision rangeMin:31\",\"webgl vertex shader high int precision rangeMax:30\",\"webgl vertex shader medium int precision:0\",\"webgl vertex shader medium int precision rangeMin:31\",\"webgl vertex shader medium int precision rangeMax:30\",\"webgl vertex shader low int precision:0\",\"webgl vertex shader low int precision rangeMin:31\",\"webgl vertex shader low int precision rangeMax:30\",\"webgl fragment shader high int precision:0\",\"webgl fragment shader high int precision rangeMin:31\",\"webgl fragment shader high int precision rangeMax:30\",\"webgl fragment shader medium int precision:0\",\"webgl fragment shader medium int precision rangeMin:31\",\"webgl fragment shader medium int precision rangeMax:30\",\"webgl fragment shader low int precision:0\",\"webgl fragment shader low int precision rangeMin:31\",\"webgl fragment shader low int precision rangeMax:30\"],\"6bc5\":\"Google Inc. (AMD)~ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"ed31\":0,\"72bd\":1,\"097b\":0,\"52cd\":[10,0,0],\"a658\":[\"Arial\",\"Calibri\",\"Cambria\",\"Courier\",\"Courier New\",\"Helvetica\",\"Times\",\"Times New Roman\"],\"d02f\":\"124.04347527516074\"}}"}`
+        log(body)
+        http.POST(cookie_activation_url, body, { Cookie: `buvid3=${buvid3}`, "User-Agent": "Grayjay", Host: "api.bilibili.com", "Content-Length": "5391", "Content-Type": "application/json" }, false)
+
+        const post_results = load_space_posts(438074196, buvid3)
+        console.log(post_results)
+    })*/
 /*
     test("load video", () => {
         

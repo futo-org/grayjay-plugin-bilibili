@@ -19,6 +19,7 @@
     "allowUrls": [
         "www.bilibili.com",
         "api.bilibili.com",
-        "s1.hdslb.com"
+        "s1.hdslb.com",
+        "api.live.bilibili.com"
     ]
 }

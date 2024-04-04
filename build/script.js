@@ -1,22 +1,25 @@
 const PLATFORM = "bilibili";
 const CONTENT_DETAILS_URL_PREFIX = "https://www.bilibili.com/video/";
+const LIVE_ROOM_URL_PREFIX = "https://live.bilibili.com/";
 const HOME_URL = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd";
 const SPACE_URL_PREFIX = "https://space.bilibili.com/";
 const PLAYLIST_PREFIX = "https://space.bilibili.com/490505561/channel/collectiondetail?sid=";
 const USER_AGENT = "Grayjay";
 const REAL_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
-// const USER_AGENT = "HTTPie" as const
 const stats_url_prefix = "https://api.bilibili.com/x/relation/stat?vmid=";
 // global (to the file) variable to later access the configuration details of the plugin
 // initialized when enabling the plugin
-let config;
+// let config: SourceConfig
 // Source Methods
 const source_temp = {
     enable(conf, settings, savedState) {
-        config = conf;
+        // config = conf
         // log(config)
-        log(settings);
-        log(savedState);
+        if (IS_TESTING) {
+            log(conf);
+            log(settings);
+            log(savedState);
+        }
     },
     disable() {
         log("disabling");
@@ -34,8 +37,8 @@ const source_temp = {
             if (response === undefined) {
                 throw new ScriptException("batching error");
             }
-            const video_id = new PlatformID(PLATFORM, item.bvid, config.id);
-            const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), config.id);
+            const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id);
+            const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), plugin.config.id);
             return new PlatformVideo({
                 id: video_id,
                 name: item.title,
@@ -57,15 +60,105 @@ const source_temp = {
     getSearchCapabilities() {
         return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], []);
     },
+    getSearchChannelContentsCapabilities() {
+        return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], []);
+    },
+    // TODO impliment channel posts
+    searchChannelContents(channelUrl, query, type, order, filters) {
+        // log(channelUrl)
+        log(type);
+        log(order);
+        log(filters);
+        const space_id = parseInt(channelUrl.slice(SPACE_URL_PREFIX.length));
+        const space_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search?";
+        const params = {
+            // search_type: "bili_user",
+            pn: 1,
+            ps: 30,
+            keyword: query,
+            mid: space_id,
+            // platform: "web",
+            // token: "",
+            // web_location: 1550101, // TODO hardcoded
+            // current timestamp Math.round(Date.now() / 1e3)
+            wts: Math.round(Date.now() / 1e3),
+            // device fingerprint values
+            dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+            dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+            dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+            dm_img_list: "[]",
+        };
+        const search_url = space_search_prefix + compute_parameters(params);
+        const buvid3 = get_buvid3();
+        const results_json = http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body;
+        // log(results_json)
+        const results = JSON.parse(results_json);
+        const videos = results.data.list.vlist.map((item) => {
+            const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`;
+            const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id);
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(item.pic, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, "item.author", `${SPACE_URL_PREFIX}${space_id}`, item.pic, 11), // TODO hardcoded 11
+                duration: parseInt(item.length), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.play,
+                isLive: false, // TODO hardcoded false
+                shareUrl: url,
+                uploadDate: item.created
+            });
+        });
+        return new VideoPager(videos, false);
+    },
+    searchChannels(query) {
+        const space_search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type?";
+        const params = {
+            search_type: "bili_user",
+            page: 1,
+            page_size: 36,
+            keyword: query,
+            // mid: space_id,
+            // platform: "web",
+            // token: "",
+            // web_location: 1550101, // TODO hardcoded
+            // current timestamp Math.round(Date.now() / 1e3)
+            wts: Math.round(Date.now() / 1e3),
+            // device fingerprint values
+            dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+            dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+            dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+            dm_img_list: "[]",
+        };
+        const search_url = space_search_prefix + compute_parameters(params);
+        const buvid3 = get_buvid3();
+        const results_json = http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body;
+        // log(results_json)
+        const results = JSON.parse(results_json);
+        const channels = results.data.result.map((value) => {
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, value.mid.toString(), plugin.config.id),
+                name: value.uname,
+                thumbnail: `https:${value.upic}`,
+                subscribers: value.fans,
+                description: value.usign,
+                url: `${SPACE_URL_PREFIX}${value.mid}`
+            });
+        });
+        return new ChannelPager(channels, false);
+    },
     search(query, type, order, filters) {
         log(type);
         log(order);
         log(filters);
-        const results = get_search_results(query);
-        const videos = results.data.result.map((item) => {
+        const video_results = get_video_search_results(query);
+        const live_results = get_live_search_results(query);
+        const videos = video_results.data.result.map((item) => {
             const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`;
-            const video_id = new PlatformID(PLATFORM, item.bvid, config.id);
-            const author_id = new PlatformID(PLATFORM, item.mid.toString(), config.id);
+            const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id);
+            const author_id = new PlatformID(PLATFORM, item.mid.toString(), plugin.config.id);
             // log(item.play)
             return new PlatformVideo({
                 id: video_id,
@@ -80,7 +173,25 @@ const source_temp = {
                 uploadDate: item.pubdate
             });
         });
-        return new VideoPager(videos, false);
+        const live_videos = live_results.data.result.live_room.map((item) => {
+            const url = `${LIVE_ROOM_URL_PREFIX}${item.roomid}`;
+            const video_id = new PlatformID(PLATFORM, item.roomid.toString(), plugin.config.id);
+            const author_id = new PlatformID(PLATFORM, item.uid.toString(), plugin.config.id);
+            // log(item.play)
+            return new PlatformVideo({
+                id: video_id,
+                name: item.title,
+                url: url,
+                thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, 1080)]), // TODO hardcoded 1080
+                author: new PlatformAuthorLink(author_id, item.uname, `${SPACE_URL_PREFIX}${item.uid}`, `https:${item.uface}`, 11), // TODO hardcoded 11
+                duration: parseInt(item.live_time), // TODO this doesn't work duration is like "2:54" not a number in seconds
+                viewCount: item.watched_show.num,
+                isLive: true, // TODO hardcoded true
+                shareUrl: url,
+                uploadDate: parseInt(item.live_time) // todo fix this
+            });
+        });
+        return new VideoPager(interleave(videos, live_videos), false);
     },
     isChannelUrl(url) {
         if (!url.startsWith(SPACE_URL_PREFIX)) {
@@ -121,7 +232,7 @@ const source_temp = {
         const space = JSON.parse(space_json);
         // log(space)
         return new PlatformChannel({
-            id: new PlatformID(PLATFORM, space_id.toString(), config.id),
+            id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
             name: space.data.name,
             thumbnail: space.data.face,
             banner: space.data.top_photo,
@@ -130,23 +241,26 @@ const source_temp = {
             url: `${SPACE_URL_PREFIX}${space_id}`,
         });
     },
+    // TODO load playlists and posts in the feed
     getChannelContents(url, type, order, filters) {
         log(type);
         log(order);
         log(filters);
+        let buvid3 = get_buvid3();
         const space_id = parseInt(url.slice(SPACE_URL_PREFIX.length));
-        const results = load_channel_videos(space_id);
+        const results = load_channel_videos(space_id, buvid3);
+        const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+        const author = new PlatformAuthorLink(author_id, "a name", `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69); // TODO hardcoded 69 and image url
         const videos = results.data.list.vlist.map((item) => {
             const url = `${CONTENT_DETAILS_URL_PREFIX}${item.bvid}`;
-            const video_id = new PlatformID(PLATFORM, item.bvid, config.id);
-            const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id);
+            const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id);
             // log(item.play)
             return new PlatformVideo({
                 id: video_id,
                 name: item.title,
                 url: url,
                 thumbnails: new Thumbnails([new Thumbnail(item.pic, 1080)]), // TODO hardcoded 1080
-                author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69), // TODO hardcoded 69 and image url
+                author: author,
                 duration: parseInt(item.length), // TODO this doesn't work duration is like "2:54" not a number in seconds
                 viewCount: item.play,
                 isLive: false, // TODO hardcoded false
@@ -154,12 +268,266 @@ const source_temp = {
                 uploadDate: 420 // TODO hardcoded 420
             });
         });
-        return new VideoPager(videos, false);
+        buvid3 = get_buvid3();
+        const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi";
+        //const body = `{"{"payload":"{"5062":1712258314864,"39c8":"333.999.fp.risk","920b":"0","df35":"8D8CB6D2-AF0C-53DF-A3FE-611AE8DCFBFC12914infoc","03bf":"https://space.bilibili.com/438074196/dynamic","3c43":{"2673":0,"5766":24,"6527":0,"7003":1,"807e":1,\"b8ce\":\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36\",\"641c\":0,\"07a4\":\"en-US\",\"1c57\":8,\"0bd0\":8,\"748e\":[2560,1440],\"d61f\":[2560,1386],\"fc9d\":300,\"6aa9\":\"America/Chicago\",\"75b8\":1,\"3b21\":1,\"8a1c\":0,\"d52f\":\"not available\",\"adca\":\"Linux x86_64\",\"80c9\":[[\"PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chrome PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chromium PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Microsoft Edge PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"WebKit built-in PDF\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]]],\"13ab\":\"1eiwAAAAAElFTkSuQmCC\",\"bfe9\":\"QDFMhGAYCVjdUkigL2Ffg/2CYKtfwp4HgAAAAASUVORK5CYII=\",\"a3c1\":[\"extensions:ANGLE_instanced_arrays;EXT_blend_minmax;EXT_clip_control;EXT_color_buffer_half_float;EXT_depth_clamp;EXT_disjoint_timer_query;EXT_float_blend;EXT_frag_depth;EXT_polygon_offset_clamp;EXT_shader_texture_lod;EXT_texture_compression_bptc;EXT_texture_compression_rgtc;EXT_texture_filter_anisotropic;EXT_sRGB;KHR_parallel_shader_compile;OES_element_index_uint;OES_fbo_render_mipmap;OES_standard_derivatives;OES_texture_float;OES_texture_float_linear;OES_texture_half_float;OES_texture_half_float_linear;OES_vertex_array_object;WEBGL_blend_func_extended;WEBGL_color_buffer_float;WEBGL_compressed_texture_s3tc;WEBGL_compressed_texture_s3tc_srgb;WEBGL_debug_renderer_info;WEBGL_debug_shaders;WEBGL_depth_texture;WEBGL_draw_buffers;WEBGL_lose_context;WEBGL_multi_draw;WEBGL_polygon_mode\",\"webgl aliased line width range:[1, 2048]\",\"webgl aliased point size range:[1, 2048]\",\"webgl alpha bits:8\",\"webgl antialiasing:yes\",\"webgl blue bits:8\",\"webgl depth bits:24\",\"webgl green bits:8\",\"webgl max anisotropy:16\",\"webgl max combined texture image units:64\",\"webgl max cube map texture size:16384\",\"webgl max fragment uniform vectors:1024\",\"webgl max render buffer size:16384\",\"webgl max texture image units:32\",\"webgl max texture size:16384\",\"webgl max varying vectors:32\",\"webgl max vertex attribs:16\",\"webgl max vertex texture image units:32\",\"webgl max vertex uniform vectors:1024\",\"webgl max viewport dims:[16384, 16384]\",\"webgl red bits:8\",\"webgl renderer:WebKit WebGL\",\"webgl shading language version:WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)\",\"webgl stencil bits:0\",\"webgl vendor:WebKit\",\"webgl version:WebGL 1.0 (OpenGL ES 2.0 Chromium)\",\"webgl unmasked vendor:Google Inc. (AMD)\",\"webgl unmasked renderer:ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"webgl vertex shader high float precision:23\",\"webgl vertex shader high float precision rangeMin:127\",\"webgl vertex shader high float precision rangeMax:127\",\"webgl vertex shader medium float precision:23\",\"webgl vertex shader medium float precision rangeMin:127\",\"webgl vertex shader medium float precision rangeMax:127\",\"webgl vertex shader low float precision:23\",\"webgl vertex shader low float precision rangeMin:127\",\"webgl vertex shader low float precision rangeMax:127\",\"webgl fragment shader high float precision:23\",\"webgl fragment shader high float precision rangeMin:127\",\"webgl fragment shader high float precision rangeMax:127\",\"webgl fragment shader medium float precision:23\",\"webgl fragment shader medium float precision rangeMin:127\",\"webgl fragment shader medium float precision rangeMax:127\",\"webgl fragment shader low float precision:23\",\"webgl fragment shader low float precision rangeMin:127\",\"webgl fragment shader low float precision rangeMax:127\",\"webgl vertex shader high int precision:0\",\"webgl vertex shader high int precision rangeMin:31\",\"webgl vertex shader high int precision rangeMax:30\",\"webgl vertex shader medium int precision:0\",\"webgl vertex shader medium int precision rangeMin:31\",\"webgl vertex shader medium int precision rangeMax:30\",\"webgl vertex shader low int precision:0\",\"webgl vertex shader low int precision rangeMin:31\",\"webgl vertex shader low int precision rangeMax:30\",\"webgl fragment shader high int precision:0\",\"webgl fragment shader high int precision rangeMin:31\",\"webgl fragment shader high int precision rangeMax:30\",\"webgl fragment shader medium int precision:0\",\"webgl fragment shader medium int precision rangeMin:31\",\"webgl fragment shader medium int precision rangeMax:30\",\"webgl fragment shader low int precision:0\",\"webgl fragment shader low int precision rangeMin:31\",\"webgl fragment shader low int precision rangeMax:30\"],\"6bc5\":\"Google Inc. (AMD)~ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"ed31\":0,\"72bd\":1,\"097b\":0,\"52cd\":[10,0,0],\"a658\":[\"Arial\",\"Calibri\",\"Cambria\",\"Courier\",\"Courier New\",\"Helvetica\",\"Times\",\"Times New Roman\"],\"d02f\":\"124.04347527516074\"}}"}`
+        //const body = JSON.stringify({"payload": "{\"5062\":1712258314864,\"39c8\":\"333.999.fp.risk\",\"920b\":\"0\",\"df35\":\"8D8CB6D2-AF0C-53DF-A3FE-611AE8DCFBFC12914infoc\",\"03bf\":\"https://space.bilibili.com/438074196/dynamic\",\"3c43\":{\"2673\":0,\"5766\":24,\"6527\":0,\"7003\":1,\"807e\":1,\"b8ce\":\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36\",\"641c\":0,\"07a4\":\"en-US\",\"1c57\":8,\"0bd0\":8,\"748e\":[2560,1440],\"d61f\":[2560,1386],\"fc9d\":300,\"6aa9\":\"America/Chicago\",\"75b8\":1,\"3b21\":1,\"8a1c\":0,\"d52f\":\"not available\",\"adca\":\"Linux x86_64\",\"80c9\":[[\"PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chrome PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Chromium PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"Microsoft Edge PDF Viewer\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]],[\"WebKit built-in PDF\",\"Portable Document Format\",[[\"application/pdf\",\"pdf\"],[\"text/pdf\",\"pdf\"]]]],\"13ab\":\"1eiwAAAAAElFTkSuQmCC\",\"bfe9\":\"QDFMhGAYCVjdUkigL2Ffg/2CYKtfwp4HgAAAAASUVORK5CYII=\",\"a3c1\":[\"extensions:ANGLE_instanced_arrays;EXT_blend_minmax;EXT_clip_control;EXT_color_buffer_half_float;EXT_depth_clamp;EXT_disjoint_timer_query;EXT_float_blend;EXT_frag_depth;EXT_polygon_offset_clamp;EXT_shader_texture_lod;EXT_texture_compression_bptc;EXT_texture_compression_rgtc;EXT_texture_filter_anisotropic;EXT_sRGB;KHR_parallel_shader_compile;OES_element_index_uint;OES_fbo_render_mipmap;OES_standard_derivatives;OES_texture_float;OES_texture_float_linear;OES_texture_half_float;OES_texture_half_float_linear;OES_vertex_array_object;WEBGL_blend_func_extended;WEBGL_color_buffer_float;WEBGL_compressed_texture_s3tc;WEBGL_compressed_texture_s3tc_srgb;WEBGL_debug_renderer_info;WEBGL_debug_shaders;WEBGL_depth_texture;WEBGL_draw_buffers;WEBGL_lose_context;WEBGL_multi_draw;WEBGL_polygon_mode\",\"webgl aliased line width range:[1, 2048]\",\"webgl aliased point size range:[1, 2048]\",\"webgl alpha bits:8\",\"webgl antialiasing:yes\",\"webgl blue bits:8\",\"webgl depth bits:24\",\"webgl green bits:8\",\"webgl max anisotropy:16\",\"webgl max combined texture image units:64\",\"webgl max cube map texture size:16384\",\"webgl max fragment uniform vectors:1024\",\"webgl max render buffer size:16384\",\"webgl max texture image units:32\",\"webgl max texture size:16384\",\"webgl max varying vectors:32\",\"webgl max vertex attribs:16\",\"webgl max vertex texture image units:32\",\"webgl max vertex uniform vectors:1024\",\"webgl max viewport dims:[16384, 16384]\",\"webgl red bits:8\",\"webgl renderer:WebKit WebGL\",\"webgl shading language version:WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)\",\"webgl stencil bits:0\",\"webgl vendor:WebKit\",\"webgl version:WebGL 1.0 (OpenGL ES 2.0 Chromium)\",\"webgl unmasked vendor:Google Inc. (AMD)\",\"webgl unmasked renderer:ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"webgl vertex shader high float precision:23\",\"webgl vertex shader high float precision rangeMin:127\",\"webgl vertex shader high float precision rangeMax:127\",\"webgl vertex shader medium float precision:23\",\"webgl vertex shader medium float precision rangeMin:127\",\"webgl vertex shader medium float precision rangeMax:127\",\"webgl vertex shader low float precision:23\",\"webgl vertex shader low float precision rangeMin:127\",\"webgl vertex shader low float precision rangeMax:127\",\"webgl fragment shader high float precision:23\",\"webgl fragment shader high float precision rangeMin:127\",\"webgl fragment shader high float precision rangeMax:127\",\"webgl fragment shader medium float precision:23\",\"webgl fragment shader medium float precision rangeMin:127\",\"webgl fragment shader medium float precision rangeMax:127\",\"webgl fragment shader low float precision:23\",\"webgl fragment shader low float precision rangeMin:127\",\"webgl fragment shader low float precision rangeMax:127\",\"webgl vertex shader high int precision:0\",\"webgl vertex shader high int precision rangeMin:31\",\"webgl vertex shader high int precision rangeMax:30\",\"webgl vertex shader medium int precision:0\",\"webgl vertex shader medium int precision rangeMin:31\",\"webgl vertex shader medium int precision rangeMax:30\",\"webgl vertex shader low int precision:0\",\"webgl vertex shader low int precision rangeMin:31\",\"webgl vertex shader low int precision rangeMax:30\",\"webgl fragment shader high int precision:0\",\"webgl fragment shader high int precision rangeMin:31\",\"webgl fragment shader high int precision rangeMax:30\",\"webgl fragment shader medium int precision:0\",\"webgl fragment shader medium int precision rangeMin:31\",\"webgl fragment shader medium int precision rangeMax:30\",\"webgl fragment shader low int precision:0\",\"webgl fragment shader low int precision rangeMin:31\",\"webgl fragment shader low int precision rangeMax:30\"],\"6bc5\":\"Google Inc. (AMD)~ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)\",\"ed31\":0,\"72bd\":1,\"097b\":0,\"52cd\":[10,0,0],\"a658\":[\"Arial\",\"Calibri\",\"Cambria\",\"Courier\",\"Courier New\",\"Helvetica\",\"Times\",\"Times New Roman\"],\"d02f\":\"124.04347527516074\"}}"})
+        const body = JSON.stringify({ payload: JSON.stringify({
+                "5062": 1712258314864,
+                "39c8": "333.999.fp.risk",
+                "920b": "0",
+                "df35": "8D8CB6D2-AF0C-53DF-A3FE-611AE8DCFBFC12914infoc",
+                "03bf": "https: //space.bilibili.com/438074196/dynamic",
+                "3c43": {
+                    "2673": 0,
+                    "5766": 24,
+                    "6527": 0,
+                    "7003": 1,
+                    "807e": 1,
+                    "b8ce": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    "641c": 0,
+                    "07a4": "en-US",
+                    "1c57": 8,
+                    "0bd0": 8,
+                    "748e": [
+                        2560,
+                        1440
+                    ],
+                    "d61f": [
+                        2560,
+                        1386
+                    ],
+                    "fc9d": 300,
+                    "6aa9": "America/Chicago",
+                    "75b8": 1,
+                    "3b21": 1,
+                    "8a1c": 0,
+                    "d52f": "not available",
+                    "adca": "Linux x86_64",
+                    "80c9": [
+                        [
+                            "PDF Viewer",
+                            "Portable Document Format",
+                            [
+                                [
+                                    "application/pdf",
+                                    "pdf"
+                                ],
+                                [
+                                    "text/pdf",
+                                    "pdf"
+                                ]
+                            ]
+                        ],
+                        [
+                            "Chrome PDF Viewer",
+                            "Portable Document Format",
+                            [
+                                [
+                                    "application/pdf",
+                                    "pdf"
+                                ],
+                                [
+                                    "text/pdf",
+                                    "pdf"
+                                ]
+                            ]
+                        ],
+                        [
+                            "Chromium PDF Viewer",
+                            "Portable Document Format",
+                            [
+                                [
+                                    "application/pdf",
+                                    "pdf"
+                                ],
+                                [
+                                    "text/pdf",
+                                    "pdf"
+                                ]
+                            ]
+                        ],
+                        [
+                            "Microsoft Edge PDF Viewer",
+                            "Portable Document Format",
+                            [
+                                [
+                                    "application/pdf",
+                                    "pdf"
+                                ],
+                                [
+                                    "text/pdf",
+                                    "pdf"
+                                ]
+                            ]
+                        ],
+                        [
+                            "WebKit built-in PDF",
+                            "Portable Document Format",
+                            [
+                                [
+                                    "application/pdf",
+                                    "pdf"
+                                ],
+                                [
+                                    "text/pdf",
+                                    "pdf"
+                                ]
+                            ]
+                        ]
+                    ],
+                    "13ab": "1eiwAAAAAElFTkSuQmCC",
+                    "bfe9": "QDFMhGAYCVjdUkigL2Ffg/2CYKtfwp4HgAAAAASUVORK5CYII=",
+                    "a3c1": [
+                        "extensions:ANGLE_instanced_arrays;EXT_blend_minmax;EXT_clip_control;EXT_color_buffer_half_float;EXT_depth_clamp;EXT_disjoint_timer_query;EXT_float_blend;EXT_frag_depth;EXT_polygon_offset_clamp;EXT_shader_texture_lod;EXT_texture_compression_bptc;EXT_texture_compression_rgtc;EXT_texture_filter_anisotropic;EXT_sRGB;KHR_parallel_shader_compile;OES_element_index_uint;OES_fbo_render_mipmap;OES_standard_derivatives;OES_texture_float;OES_texture_float_linear;OES_texture_half_float;OES_texture_half_float_linear;OES_vertex_array_object;WEBGL_blend_func_extended;WEBGL_color_buffer_float;WEBGL_compressed_texture_s3tc;WEBGL_compressed_texture_s3tc_srgb;WEBGL_debug_renderer_info;WEBGL_debug_shaders;WEBGL_depth_texture;WEBGL_draw_buffers;WEBGL_lose_context;WEBGL_multi_draw;WEBGL_polygon_mode",
+                        "webgl aliased line width range:[1, 2048]",
+                        "webgl aliased point size range:[1, 2048]",
+                        "webgl alpha bits:8",
+                        "webgl antialiasing:yes",
+                        "webgl blue bits:8",
+                        "webgl depth bits:24",
+                        "webgl green bits:8",
+                        "webgl max anisotropy:16",
+                        "webgl max combined texture image units:64",
+                        "webgl max cube map texture size:16384",
+                        "webgl max fragment uniform vectors:1024",
+                        "webgl max render buffer size:16384",
+                        "webgl max texture image units:32",
+                        "webgl max texture size:16384",
+                        "webgl max varying vectors:32",
+                        "webgl max vertex attribs:16",
+                        "webgl max vertex texture image units:32",
+                        "webgl max vertex uniform vectors:1024",
+                        "webgl max viewport dims:[16384, 16384]",
+                        "webgl red bits:8",
+                        "webgl renderer:WebKit WebGL",
+                        "webgl shading language version:WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
+                        "webgl stencil bits:0",
+                        "webgl vendor:WebKit",
+                        "webgl version:WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+                        "webgl unmasked vendor:Google Inc. (AMD)",
+                        "webgl unmasked renderer:ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)",
+                        "webgl vertex shader high float precision:23",
+                        "webgl vertex shader high float precision rangeMin:127",
+                        "webgl vertex shader high float precision rangeMax:127",
+                        "webgl vertex shader medium float precision:23",
+                        "webgl vertex shader medium float precision rangeMin:127",
+                        "webgl vertex shader medium float precision rangeMax:127",
+                        "webgl vertex shader low float precision:23",
+                        "webgl vertex shader low float precision rangeMin:127",
+                        "webgl vertex shader low float precision rangeMax:127",
+                        "webgl fragment shader high float precision:23",
+                        "webgl fragment shader high float precision rangeMin:127",
+                        "webgl fragment shader high float precision rangeMax:127",
+                        "webgl fragment shader medium float precision:23",
+                        "webgl fragment shader medium float precision rangeMin:127",
+                        "webgl fragment shader medium float precision rangeMax:127",
+                        "webgl fragment shader low float precision:23",
+                        "webgl fragment shader low float precision rangeMin:127",
+                        "webgl fragment shader low float precision rangeMax:127",
+                        "webgl vertex shader high int precision:0",
+                        "webgl vertex shader high int precision rangeMin:31",
+                        "webgl vertex shader high int precision rangeMax:30",
+                        "webgl vertex shader medium int precision:0",
+                        "webgl vertex shader medium int precision rangeMin:31",
+                        "webgl vertex shader medium int precision rangeMax:30",
+                        "webgl vertex shader low int precision:0",
+                        "webgl vertex shader low int precision rangeMin:31",
+                        "webgl vertex shader low int precision rangeMax:30",
+                        "webgl fragment shader high int precision:0",
+                        "webgl fragment shader high int precision rangeMin:31",
+                        "webgl fragment shader high int precision rangeMax:30",
+                        "webgl fragment shader medium int precision:0",
+                        "webgl fragment shader medium int precision rangeMin:31",
+                        "webgl fragment shader medium int precision rangeMax:30",
+                        "webgl fragment shader low int precision:0",
+                        "webgl fragment shader low int precision rangeMin:31",
+                        "webgl fragment shader low int precision rangeMax:30"
+                    ],
+                    "6bc5": "Google Inc. (AMD)~ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)",
+                    "ed31": 0,
+                    "72bd": 1,
+                    "097b": 0,
+                    "52cd": [
+                        10,
+                        0,
+                        0
+                    ],
+                    "a658": [
+                        "Arial",
+                        "Calibri",
+                        "Cambria",
+                        "Courier",
+                        "Courier New",
+                        "Helvetica",
+                        "Times",
+                        "Times New Roman"
+                    ],
+                    "d02f": "124.04347527516074"
+                }
+            }) });
+        // log(body)
+        // log(body.length)
+        http.POST(cookie_activation_url, body, { Cookie: `buvid3=${buvid3}`, "User-Agent": USER_AGENT, Host: "api.bilibili.com", "Content-Length": body.length.toString(), "Content-Type": "application/json" }, false);
+        const post_results = load_space_posts(space_id, buvid3);
+        // log(post_results)
+        const posts = post_results.data.items.map((item) => {
+            const desc = item.modules.module_dynamic.desc;
+            const content = desc ? desc.rich_text_nodes.map((node) => {
+                switch (node.type) {
+                    case "RICH_TEXT_NODE_TYPE_TEXT":
+                        return node.text;
+                    case "RICH_TEXT_NODE_TYPE_TOPIC":
+                        return `<a href="${node.jump_url}">${node.text}</a>`;
+                    case "RICH_TEXT_NODE_TYPE_EMOJI":
+                        return node.text;
+                    case "RICH_TEXT_NODE_TYPE_VIEW_PICTURE":
+                        return `<img src="${node.pics[0]?.src}">${node.text}</img>`;
+                    default:
+                        assertNoFallThrough(node);
+                        throw new ScriptException(`unhandled type on node ${node}`);
+                }
+            }).join("") : "";
+            const major = item.modules.module_dynamic.major;
+            const major_links = major ? (() => {
+                switch (major.type) {
+                    case "MAJOR_TYPE_ARCHIVE":
+                        return `<a href="${CONTENT_DETAILS_URL_PREFIX}${major.archive.bvid}">a vod</a>`;
+                    case "MAJOR_TYPE_DRAW":
+                        return `<img src="${major.draw.items[0]?.src}">a pic</img>`;
+                    default:
+                        assertNoFallThrough(major);
+                        throw new ScriptException(`unhandled type on major ${major}`);
+                }
+            })() : "";
+            const topic = item.modules.module_dynamic.topic;
+            const topic_string = topic ? topic?.name + topic?.jump_url : "";
+            return new PlatformPostDetails({
+                thumbnails: [],
+                images: [],
+                description: desc ? desc.rich_text_nodes.map((node) => {
+                    return node.text;
+                }).join("") : "", // TODO we should truncate this
+                name: "",
+                url: `https://t.bilibili.com/${item.id_str}`,
+                id: new PlatformID(PLATFORM, item.id_str, plugin.config.id),
+                rating: new RatingLikes(item.modules.module_stat.like.count),
+                textType: Type.Text.HTML,
+                author: author,
+                content: content + major_links + topic_string,
+                datetime: item.modules.module_author.pub_ts
+            });
+        });
+        return new VideoPager(interleave(videos, posts), false);
     },
     getChannelCapabilities() {
         return new ResultCapabilities([Type.Feed.Videos], [Type.Order.Chronological], []);
     },
     isContentDetailsUrl(url) {
+        // log(url)
+        if (url === "https://live.bilibili.com/26386397") {
+            return true;
+        }
         if (!url.startsWith(CONTENT_DETAILS_URL_PREFIX)) {
             return false;
         }
@@ -167,7 +535,61 @@ const source_temp = {
         // verify that the content_ID consists of 12 alphanumeric characters
         return /^[a-zA-Z0-9]{12}$/.test(content_id);
     },
+    // this doesn't really work. we probably need to use getLiveEvents instead
+    // the elements don't get removed for some reason
+    // and there is weird height code such that even if we were able to delete the elements the comments
+    // likely wouldn't fill the whole screen
+    // we should load the chat history from
+    // (mobile browser)
+    // https://api.live.bilibili.com/AppRoom/msg?room_id=26386397
+    // or
+    // (desktop browser)
+    // https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=26386397
+    // or figure out how to use the websockets to load chat in realtime
+    // https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
+    // wss://hw-sg-live-comet-02.chat.bilibili.com/sub
+    // 
+    getLiveChatWindow(url) {
+        log("live chatting!!");
+        return {
+            url,
+            removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
+        };
+    },
     getContentDetails(url) {
+        if (url === "https://live.bilibili.com/26386397") {
+            const live_play_prefix = "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?protocol=1&format=2&codec=0&room_id=";
+            const room_id = 26386397;
+            const json = http.GET(`${live_play_prefix}${room_id}`, {}, false).body;
+            // log(json)
+            const results = JSON.parse(json);
+            const codec = results.data.playurl_info.playurl.stream[0]?.format[0]?.codec[0];
+            const video_url = `${codec?.url_info[0]?.host}${codec?.base_url}${codec?.url_info[0]?.extra}`;
+            const source = new HLSSource({
+                url: video_url
+            });
+            // log(video_url)
+            // log(results)
+            return new PlatformVideoDetails({
+                description: "hi test",
+                video: new VideoSourceDescriptor([]) /* [new HLSSource({
+                    url: video_url
+                })]*/,
+                rating: new RatingLikes(11),
+                thumbnails: new Thumbnails([]),
+                author: new PlatformAuthorLink(new PlatformID(PLATFORM, "2435267", plugin.config.id), "awgherg", "erbherhe", "ergerger", 11),
+                viewCount: 11,
+                isLive: true,
+                duration: 111,
+                shareUrl: "https://live.bilibili.com/26386397",
+                uploadDate: 324543634,
+                name: "wergberher",
+                url: "https://live.bilibili.com/26386397",
+                id: new PlatformID(PLATFORM, room_id.toString(), plugin.config.id),
+                live: source,
+                // hls: source
+            });
+        }
         const video_id = url.slice(CONTENT_DETAILS_URL_PREFIX.length);
         const [video_info, video_play_details] = get_video_details_json(video_id);
         const video_source_info = video_play_details.data.dash.video.find((entry) => {
@@ -224,8 +646,8 @@ const source_temp = {
             throw new ScriptException("missing description");
         }
         const owner_id = video_info.data.View.owner.mid.toString();
-        const platform_video_ID = new PlatformID(PLATFORM, video_id, config.id);
-        const platform_creator_ID = new PlatformID(PLATFORM, owner_id, config.id);
+        const platform_video_ID = new PlatformID(PLATFORM, video_id, plugin.config.id);
+        const platform_creator_ID = new PlatformID(PLATFORM, owner_id, plugin.config.id);
         const details = new PlatformVideoDetails({
             id: platform_video_ID,
             name: video_info.data.View.title,
@@ -243,34 +665,72 @@ const source_temp = {
         });
         return details;
     },
+    // TODO when we load comments we actually download all the replies.
+    // we should cache them so that when geSubComments is called we don't have to make any networks requests
     getComments(url) {
-        log(url);
+        // log(url)
         const video_id = url.slice(CONTENT_DETAILS_URL_PREFIX.length);
         const video_info = get_video_details_json(video_id)[0];
         // log(video_info.data)
         // log(video_info.data.View.avid)
         const comment_data = get_comments(video_info.data.View.aid).data.replies;
         const comments = comment_data.map((data) => {
-            const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), config.id);
+            const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id);
             return new PlatformComment({
-                id: new PlatformID(PLATFORM, data.rpid.toString(), config.id),
-                name: "test", // TODO hardcoded
-                url: "test", // TODO add this
+                // id: new PlatformID(PLATFORM, data.rpid.toString(), config.id),
+                // name: "test", // TODO hardcoded
+                // url: "test", // TODO add this
                 author: new PlatformAuthorLink(author_id, data.member.uname, `${SPACE_URL_PREFIX}${data.member.mid}`, data.member.avatar, 69), // TODO hardcoded 69
                 message: data.content.message,
                 rating: new RatingLikes(data.like),
                 replyCount: data.replies.length,
                 date: data.ctime,
-                contextUrl: "idk", // TODO hardcoded
-                context: { test: "ASdf" } // TODO hardcoded
+                contextUrl: `${CONTENT_DETAILS_URL_PREFIX}${video_id}`, // TODO hardcoded
+                context: { avid: video_info.data.View.aid.toString(), rpid: data.rpid.toString() } // TODO hardcoded
             });
         });
-        return new CommentPager(comments, false);
+        /*
+        log(comments)
+        comments = [new PlatformComment({
+            author: new PlatformAuthorLink(new PlatformID(PLATFORM, "2457345754", config.id), "data.member.uname", `${SPACE_URL_PREFIX}${2457345754}`, "data.member.avatar", 69), // TODO hardcoded 69
+                message: "data.content.message",
+                rating: new RatingLikes(1512421),
+                replyCount: 1,
+                date: 12542134,
+                contextUrl: `${CONTENT_DETAILS_URL_PREFIX}${video_id}`, // TODO hardcoded
+                context: { avid: 3462457543 }
+        })]*/
+        const pager = new CommentPager(comments, false);
+        return pager;
     },
     getSubComments(comment) {
-        log(comment);
-        // get_replies()
-        return new CommentPager([], false);
+        // console.log("gergerg")
+        // log("hi there")
+        // log(comment)
+        const aid = parseInt(comment.context.avid);
+        const rpid = parseInt(comment.context.rpid);
+        const comment_data = get_replies(aid, rpid);
+        // log(comment_data)
+        const comments = comment_data.data.replies.map((data) => {
+            if (data.replies.length !== 0) {
+                throw new ScriptException("there are sub sub comments!! panic");
+            }
+            const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id);
+            return new PlatformComment({
+                // id: new PlatformID(PLATFORM, data.rpid.toString(), config.id),
+                // name: "test", // TODO hardcoded
+                // url: "test", // TODO add this
+                author: new PlatformAuthorLink(author_id, data.member.uname, `${SPACE_URL_PREFIX}${data.member.mid}`, data.member.avatar, 69), // TODO hardcoded 69
+                message: data.content.message,
+                rating: new RatingLikes(data.like),
+                replyCount: 0,
+                date: data.ctime,
+                contextUrl: "asdfsd", //comment.contextUrl, // TODO hardcoded
+                context: { "avid": aid.toString() } // TODO hardcoded
+            });
+        });
+        // log(comments)
+        return new CommentPager(comments, false);
     },
     isPlaylistUrl(url) {
         if (!url.startsWith(PLAYLIST_PREFIX)) {
@@ -289,11 +749,11 @@ const source_temp = {
         const playlist_id = parseInt(url.slice(PLAYLIST_PREFIX.length));
         const space_id = 490505561;
         const playlist_data = load_playlist(space_id, playlist_id);
-        const author_id = new PlatformID(PLATFORM, space_id.toString(), config.id);
+        const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
         const author = new PlatformAuthorLink(author_id, "a name", `${SPACE_URL_PREFIX}${space_id}`, "https://i1.hdslb.com/bfs/face/ba4811ffcdae8a901b9e313043bc88c8667b9d79.jpg@240w_240h_1c_1s_!web-avatar-space-header.avif", 69); // TODO hardcoded 69 and image url and name
         const videos = playlist_data.data.archives.map((video) => {
             const url = `${CONTENT_DETAILS_URL_PREFIX}${video.bvid}`;
-            const video_id = new PlatformID(PLATFORM, video.bvid, config.id);
+            const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id);
             return new PlatformVideo({
                 id: video_id,
                 name: video.title,
@@ -309,7 +769,7 @@ const source_temp = {
         });
         // log(playlist_data.data.meta.cover)
         return new PlatformPlaylistDetails({
-            id: new PlatformID(PLATFORM, playlist_id.toString(), config.id),
+            id: new PlatformID(PLATFORM, playlist_id.toString(), plugin.config.id),
             name: playlist_data.data.meta.name,
             author,
             url: `${PLAYLIST_PREFIX}${playlist_id}`,
@@ -318,27 +778,46 @@ const source_temp = {
             thumbnail: playlist_data.data.meta.cover // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
         });
     }
-    // live url
-    // hls
-    // https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=22508204&no_playurl=0&mask=1&qn=0&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2&dolby=5&panorama=1
 };
 // assign the methods to the source object
 for (const key of Object.keys(source_temp)) {
     // @ts-expect-error TODO make it so that the ts-expect-error is no longer required
     source[key] = source_temp[key];
 }
-// function get_comment_context_url
+// starts with the longer array or a if they are the same length
+function interleave(a, b) {
+    const [first, second] = b.length > a.length ? [b, a] : [a, b];
+    return first.flatMap((a_value, index) => {
+        const b_value = second[index];
+        if (second[index] === undefined) {
+            return a_value;
+        }
+        return b_value !== undefined ? [a_value, b_value] : a_value;
+    });
+}
+function assertNoFallThrough(value) {
+    log(value);
+}
 /*
-function get_replies(avid: number, rpid: number){
-    const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply?type=1&"
-    const json = http.GET(`${thread_prefix}oid=${avid}&root=${rpid}`, { }, false).body
+class BCommentPager extends CommentPager {
+    constructor(results: PlatformComment[], hasMore: boolean) {
+        super(results, hasMore)
+    }
 
-    const results: SubCommentsJSON = JSON.parse(json)
-    return results
+    override nextPage() {
+        return new BCommentPager([], false, {test: "a data"})
+    }
 }
 */
+// function get_comment_context_url
+function get_replies(avid, rpid) {
+    const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply?type=1&";
+    const json = http.GET(`${thread_prefix}oid=${avid}&root=${rpid}`, {}, false).body;
+    const results = JSON.parse(json);
+    return results;
+}
 function get_comments(avid) {
-    log(avid);
+    // log(avid)
     const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main?";
     const params = {
         type: 1,
@@ -369,7 +848,7 @@ function get_comments(avid) {
     // const buvid3 = get_buvid3()
     // const results: SpaceVideosJSON = JSON.parse(http.GET(space_search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
     const json = http.GET(comment_url, {}, false).body;
-    log(json.length);
+    // log(json.length)
     // log(json.slice(0,10000))
     const results = JSON.parse(json);
     return results;
@@ -398,7 +877,34 @@ function load_playlist(space_id, playlist_id) {
     // const results: SpaceVideosJSON = JSON.parse(http.GET(playlist_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body)
     return results;
 }
-function load_channel_videos(space_id) {
+function load_space_posts(space_id, buvid3) {
+    const space_search_url = `https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=${space_id}`;
+    /*
+        const params: Params = {
+            host_mid: space_id,
+            // platform: "web",
+            // token: "",
+            // web_location: 1550101, // TODO hardcoded
+            // current timestamp Math.round(Date.now() / 1e3)
+            wts: Math.round(Date.now() / 1e3),
+            // device fingerprint values
+            dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+            dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+            dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+            dm_img_list: "[]",
+        }
+        const space_search_url = space_posts_prefix + compute_parameters(params)
+        log(space_search_url)
+        */
+    const json = http.GET(space_search_url, { Host: "api.bilibili.com", Cookie: `buvid3=${buvid3}`, "User-Agent": USER_AGENT }, false).body;
+    log(json);
+    const results = JSON.parse(json);
+    // log(buvid3)
+    // log(space_id)
+    // log(results)
+    return results;
+}
+function load_channel_videos(space_id, buvid3) {
     const space_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search?";
     const params = {
         mid: space_id,
@@ -415,11 +921,33 @@ function load_channel_videos(space_id) {
         dm_img_list: "[]",
     };
     const space_search_url = space_search_prefix + compute_parameters(params);
-    const buvid3 = get_buvid3();
     const results = JSON.parse(http.GET(space_search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body);
     return results;
 }
-function get_search_results(search_term) {
+function get_live_search_results(search_term) {
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type?";
+    const params = {
+        search_type: "live",
+        page: 1,
+        page_size: 42,
+        keyword: search_term,
+        // web_location: 1430654, // TODO hardcoded
+        // current timestamp Math.round(Date.now() / 1e3)
+        wts: Math.round(Date.now() / 1e3),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    };
+    const search_url = search_prefix + compute_parameters(params);
+    const buvid3 = get_buvid3();
+    const search_results = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body);
+    // const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    // log(search_results)
+    return search_results;
+}
+function get_video_search_results(search_term) {
     const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type?";
     const params = {
         search_type: "video",
@@ -439,6 +967,7 @@ function get_search_results(search_term) {
     const buvid3 = get_buvid3();
     const search_results = JSON.parse(http.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false).body);
     // const search_results: SearchResultsJSON = JSON.parse(http.GET(search_url, { Cookie: `buvid3=${buvid3}` }, false).body)
+    // log(search_results)
     return search_results;
 }
 /*
@@ -487,7 +1016,7 @@ function get_video_details_json(video_id) {
     // const buvid4 = encodeURIComponent(get_buvid4())
     const buvid3 = get_buvid3();
     // const buvid3 = "B7C4D1BF-A65F-EBFB-1F66-9BCE95A68FE112460infoc"
-    const video_details_json = http.GET(info_url2, { Host: "api.bilibili.com", "User-Agent": USER_AGENT, Referer: "https://www.bilibili.com", Cookie: `buvid3=${buvid3}` }, false).body;
+    const video_details_json = http.GET(info_url2, { Host: "api.bilibili.com", "User-Agent": REAL_USER_AGENT, Referer: "https://www.bilibili.com", Cookie: `buvid3=${buvid3}` }, false).body;
     // log(buvid3)
     // log(info_url2)
     const video_info = JSON.parse(video_details_json);
@@ -506,6 +1035,8 @@ function get_video_details_json(video_id) {
     //     throw new ScriptException("missing video details")
     // }
     // log(video_info)
+    // TODO subtitiles require login
+    // https://api.bilibili.com/x/player/wbi/v2?aid=1402475665&cid=1487515536&isGaiaAvoided=false&web_location=1315873&w_rid=d0f2a387c3d7e19eb66f681e81b0385d&wts=1712248112
     const url_prefix = "https://api.bilibili.com/x/player/wbi/playurl?";
     const params = {
         bvid: video_id,
