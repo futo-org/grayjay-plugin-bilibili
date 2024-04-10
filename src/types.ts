@@ -1,5 +1,3 @@
-export type RequiredSource = Required<Source<BiliBiliCommentContext>>
-
 /*
 interface TBiliBiliCommentContext extends thing {
     "avid": string
@@ -9,9 +7,48 @@ interface TBiliBiliCommentContext extends thing {
 // type thing = { [key: string]: string }
 
 export type BiliBiliCommentContext = {
-    readonly avid: string
+    // the id of the content
+    readonly oid: string
+    // the parent/root comment id
     readonly rpid: string
+    // the type of comment "33" for course episode comments and "1" for everything else
+    readonly type: "33" | "1"
 }
+
+export type LocalCache = {
+    readonly buvid3: string
+    readonly buvid4: string
+    readonly b_nut: number
+    readonly mixin_key: string
+    readonly cid_cache: Map<string, number>
+    readonly space_cache: Map<number, CoreSpaceInfo>
+}
+
+export type CoreSpaceInfo = {
+    readonly name: string
+    readonly face: string
+    readonly num_fans: number
+    readonly live_room: null | {
+        readonly cover: string
+        readonly roomid: number
+        readonly title: string
+        readonly live_status: boolean
+        readonly watched_show: {
+            readonly num: number
+        }
+    }
+}
+
+export type FingerSpiResponse = {
+    readonly data: {
+        readonly b_3: string
+        readonly b_4: string
+    }
+}
+
+export type Settings = unknown
+
+export type RequiredSource = Required<Source<BiliBiliCommentContext>>
 
 export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
 
@@ -30,47 +67,118 @@ export type SpaceVideos = {
     }
 }
 
-export type SpaceSearchResults = {
+export type PostResponse = {
     readonly data: {
-        readonly result: {
-            readonly mid: number
-            readonly uname: string
-            readonly upic: string
-            readonly fans: number
-            readonly usign: string
-        }[]
-    }
-}
-
-export type LivePlayJSON = {
-    readonly data: {
-        readonly playurl_info: {
-            readonly playurl: {
-                readonly stream: {
-                    readonly format: {
-                        readonly codec: {
-                            readonly base_url: string
-                            readonly url_info: {
-                                readonly host: string
-                                readonly extra: string
-                            }[]
-                        }[]
-                    }[]
-                }[]
+        readonly item: {
+            readonly basic: {
+                readonly comment_id_str: string
+            }
+            readonly id_str: string
+            readonly modules: {
+                readonly module_dynamic: {
+                    readonly desc: null | {
+                        readonly rich_text_nodes: TextNode[]
+                    }
+                    readonly major: null | Major
+                    readonly topic: null | {
+                        readonly id: number
+                        readonly jump_url: string
+                        readonly name: string
+                    }
+                }
+                readonly module_author: {
+                    readonly pub_ts: number
+                    readonly face: string
+                    readonly name: string
+                    readonly mid: number
+                }
+                readonly module_stat: {
+                    readonly like: {
+                        readonly count: number
+                    }
+                }
             }
         }
     }
 }
 
-export type SpaceInfoJSON = {
+export type LiveResponse = {
+    readonly roomInitRes: {
+        readonly data: {
+            readonly playurl_info: {
+                readonly playurl: {
+                    readonly g_qn_desc: {
+                        readonly qn: number
+                        readonly desc: string
+                    }[]
+                    readonly stream: {
+                        readonly format: {
+                            readonly codec: {
+                                readonly current_qn: number
+                                readonly base_url: string
+                                readonly url_info: {
+                                    readonly host: string
+                                    readonly extra: string
+                                }[]
+                            }[]
+                            readonly format_name: "ts" | "fmp4" | "flv"
+                        }[]
+                        readonly protocol_name: "http_stream" | "http_hls"
+                    }[]
+                }
+            }
+            readonly uid: number
+        }
+    }
+    readonly roomInfoRes: {
+        readonly data: {
+            readonly room_info: {
+                readonly description: string
+                readonly live_status: number
+                readonly title: string
+                readonly live_start_time: number
+                readonly cover: string
+            }
+            readonly anchor_info: {
+                readonly base_info: {
+                    readonly uname: string
+                    readonly face: string
+                }
+                readonly relation_info: {
+                    readonly attention: number
+                }
+            }
+            readonly news_info: {
+                readonly content: string
+            }
+            readonly watched_show: {
+                readonly num: number
+            }
+            readonly like_info_v3: {
+                readonly total_likes: number
+            }
+        }
+    }
+}
+
+export type SpaceResponse = {
     readonly data: {
         readonly name: string
         readonly face: string
         readonly top_photo: string
         readonly sign: string
+        readonly live_room: {
+            readonly cover: string
+            readonly roomid: number
+            readonly title: string
+            readonly liveStatus: number
+            readonly watched_show: {
+                readonly num: number
+            }
+        }
     }
 }
-
+/*
 // make sure that these keys don't have any invalid URI characters. if they do them we need to update the code to encode them
 export type Params = {
     readonly search_type?: "bili_user" | "live" | "video"
@@ -104,55 +212,190 @@ export type Params = {
     readonly dm_img_inter?: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`
     readonly dm_img_str?: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ"
     readonly dm_img_list?: "[]"
+}*/
+
+export type Params = {
+    readonly [key: string]: string
 }
 
 export type SubCommentsJSON = {
     readonly data: {
-        readonly replies: {
-            readonly rpid: number
-            readonly ctime: number
-            readonly like: number
-            readonly member: {
-                readonly mid: number
-                readonly uname: string
-                readonly avatar: string
-            }
-            readonly content: {
-                readonly message: string
-            }
-            readonly replies: {
-                readonly rpid: number
-            }[]
-        }[]
+        readonly page: {
+            readonly count: number
+        }
+        readonly replies: Comment[]
     }
+}
+
+export type Comment = {
+    readonly rpid: number
+    readonly ctime: number
+    readonly like: number
+    readonly rcount: number
+    readonly member: {
+        readonly mid: number
+        readonly uname: string
+        readonly avatar: string
+    }
+    readonly content: {
+        readonly message: string
+    }
+    readonly replies: {
+        readonly rpid: number
+    }[]
 }
 
 export type CommentsJSON = {
     readonly data: {
-        readonly replies: {
-            readonly rpid: number
-            readonly ctime: number
-            readonly like: number
-            readonly member: {
-                readonly mid: number
-                readonly uname: string
-                readonly avatar: string
-            }
-            readonly content: {
-                readonly message: string
-            }
-            readonly replies: {
-                readonly rpid: number
-            }[]
-        }[]
+        readonly cursor: {
+            is_end: boolean
+        }
+        readonly replies: Comment[]
+        readonly top: {
+            readonly upper: Comment | null
+        }
     }
 }
 
-export type PlaylistJSON = {
+export type IdObj = {
+    id: number,
+    type: "season"
+} | {
+    id: number,
+    type: "episode"
+}
+
+export type FavoritesResponse = {
+    readonly data: {
+        readonly info: {
+            readonly upper: {
+                readonly mid: number
+                readonly name: string
+                readonly face: string
+            }
+            readonly id: number
+            readonly title: string
+            readonly cover: string
+            readonly media_count: number
+        }
+        readonly medias: {
+            readonly title: string
+            readonly cover: string
+            readonly duration: number
+            readonly pubtime: number
+            readonly cnt_info: {
+                readonly play: number
+            }
+            readonly bvid: string
+            readonly ugc: {
+                readonly first_cid: number
+            }
+            readonly upper: {
+                readonly mid: number
+                readonly name: string
+                readonly face: string
+            }
+        }[]
+        readonly has_more: boolean
+    }
+}
+
+export type FestivalResponse = {
+    readonly themeConfig: {
+        readonly page_bg_img: string
+    }
+    readonly title: string
+    readonly sectionEpisodes: {
+        readonly bvid: string
+        readonly cid: number
+        readonly title: string
+        readonly author: {
+            readonly mid: number
+            readonly name: string
+            readonly face: string
+        }
+        readonly cover: string
+    }[]
+}
+
+export type CourseEpisodePlayResponse = {
+    readonly data: {
+        readonly accept_description: string[]
+        readonly accept_quality: number[]
+        readonly video_codecid: number
+        readonly dash: {
+            readonly duration: number
+            readonly video: {
+                readonly base_url: string
+                readonly mime_type: string
+                readonly codecs: string
+                readonly bandwidth: number
+                readonly width: number
+                readonly height: number
+                readonly codecid: number
+                readonly id: number
+            }[]
+            readonly audio: {
+                readonly base_url: string
+                readonly mime_type: string
+                readonly codecs: string
+                readonly bandwidth: number
+            }[]
+        }
+    }
+}
+
+export type CourseResponse = {
+    readonly data: {
+        readonly episodes: {
+            readonly id: number
+            readonly aid: number
+            readonly cid: number
+            readonly cover: string
+            readonly title: string
+            readonly release_date: number
+            readonly play: number
+        }[]
+        readonly cover: string
+        readonly title: string
+        readonly subtitle: string
+        readonly ep_count: number
+        readonly up_info: {
+            readonly avatar: string
+            readonly mid: number
+            readonly follower: number
+            readonly uname: string
+        }
+    }
+}
+
+export type SeasonResponse = {
+    readonly result: {
+        readonly evaluate: string
+        readonly episodes: {
+            readonly ep_id: number
+            readonly aid: number
+            readonly bvid: string
+            readonly cid: number
+            readonly cover: string
+            readonly duration: number
+            readonly long_title: string
+            readonly pub_time: number
+        }[]
+        readonly cover: string
+        readonly title: string
+        readonly total: number
+        readonly stat: {
+            readonly views: number
+        }
+    }
+}
+
+export type CollectionResponse = {
     readonly data: {
         readonly archives: {
             readonly bvid: string
-            readonly duration: string
+            readonly duration: number
             readonly pic: string
             readonly pubdate: number
             readonly title: string
@@ -163,33 +406,63 @@ export type PlaylistJSON = {
         readonly meta: {
             readonly cover: string
             readonly name: string
+            readonly total: number
         }
     }
 }
 
-type TextNode = {
-    readonly text: string
-    readonly type: "RICH_TEXT_NODE_TYPE_TEXT"
-} | {
+export type SeriesResponse = {
+    readonly data: {
+        readonly archives: {
+            readonly bvid: string
+            readonly duration: number
+            readonly pic: string
+            readonly pubdate: number
+            readonly title: string
+            readonly stat: {
+                readonly view: number
+            }
+        }[]
+        readonly page: {
+            readonly total: number
+        }
+    }
+}
+
+export type ContentType = "bangumi/play/ep" | "video/" | "opus/" | "cheese/play/ep"
+
+export type PlaylistType = "bangumi/play/ss"
+    | "cheese/play/ss"
+    | "/channel/collectiondetail?sid="
+    | "/channel/seriesdetail?sid="
+    | "/favlist?fid="
+    | "medialist/detail/ml"
+    | "festival/"
+
+export type TextNode = {
     readonly text: string
     readonly jump_url: string
-    readonly type: "RICH_TEXT_NODE_TYPE_TOPIC"
+    readonly type: "RICH_TEXT_NODE_TYPE_TOPIC" | "RICH_TEXT_NODE_TYPE_WEB" | "RICH_TEXT_NODE_TYPE_GOODS" | "RICH_TEXT_NODE_TYPE_AV"
 } | {
     readonly text: string,
-    readonly type: "RICH_TEXT_NODE_TYPE_EMOJI"
+    readonly type: "RICH_TEXT_NODE_TYPE_EMOJI" | "RICH_TEXT_NODE_TYPE_LOTTERY" | "RICH_TEXT_NODE_TYPE_TEXT" | "RICH_TEXT_NODE_TYPE_MAIL" | "RICH_TEXT_NODE_TYPE_VOTE"
 } | {
     readonly pics: {
         readonly height: number
         readonly size: number
         readonly src: string
         readonly width: number
-    }[],
+    }[]
     readonly rid: string
     readonly text: string
     readonly type: "RICH_TEXT_NODE_TYPE_VIEW_PICTURE"
+} | {
+    readonly type: "RICH_TEXT_NODE_TYPE_BV" | "RICH_TEXT_NODE_TYPE_AT" | "RICH_TEXT_NODE_TYPE_CV" | "RICH_TEXT_NODE_TYPE_OGV_EP"
+    readonly rid: string
+    readonly text: string
 }
 
-type Major = {
+export type Major = {
     readonly type: "MAJOR_TYPE_DRAW"
     readonly draw: {
         readonly items: {
@@ -200,10 +473,120 @@ type Major = {
     readonly type: "MAJOR_TYPE_ARCHIVE"
     readonly archive: {
         bvid: string
+        title: string
+        cover: string
+    }
+} | {
+    readonly type: "MAJOR_TYPE_OPUS"
+    readonly opus: {
+        readonly pics: {
+            readonly url: string
+        }[]
+        readonly summary: {
+            readonly rich_text_nodes: TextNode[]
+        }
+    }
+} | {
+    readonly type: "MAJOR_TYPE_LIVE_RCMD"
+    // a JSON string
+    readonly live_rcmd: {
+        readonly content: string
+    }
+} | {
+    readonly type: "MAJOR_TYPE_COMMON"
+    readonly common: {
+        readonly title: string
+        readonly jump_url: string
+        readonly cover: string
+    }
+} | {
+    readonly type: "MAJOR_TYPE_ARTICLE"
+    readonly article: {
+        readonly covers: string[]
+        readonly title: string
+        readonly id: number
     }
 }
 
-export type SpacePostsJSON = {
+export type SpaceFavoritesResponse = {
+    // null if there is no favorites section
+    readonly data: null | {
+        // null if the count of favorites lists is 0
+        list: null | {
+            readonly media_count: number
+            readonly title: string
+            readonly id: number
+        }[]
+        readonly count: number
+    }
+}
+
+// export type SpaceDownloadOption = {
+//     readonly type: "videos"
+//     readonly page: number
+//     readonly page_size: number
+// } | {
+//     readonly type: "posts"
+//     readonly offset?: number
+// } | {
+//     readonly type: "courses"
+//     readonly page: number
+//     readonly page_size: number
+// } | {
+//     readonly type: "collections"
+//     readonly page: number
+//     readonly page_size: number
+// } | {
+//     readonly type: "favorites"
+//     readonly page: number
+//     readonly page_size: number
+// }
+
+
+export type SpaceCollectionsResponse = {
+    readonly data: {
+        readonly items_lists: {
+            readonly seasons_list: {
+                readonly meta: {
+                    readonly season_id: number
+                    readonly name: string
+                    readonly description: string
+                    readonly cover: string
+                    readonly total: number
+                }
+            }[]
+            readonly series_list: {
+                readonly meta: {
+                    readonly series_id: number
+                    readonly name: string
+                    readonly description: string
+                    readonly cover: string
+                    readonly total: number
+                }
+            }[]
+            readonly page: {
+                readonly total: number
+            }
+        }
+    }
+}
+
+export type SpaceCoursesResponse = {
+    readonly data: {
+        readonly items: {
+            readonly cover: string
+            readonly ep_count: number
+            readonly season_id: number
+            readonly title: string
+        }[]
+        readonly page: {
+            readonly next: boolean
+            readonly total: number
+        }
+    }
+}
+
+export type SpacePostsResponse = {
     readonly data: {
         readonly items: {
             readonly id_str: string
@@ -221,6 +604,9 @@ export type SpacePostsJSON = {
                 }
                 readonly module_author: {
                     readonly pub_ts: number
+                    readonly face: string
+                    readonly name: string
+                    readonly mid: number
                 }
                 readonly module_stat: {
                     readonly like: {
@@ -229,10 +615,48 @@ export type SpacePostsJSON = {
                 }
             }
         }[]
+        readonly has_more: boolean
+        readonly offset: number
     }
 }
 
-export type SpaceVideosJSON = {
+export type Card = {
+    readonly item?: {
+        readonly content?: string
+        readonly description?: string
+    }
+}
+
+export type SpacePostsSearchResponse = {
+    readonly data: {
+        readonly total: number
+        readonly cards: null | {
+            readonly desc: {
+                readonly like: number
+                readonly dynamic_id_str: string
+                readonly timestamp: number
+                readonly user_profile: {
+                    readonly info: {
+                        readonly face: string
+                        readonly uid: number
+                        readonly uname: string
+                    }
+                }
+            }
+            // a json string
+            readonly card: string
+        }[]
+    }
+}
+
+export type RequestMetadata<X> = {
+    request(builder: BatchBuilder): BatchBuilder
+    process(http_response: BridgeHttpResponse): X
+}
+
+export type OrderOptions = "click" | "pubdate" | "stow"
+
+export type SpaceVideosSearchResponse = {
     readonly data: {
         readonly list: {
             readonly vlist: {
@@ -240,48 +664,103 @@ export type SpaceVideosJSON = {
                 readonly title: string
                 readonly length: string
                 readonly pic: string
-                // upic: string
                 readonly play: number
-                // pubdate: number
-                // mid: number
                 readonly author: string
+                readonly created: number
             }[]
+        }
+        readonly page: {
+            readonly count: number
+            readonly pn: number
         }
     }
 }
 
-export type LiveSearchResultsJSON = {
+export type LiveSearchResponse = {
     readonly data: {
         readonly result: {
+            readonly live_room: SearchResultItem[] | null
+        }
+        readonly pageinfo: {
             readonly live_room: {
-                readonly roomid: number
-                readonly title: string
-                readonly uid: number
-                readonly uname: string
-                readonly uface: string
-                readonly user_cover: string // livestream thumbnail
-                readonly watched_show: {
-                    readonly num: number // current viewers
-                }
-                readonly live_time: string
-            }[]
+                readonly total: number
+            }
         }
     }
 }
+export type SearchResultQueryType = "live" | "video" | "media_bangumi" | "media_ft" | "bili_user"
+export type SearchResultItemType = SearchResultItem["type"]
 
-export type SearchResultsJSON = {
+export type SearchResultItem = {
+    readonly bvid: string
+    readonly title: string
+    readonly duration: string
+    readonly pic: string
+    readonly upic: string
+    readonly play: number
+    readonly pubdate: number
+    readonly mid: number
+    readonly author: string
+    readonly type: "video"
+} | {
+    readonly type: "media_ft"
+    readonly season_id: number
+    readonly title: string
+    readonly cover: string
+    readonly ep_size: number
+    readonly eps: null | {
+        readonly id: number
+        readonly cover: string
+    }[]
+    readonly pubtime: number
+    readonly url: string
+} | {
+    readonly type: "media_bangumi"
+    readonly season_id: number
+    readonly title: string
+    readonly cover: string
+    readonly pubtime: number
+    readonly ep_size: number
+    readonly eps: {
+        readonly id: number
+        readonly cover: string
+    }[]
+}|{
+    readonly type: "live_room"
+    readonly roomid: number
+    readonly title: string
+    readonly uid: number
+    readonly uname: string
+    readonly uface: string
+    readonly user_cover: string // livestream thumbnail
+    readonly watched_show: {
+        readonly num: number // current viewers
+    }
+    readonly live_time: string
+} | {
+    readonly type: "ketang"
+    readonly title: string
+    readonly pic: string
+    readonly play: number
+    readonly mid: number
+    readonly author: string
+    readonly id: number
+    readonly episode_count_text: string
+    // i think this is always 0 :(
+    readonly pubdate: number
+} | {
+    readonly mid: number
+    readonly uname: string
+    readonly upic: string
+    readonly fans: number
+    readonly usign: string
+    readonly type: "bili_user"
+}
+
+export type SearchResponse = {
     readonly data: {
-        readonly result: {
-            readonly bvid: string
-            readonly title: string
-            readonly duration: string
-            readonly pic: string
-            readonly upic: string
-            readonly play: number
-            readonly pubdate: number
-            readonly mid: number
-            readonly author: string
-        }[]
+        readonly result: SearchResultItem[]
+        readonly numResults: number
     }
 }
 
@@ -333,6 +812,50 @@ export type VideoInfoJSON = {
     }
 }
 
+export type EpisodeInfoResponse = {
+    readonly data: {
+        readonly related_up: {
+            readonly avatar: string
+            readonly mid: number
+            readonly uname: string
+        }[]
+        readonly stat: {
+            readonly view: number
+            readonly like: number
+        }
+    }
+}
+
+export type EpisodePlayResponse = {
+    readonly result: {
+        readonly video_info:
+        {
+            readonly accept_description: string[]
+            readonly accept_quality: number[]
+            readonly video_codecid: number
+            readonly dash: {
+                readonly duration: number
+                readonly video: {
+                    readonly base_url: string
+                    readonly mime_type: string
+                    readonly codecs: string
+                    readonly bandwidth: number
+                    readonly width: number
+                    readonly height: number
+                    readonly codecid: number
+                    readonly id: number
+                }[]
+                readonly audio: {
+                    readonly base_url: string
+                    readonly mime_type: string
+                    readonly codecs: string
+                    readonly bandwidth: number
+                }[]
+            }
+        }
+    }
+}
+
 export type VideoPlayJSON = {
     readonly data: {
         readonly accept_description: string[]
@@ -360,25 +883,51 @@ export type VideoPlayJSON = {
     }
 }
 
-export type HomePageJSON = {
+type HomeFeedItem = {
+    readonly goto: "av"
+    readonly bvid: string
+    readonly cid: number
+    readonly uri: string
+    readonly pic: string
+    readonly title: string
+    readonly duration: number
+    readonly pubdate: number
+    readonly stat: {
+        readonly view: number
+    }
+    readonly owner: HomeFeedItemOwner
+} | {
+    readonly goto: "ad"
+} | {
+    readonly goto: "live"
+    readonly pic: string
+    readonly id: number
+    readonly title: string
+    readonly room_info: {
+        readonly watched_show: {
+            readonly num: number
+        }
+    }
+    readonly owner: HomeFeedItemOwner
+}
+
+type HomeFeedItemOwner = {
+    readonly mid: number
+    readonly name: string
+    readonly face: string
+}
+
+
+export type HomeFeedResponse = {
     readonly data: {
-        // TODO combine this type with the type above that's loaded on the actual video page (but only if it's really really the same)
-        readonly item: {
-            // id: number
-            readonly bvid: string
-            readonly uri: string
-            readonly pic: string
-            readonly title: string
-            readonly duration: number
-            readonly pubdate: number
-            readonly stat: {
-                readonly view: number
-            }
-            readonly owner: {
-                readonly mid: number
-                readonly name: string
-                readonly face: string
-            }
+        readonly item: HomeFeedItem[]
+    }
+}
+
+export type SuggestionsResponse = {
+    readonly result: {
+        readonly tag: {
+            readonly term: string
         }[]
     }
 }

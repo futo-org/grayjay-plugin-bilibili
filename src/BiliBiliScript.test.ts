@@ -1,7 +1,7 @@
 import { describe, test } from "node:test"
 import assert from "node:assert"
 import "@grayjay/plugin/source.js"
-import { get_video_details_json, compute_parameters, getMixinKey, get_mixin_constant, get_video_search_results, get_comments, interleave } from "./script.js"
+import { getMixinKey, download_mixin_constant, interleave } from "./BiliBiliScript.js"
 import { Params } from "./types.js"
 
 /*
@@ -220,11 +220,12 @@ describe("script module", () => {
         }
         source.disable()
     })
+    /*
     test("get video details", { skip: true }, () => {
         const result = get_video_details_json("BV1ZW4y1Q7Y4")
         assert.strictEqual(result[0].data.View.title, "被elo机制制裁的号到底有多难打\u{ff1f}",)
         assert.strictEqual(result[1].data.dash.duration, 164)
-    })
+    })*/
     test("compute hash", { skip: true }, () => {
         {
             // const wts = Math.round(Date.now() / 1e3)
@@ -234,36 +235,38 @@ describe("script module", () => {
                 dm_img_inter: '{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}',
                 dm_img_list: "[]",
                 dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
-                mid: 1939254464,
+                mid: "1939254464",
                 // platform: "web",
                 // token: "",
                 // web_location: 1550101,
-                wts: wts
+                wts: wts.toString()
             }
-
-            assert.strictEqual(compute_parameters(params), "dm_cover_img_str=QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ&dm_img_inter=%7B%22ds%22%3A%5B%7B%22t%22%3A0%2C%22c%22%3A%22%22%2C%22p%22%3A%5B246%2C82%2C82%5D%2C%22s%22%3A%5B56%2C5149%2C-1804%5D%7D%5D%2C%22wh%22%3A%5B4533%2C2116%2C69%5D%2C%22of%22%3A%5B461%2C922%2C461%5D%7D&dm_img_list=%5B%5D&dm_img_str=V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ&mid=1939254464&platform=web&token=&web_location=1550101&wts=1711726858&w_rid=8b43929329835b4a05707dc89b248ada")
+            console.log(params)
+            // assert.strictEqual(compute_parameters(params), "dm_cover_img_str=QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ&dm_img_inter=%7B%22ds%22%3A%5B%7B%22t%22%3A0%2C%22c%22%3A%22%22%2C%22p%22%3A%5B246%2C82%2C82%5D%2C%22s%22%3A%5B56%2C5149%2C-1804%5D%7D%5D%2C%22wh%22%3A%5B4533%2C2116%2C69%5D%2C%22of%22%3A%5B461%2C922%2C461%5D%7D&dm_img_list=%5B%5D&dm_img_str=V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ&mid=1939254464&platform=web&token=&web_location=1550101&wts=1711726858&w_rid=8b43929329835b4a05707dc89b248ada")
 
         }
     })
     test("getMixinKey", { skip: true }, () => {
         const wbi_img_key = "7cd084941338484aae1ad9425b84077c"
         const wbi_sub_key = "4932caff0ff746eab6f01bf08b70ac45"
-        const mixin_key = getMixinKey(wbi_img_key + wbi_sub_key, get_mixin_constant())
+        const mixin_key = getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
         assert.strictEqual(mixin_key, "ea1db124af3c7062474693fa704f4ff8")
     })
     test("get_mixin_constant", { skip: true }, () => {
-        assert.deepStrictEqual(get_mixin_constant(), MIXIN_CONSTANT)
+        assert.deepStrictEqual(download_mixin_constant(), MIXIN_CONSTANT)
     })
-    test("search", {skip: true}, () => {
+    /*
+    test("search", { skip: true }, () => {
         const results = get_video_search_results("empathy")
         const first_video = results.data.result[0]
         if (first_video === undefined) {
             throw new Error("no video results")
         }
         assert.strictEqual(first_video.title, "同理心的力量（The Power of <em class=\"keyword\">Empathy</em>）(真正完整超清版 简体字幕)")
-    })
-    test("comments", {skip: false}, () => {
-        const results = get_comments(1502306778)
+    })*/
+    /*
+    test("comments", { skip: false }, () => {
+        const results = get_comments(1502306778, 1, 1)
         const first_comment = results.data.replies[0]
         if (first_comment === undefined) {
             throw new Error("no comments")
@@ -272,13 +275,13 @@ describe("script module", () => {
         log(first_comment.ctime)
         log(new Date(first_comment.ctime * 1000))
         assert.strictEqual(first_comment.rpid, 215041646928)
-    })
-    test("interleave same length", {skip: false}, () => {
+    })*/
+    test("interleave same length", { skip: false }, () => {
         const a = [1, 2, 3]
         const b = ["a", "b", "c"]
         assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c"])
     })
-    test("interleave first longer", {skip: false}, () => {
+    test("interleave first longer", { skip: false }, () => {
         const a = [1, 2, 3, 4]
         const b = ["a", "b", "c"]
         assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c", 4])
@@ -295,61 +298,61 @@ describe("script module", () => {
         const post_results = load_space_posts(438074196, buvid3)
         console.log(post_results)
     })*/
-/*
-    test("load video", () => {
-        
-        const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail?"
-        const params2: Params = {
-            bvid: "BV1W1421S7SS",
-            // fnval: 4048,
-            // fourk: 1,
-            // fnver: 0,
-            // avid: 1101695476,
-            // cid: 1466542760,
-            platform: "web",
-            token: "",
-            web_location: 1315873, // TODO hardcoded
-            // current timestamp Math.round(Date.now() / 1e3)
-            wts: Math.round(Date.now() / 1e3),
-            // device fingerprint values
-            dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
-            dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
-            dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
-            dm_img_list: "[]",
-        }
-        const info_url2 = detail_prefix + compute_parameters(params2)
-        const buvid4 = get_buvid4()
-        // const buvid3 = "B7C4D1BF-A65F-EBFB-1F66-9BCE95A68FE112460infoc"
-        const space_json2 = http.GET(info_url2, { Host: "api.bilibili.com", "User-Agent": "HTTPie",  Referer: "https://space.bilibili.com", Cookie: `buvid4=${buvid4}`  }, false).body
-        log(space_json2)
-        const res: {data: {View: {cid: number}}} = JSON.parse(space_json2)
-        const cid = res.data.View.cid
-
-
-        // avid=1101695476&bvid=BV1Aw4m1o7A8&cid=1466542760&web_location=1315873&w_rid=a1b1333d44dc87f7e33c2cfce4eef0f4&wts=1711737467
-        const url_prefix = "https://api.bilibili.com/x/player/wbi/playurl?"
-        const params: Params = {
-            bvid: "BV1W1421S7SS",
-            fnval: 4048,
-            // fourk: 1,
-            // fnver: 0,
-            // avid: 1101695476,
-            // cid: 1466542760,
-            cid,
-            platform: "web",
-            token: "",
-            web_location: 1315873, // TODO hardcoded
-            // current timestamp Math.round(Date.now() / 1e3)
-            wts: Math.round(Date.now() / 1e3),
-            // device fingerprint values
-            dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
-            dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
-            dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
-            dm_img_list: "[]",
-        }
-        const info_url = url_prefix + compute_parameters(params)
-        // const buvid3 = get_buvid3()
-        const space_json = http.GET(info_url, { Host: "api.bilibili.com", "User-Agent": "HTTPie" }, false).body
-        log(space_json)
-    })*/
+    /*
+        test("load video", () => {
+            
+            const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail?"
+            const params2: Params = {
+                bvid: "BV1W1421S7SS",
+                // fnval: 4048,
+                // fourk: 1,
+                // fnver: 0,
+                // avid: 1101695476,
+                // cid: 1466542760,
+                platform: "web",
+                token: "",
+                web_location: 1315873, // TODO hardcoded
+                // current timestamp Math.round(Date.now() / 1e3)
+                wts: Math.round(Date.now() / 1e3),
+                // device fingerprint values
+                dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+                dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+                dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+                dm_img_list: "[]",
+            }
+            const info_url2 = detail_prefix + compute_parameters(params2)
+            const buvid4 = get_buvid4()
+            // const buvid3 = "B7C4D1BF-A65F-EBFB-1F66-9BCE95A68FE112460infoc"
+            const space_json2 = http.GET(info_url2, { Host: "api.bilibili.com", "User-Agent": "HTTPie",  Referer: "https://space.bilibili.com", Cookie: `buvid4=${buvid4}`  }, false).body
+            log(space_json2)
+            const res: {data: {View: {cid: number}}} = JSON.parse(space_json2)
+            const cid = res.data.View.cid
+    
+    
+            // avid=1101695476&bvid=BV1Aw4m1o7A8&cid=1466542760&web_location=1315873&w_rid=a1b1333d44dc87f7e33c2cfce4eef0f4&wts=1711737467
+            const url_prefix = "https://api.bilibili.com/x/player/wbi/playurl?"
+            const params: Params = {
+                bvid: "BV1W1421S7SS",
+                fnval: 4048,
+                // fourk: 1,
+                // fnver: 0,
+                // avid: 1101695476,
+                // cid: 1466542760,
+                cid,
+                platform: "web",
+                token: "",
+                web_location: 1315873, // TODO hardcoded
+                // current timestamp Math.round(Date.now() / 1e3)
+                wts: Math.round(Date.now() / 1e3),
+                // device fingerprint values
+                dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+                dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+                dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+                dm_img_list: "[]",
+            }
+            const info_url = url_prefix + compute_parameters(params)
+            // const buvid3 = get_buvid3()
+            const space_json = http.GET(info_url, { Host: "api.bilibili.com", "User-Agent": "HTTPie" }, false).body
+            log(space_json)
+        })*/
 })

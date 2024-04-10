@@ -1,14 +1,14 @@
 {
-    "name": "bilibili",
-    "description": "Watch bilibili on Grayjay",
+    "name": "BiliBili",
+    "description": "Watch BiliBili on Grayjay",
     "author": "Kai DeLorenzo",
     "authorUrl": "https://gitlab.com/kaidelorenzo",
     "platformUrl": "https://bilibili.com",
-    "sourceUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin/-/blob/main/config.json",
+    "sourceUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin/-/blob/main/BiliBiliConfig.json",
     "repositoryUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
-    "scriptUrl": "script.js",
+    "scriptUrl": "./BiliBiliScript.js",
     "version": 1,
-    "iconUrl": "vimeo_icon_white_on_blue_rounded.png",
+    "iconUrl": "./BiliBiliIcon.svg",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
     "scriptSignature": "",
     "scriptPublicKey": "",
@@ -20,6 +20,7 @@
         "www.bilibili.com",
         "api.bilibili.com",
         "s1.hdslb.com",
-        "api.live.bilibili.com"
+        "live.bilibili.com",
+        "s.search.bilibili.com"
     ]
 }
