@@ -1,11 +1,3 @@
-/*
-interface TBiliBiliCommentContext extends thing {
-    "avid": string
-    "rpid": string
-}*/
-
-// type thing = { [key: string]: string }
-
 export type BiliBiliCommentContext = {
     // the id of the content
     readonly oid: string
@@ -48,7 +40,9 @@ export type FingerSpiResponse = {
 
 export type Settings = unknown
 
-export type RequiredSource = Required<Source<BiliBiliCommentContext>>
+export type BiliBiliSource = Required<Source<BiliBiliCommentContext, FilterGroupIDs>>
+
+export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
 
 export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
 
@@ -725,7 +719,7 @@ export type SearchResultItem = {
         readonly id: number
         readonly cover: string
     }[]
-}|{
+} | {
     readonly type: "live_room"
     readonly roomid: number
     readonly title: string

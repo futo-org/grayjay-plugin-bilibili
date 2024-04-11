@@ -1,5 +1,3 @@
-// TODO this is needed for tests to run :(
-// import { ChannelPager, VideoPager } from "@grayjay/plugin/source.js"
 const PLATFORM = "BiliBili";
 const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www|live|t)\.bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/;
 const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=)(\d+|[0-9a-zA-Z]+)(\/|\?|$)/;
@@ -31,6 +29,8 @@ const HARDCODED_ZERO = 0;
 // TODO move optional parameters to the end of functions
 // TODO currently for movies and shows the author object is essentially blank
 // TODO split out the regex matching code into functions so it can be tested more easily
+// TODO look into https://api.bilibili.com/x/gaia-vgate/v1/validate as captcha stuff
+// TODO implement an error message when rate limited
 let local_storage_cache;
 // set missing constants
 Type.Order.Chronological = "Latest releases";
@@ -44,7 +44,8 @@ Type.Order.Chronological = "最新发布";
 Type.Order.Views = "最多播放";
 Type.Order.Favorites = "最多收藏";
 // Source Methods
-source.enable = function enable(conf, settings, savedState) {
+source.enable = enable;
+function enable(conf, settings, savedState) {
     if (IS_TESTING) {
         log("IS_TESTING true");
         log("logging configuration");
@@ -54,45 +55,41 @@ source.enable = function enable(conf, settings, savedState) {
         log("logging savedState");
         log(savedState);
     }
-    const { wbi_img_key, wbi_sub_key } = download_wbi_keys();
-    const b_nut = create_b_nut();
-    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut);
-    // these caches don't work that well because they aren't shared between plugin instances
-    local_storage_cache = {
-        buvid3,
-        buvid4,
-        b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
-        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
-    };
-};
-source.disable = function disable() {
+    init_local_storage();
+}
+source.disable = disable;
+function disable() {
     log("BiliBili log: disabling");
-};
-source.saveState = function saveState() { return ""; };
+}
+source.saveState = saveState;
+function saveState() { return ""; }
 // TODO there is additional content on the home page that we can consider loading in the future 
-source.getHome = function getHome() {
+source.getHome = getHome;
+function getHome() {
     // load 12 videos at a time some of them are ads and not shown
     return new HomePager(0, 12);
-};
-source.searchSuggestions = function searchSuggestions(query) {
+}
+source.searchSuggestions = searchSuggestions;
+function searchSuggestions(query) {
     return get_suggestions(query);
-};
-source.searchChannels = function searchChannels(query) {
+}
+source.searchChannels = searchChannels;
+function searchChannels(query) {
     // the default page size on BiliBili is 36
     return new SpacePager(query, 1, 36);
-};
+}
 // example of handled urls
 // https://space.bilibili.com/491461718
-source.isChannelUrl = function isChannelUrl(url) {
+source.isChannelUrl = isChannelUrl;
+function isChannelUrl(url) {
     // Some playlist urls are also Space urls
     if (PLAYLIST_URL_REGEX.test(url)) {
         return false;
     }
     return SPACE_URL_REGEX.test(url);
-};
-source.getChannel = function getChannel(url) {
+}
+source.getChannel = getChannel;
+function getChannel(url) {
     const match_results = url.match(SPACE_URL_REGEX);
     if (match_results === null) {
         throw new ScriptException(`malformed space url: ${url}`);
@@ -133,13 +130,15 @@ source.getChannel = function getChannel(url) {
         description: space.data.sign,
         url: `${SPACE_URL_PREFIX}${space_id}`,
     });
-};
+}
 // TODO implement this once it's used
-source.getChannelCapabilities = function getChannelCapabilities() {
+source.getChannelCapabilities = getChannelCapabilities;
+function getChannelCapabilities() {
     return new ResultCapabilities([], [], []);
-};
+}
 // TODO handle different capabilities onces it's implemented
-source.getChannelContents = function getChannelContents(url, type, order, filters) {
+source.getChannelContents = getChannelContents;
+function getChannelContents(url, type, order, filters) {
     // there isn't a way for the user to change these
     log(["BiliBili log:", type]);
     log(["BiliBili log:", order]);
@@ -154,7 +153,7 @@ source.getChannelContents = function getChannelContents(url, type, order, filter
     }
     const space_id = parseInt(maybe_space_id);
     return new SpaceContentsPager(space_id);
-};
+}
 // examples of handled urls
 // https://www.bilibili.com/bangumi/play/ep510760
 // https://live.bilibili.com/26386397
@@ -162,9 +161,10 @@ source.getChannelContents = function getChannelContents(url, type, order, filter
 // https://www.bilibili.com/opus/916396341363474468
 // https://t.bilibili.com/915034213991841801
 // https://www.bilibili.com/cheese/play/ep1027
-source.isContentDetailsUrl = function isContentDetailsUrl(url) {
+source.isContentDetailsUrl = isContentDetailsUrl;
+function isContentDetailsUrl(url) {
     return CONTENT_DETAIL_URL_REGEX.test(url);
-};
+}
 // examples of handled urls
 // https://www.bilibili.com/bangumi/play/ss2843
 // https://www.bilibili.com/cheese/play/ss74
@@ -173,13 +173,16 @@ source.isContentDetailsUrl = function isContentDetailsUrl(url) {
 // https://space.bilibili.com/491461718/favlist?fid=3153093518
 // https://www.bilibili.com/medialist/detail/ml3153093518
 // https://www.bilibili.com/festival/2022bnj
-source.isPlaylistUrl = function isPlaylistUrl(url) {
+source.isPlaylistUrl = isPlaylistUrl;
+function isPlaylistUrl(url) {
     return PLAYLIST_URL_REGEX.test(url);
-};
-source.searchPlaylists = function searchPlaylists(query) {
+}
+source.searchPlaylists = searchPlaylists;
+function searchPlaylists(query) {
     return new BangumiPager(query, 1, 12);
-};
-source.getPlaylist = function getPlaylist(url) {
+}
+source.getPlaylist = getPlaylist;
+function getPlaylist(url) {
     const regex_match_result = url.match(PLAYLIST_URL_REGEX);
     if (regex_match_result === null) {
         throw new ScriptException(`malformed space url: ${url}`);
@@ -334,10 +337,11 @@ source.getPlaylist = function getPlaylist(url) {
         default:
             throw assert_no_fall_through(playlist_type, "unreachable");
     }
-};
+}
 // TODO handle content that requires logging in, requires a premium subscription, or is restricted in the region
 // TODO consider switching from like rating to 0-10 scale rating for bangumi
-source.getContentDetails = function getContentDetails(url) {
+source.getContentDetails = getContentDetails;
+function getContentDetails(url) {
     const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX);
     if (regex_match_result === null) {
         throw new ScriptException(`malformed content url: ${url}`);
@@ -452,7 +456,7 @@ source.getContentDetails = function getContentDetails(url) {
             const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
             return new PlatformPostDetails({
                 // TODO currently there is a bug where this property is impossible to use
-                thumbnails: [],
+                thumbnails: new Thumbnails(thumbnails),
                 // TODO there is a bug that means that these images do not display
                 images,
                 description: content,
@@ -703,7 +707,7 @@ source.getContentDetails = function getContentDetails(url) {
                     const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
                     return new PlatformPostDetails({
                         // TODO currently there is a bug where this property is impossible to use
-                        thumbnails: [],
+                        thumbnails: new Thumbnails(thumbnails),
                         // TODO there is a bug that means that these images do not display
                         images,
                         description: content,
@@ -796,7 +800,7 @@ source.getContentDetails = function getContentDetails(url) {
         default:
             throw assert_no_fall_through(subdomain, "unreachable");
     }
-};
+}
 // TODO when we load comments we actually download all the replies.
 // we should cache them so that when getSubComments is called we don't have to make any networks requests
 source.getComments = getComments;
@@ -876,15 +880,17 @@ function getSubComments(parent_comment) {
     return new SubCommentPager(rpid, oid, type, parent_comment.contextUrl, 1, 20);
 }
 // TODO the order and filtering only applies to videos not posts but there is not a way of specifying that
-source.getSearchChannelContentsCapabilities = function getSearchChannelContentsCapabilities() {
+source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities;
+function getSearchChannelContentsCapabilities() {
     log("BiliBili log: getting space capabilities");
     // TODO there are filter options but they only show up after a search has been returned
     return new ResultCapabilities([Type.Feed.Videos, "POSTS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup("Additional Content", [
             new FilterCapability("Live Rooms", "0", "Live Rooms"),
             new FilterCapability("Posts", "1", "Posts")
         ], false, "ADDITIONAL_CONTENT")]);
-};
-source.searchChannelContents = function searchChannelContents(space_url, query, type, order, filters) {
+}
+source.searchChannelContents = searchChannelContents;
+function searchChannelContents(space_url, query, type, order, filters) {
     log(["BiliBili log:", type]);
     log(["BiliBili log:", order]);
     log(["BiliBili log:", filters]);
@@ -914,8 +920,9 @@ source.searchChannelContents = function searchChannelContents(space_url, query, 
         default:
             throw new ScriptException(`unhandled feed type ${type}`);
     }
-};
-source.getSearchCapabilities = function getSearchCapabilities() {
+}
+source.getSearchCapabilities = getSearchCapabilities;
+function getSearchCapabilities() {
     return new ResultCapabilities([Type.Feed.Videos, Type.Feed.Live, "MOVIES", "SHOWS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], 
     // TODO implement category filtering
     [new FilterGroup("期间", // Duration
@@ -932,8 +939,9 @@ source.getSearchCapabilities = function getSearchCapabilities() {
             new FilterCapability("Shows", "show", "Shows"),
             new FilterCapability("Movies", "movie", "Movies")
         ], false, "ADDITIONAL_CONTENT")]);
-};
-source.search = function search(query, type, order, filters) {
+}
+source.search = search;
+function search(query, type, order, filters) {
     log(["BiliBili log:", type]);
     log(["BiliBili log:", order]);
     log(["BiliBili log:", filters]);
@@ -1001,7 +1009,7 @@ source.search = function search(query, type, order, filters) {
         }
     })(filters);
     return new SearchPager(query, 1, 42, query_type, query_order, duration);
-};
+}
 // this doesn't really work. we probably need to use getLiveEvents instead
 // the elements don't get removed for some reason
 // and there is weird height code such that even if we were able to delete the elements the comments
@@ -1016,43 +1024,104 @@ source.search = function search(query, type, order, filters) {
 // https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
 // wss://hw-sg-live-comet-02.chat.bilibili.com/sub
 // 
-source.getLiveChatWindow = function getLiveChatWindow(url) {
+source.getLiveChatWindow = getLiveChatWindow;
+function getLiveChatWindow(url) {
     log("BiliBili log: live chatting!!");
     return {
         url,
         removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
     };
-};
+}
 if (IS_TESTING) {
     const assert_source = {
-        enable: source.enable,
-        disable: source.disable,
-        saveState: source.saveState,
-        getHome: source.getHome,
-        searchSuggestions: source.searchSuggestions,
-        search: source.search,
-        getSearchCapabilities: source.getSearchCapabilities,
-        isContentDetailsUrl: source.isContentDetailsUrl,
-        getContentDetails: source.getContentDetails,
-        isChannelUrl: source.isChannelUrl,
-        getChannel: source.getChannel,
-        getChannelContents: source.getChannelContents,
-        getChannelCapabilities: source.getChannelCapabilities,
-        searchChannelContents: source.searchChannelContents,
-        getSearchChannelContentsCapabilities: source.getSearchChannelContentsCapabilities,
-        searchChannels: source.searchChannels,
-        getComments: getComments,
-        getSubComments: getSubComments,
-        isPlaylistUrl: source.isPlaylistUrl,
-        getPlaylist: source.getPlaylist,
-        searchPlaylists: source.searchPlaylists,
-        getLiveChatWindow: source.getLiveChatWindow
+        enable,
+        disable,
+        saveState,
+        getHome,
+        searchSuggestions,
+        search,
+        getSearchCapabilities,
+        isContentDetailsUrl,
+        getContentDetails,
+        isChannelUrl,
+        getChannel,
+        getChannelContents,
+        getChannelCapabilities,
+        searchChannelContents,
+        getSearchChannelContentsCapabilities,
+        searchChannels,
+        getComments,
+        getSubComments,
+        isPlaylistUrl,
+        getPlaylist,
+        searchPlaylists,
+        getLiveChatWindow
     };
+    if (source.enable === undefined) {
+        assert_never(source.enable);
+    }
+    if (source.disable === undefined) {
+        assert_never(source.disable);
+    }
+    if (source.saveState === undefined) {
+        assert_never(source.saveState);
+    }
+    if (source.getHome === undefined) {
+        assert_never(source.getHome);
+    }
+    if (source.searchSuggestions === undefined) {
+        assert_never(source.searchSuggestions);
+    }
+    if (source.search === undefined) {
+        assert_never(source.search);
+    }
+    if (source.getSearchCapabilities === undefined) {
+        assert_never(source.getSearchCapabilities);
+    }
+    if (source.isContentDetailsUrl === undefined) {
+        assert_never(source.isContentDetailsUrl);
+    }
+    if (source.getContentDetails === undefined) {
+        assert_never(source.getContentDetails);
+    }
+    if (source.isChannelUrl === undefined) {
+        assert_never(source.isChannelUrl);
+    }
+    if (source.getChannel === undefined) {
+        assert_never(source.getChannel);
+    }
+    if (source.getChannelContents === undefined) {
+        assert_never(source.getChannelContents);
+    }
+    if (source.getChannelCapabilities === undefined) {
+        assert_never(source.getChannelCapabilities);
+    }
+    if (source.searchChannelContents === undefined) {
+        assert_never(source.searchChannelContents);
+    }
+    if (source.getSearchChannelContentsCapabilities === undefined) {
+        assert_never(source.getSearchChannelContentsCapabilities);
+    }
+    if (source.searchChannels === undefined) {
+        assert_never(source.searchChannels);
+    }
     if (source.getComments === undefined) {
         assert_never(source.getComments);
     }
     if (source.getSubComments === undefined) {
         assert_never(source.getSubComments);
+    }
+    if (source.isPlaylistUrl === undefined) {
+        assert_never(source.isPlaylistUrl);
+    }
+    if (source.getPlaylist === undefined) {
+        assert_never(source.getPlaylist);
+    }
+    if (source.searchPlaylists === undefined) {
+        assert_never(source.searchPlaylists);
+    }
+    if (source.getLiveChatWindow === undefined) {
+        assert_never(source.getLiveChatWindow);
     }
     log(assert_source);
 }
@@ -2029,7 +2098,7 @@ function format_space_contents(space_id, space_videos_response, space_posts_resp
             const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
             return new PlatformPostDetails({
                 // TODO currently there is a bug where this property is impossible to use
-                thumbnails: [],
+                thumbnails: new Thumbnails(thumbnails),
                 images,
                 description: content,
                 // as far as i can tell posts don't have names
@@ -2132,7 +2201,8 @@ function space_videos_request(space_id, page, page_size, query, order, builder) 
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     const result = runner.GET(url, {
-        "User-Agent": GRAYJAY_USER_AGENT,
+        "User-Agent": CHROME_USER_AGENT,
+        // "User-Agent": GRAYJAY_USER_AGENT,
         Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}`,
         // Cookie: `buvid3=${local_storage_cache.buvid3}`,
         // Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}; buvid3=${local_storage_cache.buvid3}`,
@@ -2935,7 +3005,7 @@ function format_space_posts(response) {
         const author = new PlatformAuthorLink(author_id, card.desc.user_profile.info.uname, `${SPACE_URL_PREFIX}${space_id}`, card.desc.user_profile.info.face, local_storage_cache.space_cache.get(space_id)?.num_fans);
         return new PlatformPost({
             // TODO currently there is a bug where this property is impossible to use
-            thumbnails: [],
+            thumbnails: new Thumbnails([]),
             images: [],
             description: post.item?.content ?? post.item?.description ?? "",
             // as far as i can tell posts don't have names
@@ -3078,6 +3148,21 @@ function format_home(home) {
         }
     });
 }
+function init_local_storage() {
+    const { wbi_img_key, wbi_sub_key } = download_wbi_keys();
+    const b_nut = create_b_nut();
+    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut);
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        buvid3,
+        buvid4,
+        b_nut,
+        cid_cache: new Map(),
+        space_cache: new Map(),
+        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
+    };
+}
 // page starts at 0
 // warning: makes a network request
 function get_home(page, page_size) {
@@ -3102,20 +3187,24 @@ function get_home(page, page_size) {
 function log_network_call(before_run_timestamp) {
     log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`);
 }
-function create_signed_url(base_url, params) {
+function create_signed_url(base_url, params, wts) {
     const augmented_params = {
         ...params,
         // timestamp
-        wts: Math.round(Date.now() / 1e3).toString(),
+        wts: wts === undefined ? Math.round(Date.now() / 1e3).toString() : wts.toString(),
         // device fingerprint values
         dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
         dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
         dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
         dm_img_list: "[]",
     };
-    const sorted_query_string = Object.entries(augmented_params).sort((a, b) => a[0].localeCompare(b[0])).map(([name, value]) => {
+    const sorted_query_string = Object
+        .entries(augmented_params)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, value]) => {
         return `${name}=${encodeURIComponent(value)}`;
-    }).join("&");
+    })
+        .join("&");
     const w_rid = md5(sorted_query_string + local_storage_cache.mixin_key);
     return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`);
 }

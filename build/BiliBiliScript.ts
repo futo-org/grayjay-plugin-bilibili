@@ -1,7 +1,7 @@
 import type {
     LocalCache,
     LiveSearchResponse,
-    RequiredSource,
+    BiliBiliSource,
     VideoInfoJSON,
     HomeFeedResponse,
     VideoPlayJSON,
@@ -41,11 +41,9 @@ import type {
     OrderOptions,
     SearchResultQueryType,
     RequestMetadata,
-    Major
+    Major,
+    FilterGroupIDs
 } from "./types.js"
-
-// TODO this is needed for tests to run :(
-// import { ChannelPager, VideoPager } from "@grayjay/plugin/source.js"
 
 const PLATFORM = "BiliBili" as const
 const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www|live|t)\.bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/
@@ -83,6 +81,8 @@ const HARDCODED_ZERO = 0 as const
 // TODO move optional parameters to the end of functions
 // TODO currently for movies and shows the author object is essentially blank
 // TODO split out the regex matching code into functions so it can be tested more easily
+// TODO look into https://api.bilibili.com/x/gaia-vgate/v1/validate as captcha stuff
+// TODO implement an error message when rate limited
 
 let local_storage_cache: LocalCache
 
@@ -99,7 +99,8 @@ Type.Order.Views = "最多播放"
 Type.Order.Favorites = "最多收藏"
 
 // Source Methods
-source.enable = function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
+source.enable = enable
+function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
     if (IS_TESTING) {
         log("IS_TESTING true")
         log("logging configuration")
@@ -110,45 +111,41 @@ source.enable = function enable(conf: SourceConfig, settings: Settings, savedSta
         log(savedState)
     }
 
-    const { wbi_img_key, wbi_sub_key } = download_wbi_keys()
-    const b_nut = create_b_nut()
-    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut)
-    // these caches don't work that well because they aren't shared between plugin instances
-    local_storage_cache = {
-        buvid3,
-        buvid4,
-        b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
-        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
-    }
+    init_local_storage()
 }
-source.disable = function disable() {
+source.disable = disable
+function disable() {
     log("BiliBili log: disabling")
 }
-source.saveState = function saveState() { return "" }
+source.saveState = saveState
+function saveState() { return "" }
 // TODO there is additional content on the home page that we can consider loading in the future 
-source.getHome = function getHome() {
+source.getHome = getHome
+function getHome() {
     // load 12 videos at a time some of them are ads and not shown
     return new HomePager(0, 12)
 }
-source.searchSuggestions = function searchSuggestions(query: string) {
+source.searchSuggestions = searchSuggestions
+function searchSuggestions(query: string) {
     return get_suggestions(query)
 }
-source.searchChannels = function searchChannels(query: string) {
+source.searchChannels = searchChannels
+function searchChannels(query: string) {
     // the default page size on BiliBili is 36
     return new SpacePager(query, 1, 36)
 }
 // example of handled urls
 // https://space.bilibili.com/491461718
-source.isChannelUrl = function isChannelUrl(url: string) {
+source.isChannelUrl = isChannelUrl
+function isChannelUrl(url: string) {
     // Some playlist urls are also Space urls
     if (PLAYLIST_URL_REGEX.test(url)) {
         return false
     }
     return SPACE_URL_REGEX.test(url)
 }
-source.getChannel = function getChannel(url: string) {
+source.getChannel = getChannel
+function getChannel(url: string) {
     const match_results = url.match(SPACE_URL_REGEX)
     if (match_results === null) {
         throw new ScriptException(`malformed space url: ${url}`)
@@ -198,15 +195,17 @@ source.getChannel = function getChannel(url: string) {
     })
 }
 // TODO implement this once it's used
-source.getChannelCapabilities = function getChannelCapabilities() {
-    return new ResultCapabilities([], [], [])
+source.getChannelCapabilities = getChannelCapabilities
+function getChannelCapabilities() {
+    return new ResultCapabilities<FilterGroupIDs>([], [], [])
 }
 // TODO handle different capabilities onces it's implemented
-source.getChannelContents = function getChannelContents(
+source.getChannelContents = getChannelContents
+function getChannelContents(
     url: string,
     type: FeedType | null,
     order: Order | null,
-    filters: { readonly [key: string]: string[] }
+    filters: FilterQuery<FilterGroupIDs>
 ) {
     // there isn't a way for the user to change these
     log(["BiliBili log:", type])
@@ -232,7 +231,8 @@ source.getChannelContents = function getChannelContents(
 // https://www.bilibili.com/opus/916396341363474468
 // https://t.bilibili.com/915034213991841801
 // https://www.bilibili.com/cheese/play/ep1027
-source.isContentDetailsUrl = function isContentDetailsUrl(url: string) {
+source.isContentDetailsUrl = isContentDetailsUrl
+function isContentDetailsUrl(url: string) {
     return CONTENT_DETAIL_URL_REGEX.test(url)
 }
 // examples of handled urls
@@ -243,13 +243,16 @@ source.isContentDetailsUrl = function isContentDetailsUrl(url: string) {
 // https://space.bilibili.com/491461718/favlist?fid=3153093518
 // https://www.bilibili.com/medialist/detail/ml3153093518
 // https://www.bilibili.com/festival/2022bnj
-source.isPlaylistUrl = function isPlaylistUrl(url: string) {
+source.isPlaylistUrl = isPlaylistUrl
+function isPlaylistUrl(url: string) {
     return PLAYLIST_URL_REGEX.test(url)
 }
-source.searchPlaylists = function searchPlaylists(query: string) {
+source.searchPlaylists = searchPlaylists
+function searchPlaylists(query: string) {
     return new BangumiPager(query, 1, 12)
 }
-source.getPlaylist = function getPlaylist(url: string) {
+source.getPlaylist = getPlaylist
+function getPlaylist(url: string) {
     const regex_match_result = url.match(PLAYLIST_URL_REGEX)
     if (regex_match_result === null) {
         throw new ScriptException(`malformed space url: ${url}`)
@@ -439,7 +442,8 @@ source.getPlaylist = function getPlaylist(url: string) {
 }
 // TODO handle content that requires logging in, requires a premium subscription, or is restricted in the region
 // TODO consider switching from like rating to 0-10 scale rating for bangumi
-source.getContentDetails = function getContentDetails(url: string) {
+source.getContentDetails = getContentDetails
+function getContentDetails(url: string) {
     const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
     if (regex_match_result === null) {
         throw new ScriptException(`malformed content url: ${url}`)
@@ -570,7 +574,7 @@ source.getContentDetails = function getContentDetails(url: string) {
 
             return new PlatformPostDetails({
                 // TODO currently there is a bug where this property is impossible to use
-                thumbnails: [],
+                thumbnails: new Thumbnails(thumbnails),
                 // TODO there is a bug that means that these images do not display
                 images,
                 description: content,
@@ -877,7 +881,7 @@ source.getContentDetails = function getContentDetails(url: string) {
 
                     return new PlatformPostDetails({
                         // TODO currently there is a bug where this property is impossible to use
-                        thumbnails: [],
+                        thumbnails: new Thumbnails(thumbnails),
                         // TODO there is a bug that means that these images do not display
                         images,
                         description: content,
@@ -1070,10 +1074,11 @@ function getSubComments(parent_comment: PlatformComment<BiliBiliCommentContext>)
     return new SubCommentPager(rpid, oid, type, parent_comment.contextUrl, 1, 20)
 }
 // TODO the order and filtering only applies to videos not posts but there is not a way of specifying that
-source.getSearchChannelContentsCapabilities = function getSearchChannelContentsCapabilities() {
+source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities
+function getSearchChannelContentsCapabilities() {
     log("BiliBili log: getting space capabilities")
     // TODO there are filter options but they only show up after a search has been returned
-    return new ResultCapabilities([Type.Feed.Videos, "POSTS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup(
+    return new ResultCapabilities<FilterGroupIDs>([Type.Feed.Videos, "POSTS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup(
         "Additional Content",
         [
             new FilterCapability("Live Rooms", "0", "Live Rooms"),
@@ -1083,7 +1088,8 @@ source.getSearchChannelContentsCapabilities = function getSearchChannelContentsC
         "ADDITIONAL_CONTENT"
     )])
 }
-source.searchChannelContents = function searchChannelContents(space_url: string, query: string, type: FeedType | null, order: Order | null, filters: { readonly [key: string]: string[] }) {
+source.searchChannelContents = searchChannelContents
+function searchChannelContents(space_url: string, query: string, type: FeedType | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
     log(["BiliBili log:", type])
     log(["BiliBili log:", order])
     log(["BiliBili log:", filters])
@@ -1115,7 +1121,8 @@ source.searchChannelContents = function searchChannelContents(space_url: string,
             throw new ScriptException(`unhandled feed type ${type}`)
     }
 }
-source.getSearchCapabilities = function getSearchCapabilities() {
+source.getSearchCapabilities = getSearchCapabilities
+function getSearchCapabilities() {
     return new ResultCapabilities(
         [Type.Feed.Videos, Type.Feed.Live, "MOVIES", "SHOWS"],
         [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
@@ -1145,7 +1152,8 @@ source.getSearchCapabilities = function getSearchCapabilities() {
         )]
     )
 }
-source.search = function search(query: string, type: FeedType | null, order: Order | null, filters: { readonly [key: string]: string[] }) {
+source.search = search
+function search(query: string, type: FeedType | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
     log(["BiliBili log:", type])
     log(["BiliBili log:", order])
     log(["BiliBili log:", filters])
@@ -1229,7 +1237,8 @@ source.search = function search(query: string, type: FeedType | null, order: Ord
 // https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
 // wss://hw-sg-live-comet-02.chat.bilibili.com/sub
 // 
-source.getLiveChatWindow = function getLiveChatWindow(url: string) {
+source.getLiveChatWindow = getLiveChatWindow
+function getLiveChatWindow(url: string) {
     log("BiliBili log: live chatting!!")
     return {
         url,
@@ -1238,36 +1247,52 @@ source.getLiveChatWindow = function getLiveChatWindow(url: string) {
 }
 
 if (IS_TESTING) {
-    const assert_source: RequiredSource = {
-        enable: source.enable,
-        disable: source.disable,
-        saveState: source.saveState,
-        getHome: source.getHome,
-        searchSuggestions: source.searchSuggestions,
-        search: source.search,
-        getSearchCapabilities: source.getSearchCapabilities,
-        isContentDetailsUrl: source.isContentDetailsUrl,
-        getContentDetails: source.getContentDetails,
-        isChannelUrl: source.isChannelUrl,
-        getChannel: source.getChannel,
-        getChannelContents: source.getChannelContents,
-        getChannelCapabilities: source.getChannelCapabilities,
-        searchChannelContents: source.searchChannelContents,
-        getSearchChannelContentsCapabilities: source.getSearchChannelContentsCapabilities,
-        searchChannels: source.searchChannels,
-        getComments: getComments,
-        getSubComments: getSubComments,
-        isPlaylistUrl: source.isPlaylistUrl,
-        getPlaylist: source.getPlaylist,
-        searchPlaylists: source.searchPlaylists,
-        getLiveChatWindow: source.getLiveChatWindow
+    const assert_source: BiliBiliSource = {
+        enable,
+        disable,
+        saveState,
+        getHome,
+        searchSuggestions,
+        search,
+        getSearchCapabilities,
+        isContentDetailsUrl,
+        getContentDetails,
+        isChannelUrl,
+        getChannel,
+        getChannelContents,
+        getChannelCapabilities,
+        searchChannelContents,
+        getSearchChannelContentsCapabilities,
+        searchChannels,
+        getComments,
+        getSubComments,
+        isPlaylistUrl,
+        getPlaylist,
+        searchPlaylists,
+        getLiveChatWindow
     }
-    if (source.getComments === undefined) {
-        assert_never(source.getComments)
-    }
-    if (source.getSubComments === undefined) {
-        assert_never(source.getSubComments)
-    }
+    if (source.enable === undefined) { assert_never(source.enable) }
+    if (source.disable === undefined) { assert_never(source.disable) }
+    if (source.saveState === undefined) { assert_never(source.saveState) }
+    if (source.getHome === undefined) { assert_never(source.getHome) }
+    if (source.searchSuggestions === undefined) { assert_never(source.searchSuggestions) }
+    if (source.search === undefined) { assert_never(source.search) }
+    if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
+    if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
+    if (source.getContentDetails === undefined) { assert_never(source.getContentDetails) }
+    if (source.isChannelUrl === undefined) { assert_never(source.isChannelUrl) }
+    if (source.getChannel === undefined) { assert_never(source.getChannel) }
+    if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
+    if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
+    if (source.searchChannelContents === undefined) { assert_never(source.searchChannelContents) }
+    if (source.getSearchChannelContentsCapabilities === undefined) { assert_never(source.getSearchChannelContentsCapabilities) }
+    if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
+    if (source.getComments === undefined) { assert_never(source.getComments) }
+    if (source.getSubComments === undefined) { assert_never(source.getSubComments) }
+    if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
+    if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
+    if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
+    if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
     log(assert_source)
 }
 
@@ -1308,7 +1333,7 @@ class SearchPager extends VideoPager {
         }
         this.type = type
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const now = Date.now()
         const raw_response = search_request(this.query, this.next_page, this.page_size, this.type, this.order, this.duration)
         log_network_call(now)
@@ -1415,7 +1440,7 @@ class SubCommentPager extends CommentPager<BiliBiliCommentContext> {
         this.context_url = context_url
         this.page_size = page_size
     }
-    override nextPage(): CommentPager<BiliBiliCommentContext> | undefined {
+    override nextPage(): this {
         const replies_response = get_replies(this.oid, this.root, this.type, this.next_page, this.page_size)
         this.hasMore = replies_response.data.page.count > this.next_page * this.page_size
         this.results = format_replies(replies_response, this.type, this.oid, this.context_url)
@@ -1441,7 +1466,7 @@ class BiliBiliCommentPager extends CommentPager<BiliBiliCommentContext> {
         this.type = type
         this.context_url = context_url
     }
-    override nextPage(): CommentPager<BiliBiliCommentContext> | undefined {
+    override nextPage(): this {
         const comment_response = get_comments(this.oid, this.type, this.next_page)
         this.hasMore = !comment_response.data.cursor.is_end
         this.results = format_comments(comment_response, this.context_url, this.oid, this.type, this.next_page === 1)
@@ -1581,7 +1606,7 @@ class FavoritesContentsPager extends VideoPager {
         this.page_size = page_size
         this.favorites_id = favorites_id
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const favorites_response = load_favorites(this.favorites_id, this.next_page, this.page_size)
         this.hasMore = favorites_response.data.has_more
         this.results = format_favorites_videos(favorites_response)
@@ -1741,7 +1766,7 @@ class BangumiPager extends PlaylistPager {
         this.page_size = page_size
         this.query = query
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const requests: [
             RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>,
             RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>
@@ -1788,7 +1813,7 @@ class SeriesContentsPager extends VideoPager {
         this.series_id = series_id
         this.space_id = space_id
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const raw_response = series_request(this.space_id, this.series_id, this.next_page, this.page_size)
         const series_response: SeriesResponse = JSON.parse(raw_response.body)
         this.hasMore = series_response.data.page.total > this.next_page * this.page_size
@@ -1862,7 +1887,7 @@ class CollectionContentsPager extends VideoPager {
         this.collection_id = collection_id
         this.space_id = space_id
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const raw_response = collection_request(this.space_id, this.collection_id, this.next_page, this.page_size)
         const collection_response: CollectionResponse = JSON.parse(raw_response.body)
         this.hasMore = collection_response.data.meta.total > this.next_page * this.page_size
@@ -2470,7 +2495,7 @@ function format_space_contents(
 
             return new PlatformPostDetails({
                 // TODO currently there is a bug where this property is impossible to use
-                thumbnails: [],
+                thumbnails: new Thumbnails(thumbnails),
                 images,
                 description: content,
                 // as far as i can tell posts don't have names
@@ -2584,7 +2609,8 @@ function space_videos_request(space_id: number, page: number, page_size: number,
     const result = runner.GET(
         url,
         {
-            "User-Agent": GRAYJAY_USER_AGENT,
+            "User-Agent": CHROME_USER_AGENT,
+            // "User-Agent": GRAYJAY_USER_AGENT,
             Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}`,
             // Cookie: `buvid3=${local_storage_cache.buvid3}`,
             // Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}; buvid3=${local_storage_cache.buvid3}`,
@@ -3207,7 +3233,7 @@ class SpacePager extends ChannelPager {
         this.page_size = page_size
         this.query = query
     }
-    override nextPage(): ChannelPager | undefined {
+    override nextPage(): this {
         const raw_response = search_request(this.query, this.next_page, this.page_size, "bili_user", undefined, undefined)
         const { search_results, more } = extract_search_results(raw_response, "bili_user", this.next_page, this.page_size)
         if (search_results === null) {
@@ -3323,7 +3349,7 @@ class SpaceContentsPager extends ContentPager {
         this.space_id = space_id
         this.page_size = page_size
     }
-    override nextPage(): ContentPager | undefined {
+    override nextPage(): this {
         const requests: [
             RequestMetadata<SpaceVideosSearchResponse> | undefined,
             RequestMetadata<SpacePostsResponse> | undefined,
@@ -3564,7 +3590,7 @@ function format_space_posts(response: SpacePostsSearchResponse): PlatformPost[] 
         )
         return new PlatformPost({
             // TODO currently there is a bug where this property is impossible to use
-            thumbnails: [],
+            thumbnails: new Thumbnails([]),
             images: [],
             description: post.item?.content ?? post.item?.description ?? "",
             // as far as i can tell posts don't have names
@@ -3591,7 +3617,7 @@ class ChannelPostsResultsPager extends ContentPager {
         this.space_id = space_id
         this.query = query
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const response = search_space_posts(this.query, this.space_id, this.next_page, this.page_size)
         this.results = format_space_posts(response)
         this.hasMore = response.data.total > this.next_page * this.page_size
@@ -3619,7 +3645,7 @@ class ChannelVideoResultsPager extends ContentPager {
         this.query = query
         this.order = order
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         const response_body = space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body
         const response: SpaceVideosSearchResponse = JSON.parse(response_body)
         this.results = format_space_videos(response, this.space_id)
@@ -3660,7 +3686,7 @@ class HomePager extends ContentPager {
         this.next_page = initial_page + 1
         this.page_size = page_size
     }
-    override nextPage(): VideoPager | undefined {
+    override nextPage(): this {
         this.results = format_home(get_home(this.next_page, this.page_size))
         this.hasMore = true
         this.next_page += 1
@@ -3726,6 +3752,22 @@ function format_home(home: HomeFeedResponse): PlatformVideo[] {
     })
 }
 
+function init_local_storage() {
+    const { wbi_img_key, wbi_sub_key } = download_wbi_keys()
+    const b_nut = create_b_nut()
+    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut)
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        buvid3,
+        buvid4,
+        b_nut,
+        cid_cache: new Map(),
+        space_cache: new Map(),
+        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
+    }
+}
+
 // page starts at 0
 // warning: makes a network request
 function get_home(page: number, page_size: number): HomeFeedResponse {
@@ -3757,11 +3799,11 @@ function log_network_call(before_run_timestamp: number) {
     log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`)
 }
 
-function create_signed_url(base_url: string, params: Params): URL {
-    const augmented_params = {
+function create_signed_url(base_url: string, params: Params, wts?: number): URL {
+    const augmented_params: Params = {
         ...params,
         // timestamp
-        wts: Math.round(Date.now() / 1e3).toString(),
+        wts: wts === undefined ? Math.round(Date.now() / 1e3).toString() : wts.toString(),
         // device fingerprint values
         dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
         dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
@@ -3769,9 +3811,13 @@ function create_signed_url(base_url: string, params: Params): URL {
         dm_img_list: "[]",
     }
 
-    const sorted_query_string = Object.entries(augmented_params).sort((a, b) => a[0].localeCompare(b[0])).map(([name, value]) => {
-        return `${name}=${encodeURIComponent(value)}`
-    }).join("&")
+    const sorted_query_string = Object
+        .entries(augmented_params)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, value]) => {
+            return `${name}=${encodeURIComponent(value)}`
+        })
+        .join("&")
     const w_rid = md5(sorted_query_string + local_storage_cache.mixin_key)
     return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`)
 }
@@ -4063,5 +4109,9 @@ var MD5: { generate?: any }; (() => { var r = { d: (n, t) => { for (var e in t) 
 // export statements removed during build step
     interleave,
     getMixinKey,
-    download_mixin_constant
+    download_mixin_constant,
+    get_video_details_json,
+    create_signed_url,
+    download_wbi_keys,
+    init_local_storage
 }
