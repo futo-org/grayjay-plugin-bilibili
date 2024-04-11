@@ -7,11 +7,15 @@
     },
     "module": "script.ts",
     "scripts": {
-        "eslint": "npx eslint .",
+        "bun-eslint": "bun x eslint .",
+        "npm-eslint": "npx eslint .",
+        "bun-test": "bun run build && node --test",
         "test": "npm run build && node --test",
         "build": "tsc && cp src/BiliBiliScript.[tj]s* build/ && sed -i '/^export/ d' build/BiliBiliScript.[tj]s",
-        "publish": "npm install && npm update && npm test && npm run eslint",
-        "serve": "npm run build && npx http-server build"
+        "bun-release": "bun install && bun update --force && bun run bun-test && bun run bun-eslint",
+        "npm-release": "npm install && npm update && npm test && npm run npm-eslint",
+        "bun-dev": "bun run build && bun x http-server build",
+        "npm-dev": "npm run build && npx http-server build"
     },
     "repository": {
         "type": "git",
@@ -32,7 +36,7 @@
     },
     "type": "module",
     "devDependencies": {
-        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types",
+        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#357d93cd",
         "@types/node": "^20.11.30",
         "eslint": "^8.57.0",
         "eslint-plugin-node": "^11.1.0",

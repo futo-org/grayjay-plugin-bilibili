@@ -2,16 +2,16 @@ import type {
     LocalCache,
     LiveSearchResponse,
     BiliBiliSource,
-    VideoInfoJSON,
+    VideoDetailResponse,
     HomeFeedResponse,
-    VideoPlayJSON,
+    VideoPlayResponse,
     Params,
     Wbi,
     SpaceResponse,
     SearchResponse,
     SpaceVideosSearchResponse,
     CollectionResponse,
-    CommentsJSON,
+    CommentResponse,
     SubCommentsJSON,
     BiliBiliCommentContext,
     SpacePostsResponse,
@@ -42,7 +42,9 @@ import type {
     SearchResultQueryType,
     RequestMetadata,
     Major,
-    FilterGroupIDs
+    FilterGroupIDs,
+    PlayData,
+    CoreSpaceInfo
 } from "./types.js"
 
 const PLATFORM = "BiliBili" as const
@@ -74,6 +76,7 @@ const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.
 const MISSING_NAME = "" as const
 const MISSING_THUMBNAIL = "" as const
 const HARDCODED_ZERO = 0 as const
+const MISSING_RATING = 0 as const
 
 // TODO we might need to create id prefixes
 // There are a lot of number ids and the different types probably overlap
@@ -83,6 +86,8 @@ const HARDCODED_ZERO = 0 as const
 // TODO split out the regex matching code into functions so it can be tested more easily
 // TODO look into https://api.bilibili.com/x/gaia-vgate/v1/validate as captcha stuff
 // TODO implement an error message when rate limited
+// TODO subtitiles require login
+// https://api.bilibili.com/x/player/wbi/v2?aid=1402475665&cid=1487515536&isGaiaAvoided=false&web_location=1315873&w_rid=d0f2a387c3d7e19eb66f681e81b0385d&wts=1712248112
 
 let local_storage_cache: LocalCache
 
@@ -139,6 +144,8 @@ function searchChannels(query: string) {
 source.isChannelUrl = isChannelUrl
 function isChannelUrl(url: string) {
     // Some playlist urls are also Space urls
+    // for example
+    // https://space.bilibili.com/491461718/favlist?fid=3153093518
     if (PLAYLIST_URL_REGEX.test(url)) {
         return false
     }
@@ -434,7 +441,7 @@ function getPlaylist(url: string) {
         }
         case "festival/": {
             const festival_id = maybe_playlist_id
-            return format_festival(festival_id, load_festival(festival_id))
+            return format_festival(festival_id, festival_parse(festival_request(festival_id)))
         }
         default:
             throw assert_no_fall_through(playlist_type, "unreachable")
@@ -554,49 +561,10 @@ function getContentDetails(url: string) {
         }
         case "t": {
             const post_id = maybe_content_id
-            const post_response = download_post(post_id)
-            const space_post = post_response.data.item
-            const desc = space_post.modules.module_dynamic.desc
-            const images: string[] = []
-            const thumbnails: Thumbnail[] = []
-
-            const primary_content = desc?.rich_text_nodes
-                .map((node) => { return format_text_node(node, images) })
-                .join("")
-
-            const major = space_post.modules.module_dynamic.major
-            const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
-
-            const topic = space_post.modules.module_dynamic.topic
-            const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
-
-            const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
-
-            return new PlatformPostDetails({
-                // TODO currently there is a bug where this property is impossible to use
-                thumbnails: new Thumbnails(thumbnails),
-                // TODO there is a bug that means that these images do not display
-                images,
-                description: content,
-                name: MISSING_NAME,
-                url: `${POST_URL_PREFIX}${space_post.id_str}`,
-                id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
-                rating: new RatingLikes(space_post.modules.module_stat.like.count),
-                textType: Type.Text.HTML,
-                author: new PlatformAuthorLink(
-                    new PlatformID(PLATFORM, space_post.modules.module_author.mid.toString(), plugin.config.id),
-                    space_post.modules.module_author.name,
-                    `${SPACE_URL_PREFIX}${space_post.modules.module_author.mid}`,
-                    space_post.modules.module_author.face,
-                    local_storage_cache.space_cache.get(space_post.modules.module_author.mid)?.num_fans
-                ),
-                content,
-                datetime: space_post.modules.module_author.pub_ts
-            })
+            return get_post(post_id)
         }
         case "www":
             switch (content_type) {
-                // TODO this is so similar to normal videos should we combine them
                 case "bangumi/play/ep": {
                     const episode_id = parseInt(maybe_content_id)
 
@@ -617,52 +585,7 @@ function getContentDetails(url: string) {
 
                     const [episode_response, season_response, episode_info_response] = execute_requests(requests)
 
-                    const video_sources: VideoUrlSource[] = episode_response.result.video_info.dash.video.map((video) => {
-                        const name = episode_response.result.video_info.accept_description[episode_response.result.video_info.accept_quality.findIndex((value) => {
-                            return value === video.id
-                        })]
-                        if (name === undefined) {
-                            throw new ScriptException("can't load content details")
-                        }
-                        const video_url_hostname = new URL(video.base_url).hostname
-                        return new VideoUrlSource({
-                            width: video.width,
-                            height: video.height,
-                            container: video.mime_type,
-                            codec: video.codecs,
-                            name: name,
-                            bitrate: video.bandwidth,
-                            duration: episode_response.result.video_info.dash.duration,
-                            url: video.base_url,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": video_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-                    })
-
-                    const audio_sources: AudioUrlSource[] = episode_response.result.video_info.dash.audio.map((audio) => {
-                        const audio_url_hostname = new URL(audio.base_url).hostname
-                        return new AudioUrlSource({
-                            container: audio.mime_type,
-                            codecs: audio.codecs,
-                            name: `${audio.codecs} at ${audio.bandwidth}`,
-                            bitrate: audio.bandwidth,
-                            duration: episode_response.result.video_info.dash.duration,
-                            url: audio.base_url,
-                            language: Language.UNKNOWN,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": audio_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-                    })
+                    const { video_sources, audio_sources } = format_sources(episode_response.result.video_info)
 
                     const upload_info = episode_info_response.data.related_up[0]
                     if (upload_info === undefined) {
@@ -679,8 +602,8 @@ function getContentDetails(url: string) {
                     const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id)
                     const details: PlatformContentDetails = new PlatformVideoDetails({
                         id: platform_video_ID,
-                        name: episode_season_meta.long_title ?? "",
-                        thumbnails: new Thumbnails([new Thumbnail("video_info.data.View.pic", 1080)]), // TODO hardcoded 1080
+                        name: episode_season_meta.long_title,
+                        thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, HARDCODED_THUMBNAIL_QUALITY)]),
                         author: new PlatformAuthorLink(
                             platform_creator_ID,
                             upload_info.uname,
@@ -704,78 +627,18 @@ function getContentDetails(url: string) {
                 case "cheese/play/ep": {
                     // TODO there are some videos that don't have dash sections. in those cases we need to use the durl section
                     const episode_id = parseInt(maybe_content_id)
-                    const batch = local_http.batch()
 
-                    const play_url_prefix = "https://api.bilibili.com/pugv/player/web/playurl"
-                    const params: Params = {
-                        fnval: "4048",
-                        ep_id: episode_id.toString()
-                    }
-                    batch.GET(
-                        create_url(play_url_prefix, params).toString(),
-                        { "User-Agent": GRAYJAY_USER_AGENT, Host: "api.bilibili.com" },
-                        false
-                    )
+                    const requests: [RequestMetadata<CourseEpisodePlayResponse>, RequestMetadata<CourseResponse>] = [{
+                        request(builder) { return course_play_request(episode_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return course_request({ type: "episode", id: episode_id }, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }]
 
-                    course_request({ type: "episode", id: episode_id }, batch)
+                    const [episode_play_response, season_response] = execute_requests(requests)
 
-                    const now = Date.now()
-                    const [play_json, season_json] = batch.execute()
-                    log(`BiliBili log: making 2 network requests in parallel took ${Date.now() - now} milliseconds`)
-
-                    if (play_json === undefined || season_json === undefined) {
-                        throw new ScriptException("unreachable")
-                    }
-                    const episode_response: CourseEpisodePlayResponse = JSON.parse(play_json.body)
-
-                    const season_response: CourseResponse = JSON.parse(season_json.body)
-
-                    const video_sources: VideoUrlSource[] = episode_response.data.dash.video.map((video) => {
-                        const name = episode_response.data.accept_description[episode_response.data.accept_quality.findIndex((value) => {
-                            return value === video.id
-                        })]
-                        if (name === undefined) {
-                            throw new ScriptException("can't load content details")
-                        }
-                        const video_url_hostname = new URL(video.base_url).hostname
-                        return new VideoUrlSource({
-                            width: video.width,
-                            height: video.height,
-                            container: video.mime_type,
-                            codec: video.codecs,
-                            name: name,
-                            bitrate: video.bandwidth,
-                            duration: episode_response.data.dash.duration,
-                            url: video.base_url,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": video_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-                    })
-
-                    const audio_sources: AudioUrlSource[] = episode_response.data.dash.audio.map((audio) => {
-                        const audio_url_hostname = new URL(audio.base_url).hostname
-                        return new AudioUrlSource({
-                            container: audio.mime_type,
-                            codecs: audio.codecs,
-                            name: `${audio.codecs} at ${audio.bandwidth}`,
-                            bitrate: audio.bandwidth,
-                            duration: episode_response.data.dash.duration,
-                            url: audio.base_url,
-                            language: Language.UNKNOWN,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": audio_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-                    })
+                    const { video_sources, audio_sources } = format_sources(episode_play_response.data)
 
                     const upload_info = season_response.data.up_info
                     if (upload_info === undefined) {
@@ -793,7 +656,7 @@ function getContentDetails(url: string) {
                     const details: PlatformContentDetails = new PlatformVideoDetails({
                         id: platform_video_ID,
                         name: episode_season_meta.title,
-                        thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, 1080)]), // TODO hardcoded 1080
+                        thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, HARDCODED_THUMBNAIL_QUALITY)]),
                         author: new PlatformAuthorLink(
                             platform_creator_ID,
                             upload_info.uname,
@@ -801,7 +664,7 @@ function getContentDetails(url: string) {
                             upload_info.avatar,
                             upload_info.follower
                         ),
-                        duration: episode_response.data.dash.duration,
+                        duration: episode_play_response.data.dash.duration,
                         viewCount: episode_season_meta.play,
                         url: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
                         isLive: false,
@@ -809,152 +672,25 @@ function getContentDetails(url: string) {
                         description: `${season_response.data.title}\n${season_response.data.subtitle}`,
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         // TODO figure out a rating to use. courses/course episodes don't have likes
-                        rating: new RatingLikes(0),
+                        rating: new RatingLikes(MISSING_RATING),
                         shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
                         uploadDate: episode_season_meta.release_date
                     })
                     return details
                 }
-                // TODO copied from case "t" above
                 case "opus/": {
                     const post_id = maybe_content_id
-                    const post_response = download_post(post_id)
-                    const space_post = post_response.data.item
-                    const desc = space_post.modules.module_dynamic.desc
-                    const images: string[] = []
-                    const thumbnails: Thumbnail[] = []
-
-                    const primary_content = desc?.rich_text_nodes.map((node) => {
-                        return format_text_node(node, images)
-                    }
-                    ).join("")
-
-                    const major = space_post.modules.module_dynamic.major
-                    const major_links = major ? ((): string | undefined => {
-                        switch (major.type) {
-                            case "MAJOR_TYPE_ARCHIVE":
-                                thumbnails.push(new Thumbnail(major.archive.cover, 1080)) // TODO hardcoded 1080
-                                return `<a href="${VIDEO_URL_PREFIX}${major.archive.bvid}">${major.archive.title}</a>`
-                            case "MAJOR_TYPE_DRAW":
-                                major.draw.items.forEach((pic) => {
-                                    images.push(pic.src)
-                                })
-                                return undefined
-                            case "MAJOR_TYPE_OPUS":
-                                major.opus.pics.forEach((pic) => {
-                                    images.push(pic.url)
-                                })
-                                return major.opus.summary.rich_text_nodes.map((node) => {
-                                    return format_text_node(node, images)
-                                }
-                                ).join("")
-                            case "MAJOR_TYPE_LIVE_RCMD": {
-                                const live_rcmd: {
-                                    readonly live_play_info: {
-                                        readonly cover: string
-                                        readonly room_id: number
-                                        readonly title: string
-                                    }
-                                } = JSON.parse(major.live_rcmd.content)
-                                thumbnails.push(new Thumbnail(live_rcmd.live_play_info.cover, 1080)) // TODO hardcoded 1080
-                                return `<a href="${LIVE_ROOM_URL_PREFIX}${live_rcmd.live_play_info.room_id}">${live_rcmd.live_play_info.title}</a>`
-                            }
-                            case "MAJOR_TYPE_COMMON": {
-                                thumbnails.push(new Thumbnail(major.common.cover, 1080)) // TODO hardcoded 1080
-                                return `<a href="${major.common.jump_url}">${major.common.title}</a>`
-                            }
-                            case "MAJOR_TYPE_ARTICLE": {
-                                major.article.covers.forEach((cover) => {
-                                    thumbnails.push(new Thumbnail(cover, 1080)) // TODO hardcoded 1080
-                                })
-                                return `<a href="https://www.bilibili.com/read/cv${major.article.id}">${major.article.title}</a>`
-                            }
-                            default:
-                                throw assert_no_fall_through(major, `unhandled type on major ${major}`)
-                        }
-                    })() : undefined
-
-                    const topic = space_post.modules.module_dynamic.topic
-                    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
-
-                    const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
-
-                    return new PlatformPostDetails({
-                        // TODO currently there is a bug where this property is impossible to use
-                        thumbnails: new Thumbnails(thumbnails),
-                        // TODO there is a bug that means that these images do not display
-                        images,
-                        description: content,
-                        // as far as i can tell posts don't have names
-                        name: "",
-                        url: `${POST_URL_PREFIX}${space_post.id_str}`,
-                        id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
-                        rating: new RatingLikes(space_post.modules.module_stat.like.count),
-                        textType: Type.Text.HTML,
-                        author: new PlatformAuthorLink(
-                            new PlatformID(PLATFORM, space_post.modules.module_author.mid.toString(), plugin.config.id),
-                            space_post.modules.module_author.name,
-                            `${SPACE_URL_PREFIX}${space_post.modules.module_author.mid}`,
-                            space_post.modules.module_author.face,
-                            local_storage_cache.space_cache.get(space_post.modules.module_author.mid)?.num_fans
-                        ),
-                        content,
-                        datetime: space_post.modules.module_author.pub_ts
-                    })
+                    return get_post(post_id)
                 }
                 case "video/": {
                     const video_id = maybe_content_id
-                    const [video_info, episode_response] = get_video_details_json(video_id)
+                    const [video_info, plsy_info] = load_video_details(video_id)
 
-                    const video_sources = episode_response.data.dash.video.map((video) => {
-                        const name = episode_response.data.accept_description[episode_response.data.accept_quality.findIndex((value) => {
-                            return value === video.id
-                        })]
-                        if (name === undefined) {
-                            throw new ScriptException("can't load content details")
-                        }
-                        const video_url_hostname = new URL(video.base_url).hostname
-                        return new VideoUrlSource({
-                            width: video.width,
-                            height: video.height,
-                            container: video.mime_type,
-                            codec: video.codecs,
-                            name,
-                            bitrate: video.bandwidth,
-                            duration: episode_response.data.dash.duration,
-                            url: video.base_url,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": video_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-                    })
+                    const { video_sources, audio_sources } = format_sources(plsy_info.data)
 
-                    const audio_sources = episode_response.data.dash.audio.map((audio) => {
-                        const audio_url_hostname = new URL(audio.base_url).hostname
-                        return new AudioUrlSource({
-                            container: audio.mime_type,
-                            codecs: audio.codecs,
-                            name: `${audio.codecs} at ${audio.bandwidth}`,
-                            bitrate: audio.bandwidth,
-                            duration: episode_response.data.dash.duration,
-                            url: audio.base_url,
-                            language: Language.UNKNOWN,
-                            requestModifier: {
-                                headers: {
-                                    "Referer": "https://www.bilibili.com",
-                                    "Host": audio_url_hostname,
-                                    "User-Agent": GRAYJAY_USER_AGENT
-                                }
-                            }
-                        })
-
-                    })
-
-                    const description = video_info.data.View.desc_v2 === null ? { raw_text: "" } : video_info.data.View.desc_v2[0]
+                    const description = video_info.data.View.desc_v2 === null
+                        ? { raw_text: "" }
+                        : video_info.data.View.desc_v2[0]
 
                     if (description === undefined) {
                         throw new ScriptException("missing description")
@@ -967,7 +703,9 @@ function getContentDetails(url: string) {
                     const details: PlatformContentDetails = new PlatformVideoDetails({
                         id: platform_video_ID,
                         name: video_info.data.View.title,
-                        thumbnails: new Thumbnails([new Thumbnail(video_info.data.View.pic, 1080)]), // TODO hardcoded 1080
+                        thumbnails: new Thumbnails([
+                            new Thumbnail(video_info.data.View.pic, HARDCODED_THUMBNAIL_QUALITY)
+                        ]),
                         author: new PlatformAuthorLink(
                             platform_creator_ID,
                             video_info.data.View.owner.name,
@@ -975,10 +713,10 @@ function getContentDetails(url: string) {
                             video_info.data.View.owner.face,
                             video_info.data.Card.card.fans
                         ),
-                        duration: episode_response.data.dash.duration,
+                        duration: plsy_info.data.dash.duration,
                         viewCount: video_info.data.View.stat.view,
                         url: `${VIDEO_URL_PREFIX}${video_id}`,
-                        isLive: false, // hardcoded for now
+                        isLive: false,
                         description: description.raw_text,
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(video_info.data.View.stat.like),
@@ -1030,7 +768,6 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
             }
             case "www":
                 switch (content_type) {
-                    // TODO this is so similar to normal videos should we combine them
                     case "bangumi/play/ep": {
                         const episode_id = parseInt(maybe_content_id)
                         const season_response: SeasonResponse = JSON.parse(season_request({ id: episode_id, type: "episode" }).body)
@@ -1044,7 +781,6 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
                         const episode_id = parseInt(maybe_content_id)
                         return [episode_id, 33, `${COURSE_EPISODE_URL_PREFIX}${episode_id}`]
                     }
-                    // TODO copied from case "t" above
                     case "opus/": {
                         const post_id = maybe_content_id
                         const post_response = download_post(post_id)
@@ -1052,7 +788,7 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
                     }
                     case "video/": {
                         const video_id = maybe_content_id
-                        const video_info = get_video_details_json(video_id)[0]
+                        const video_info: VideoDetailResponse = JSON.parse(video_detail_request(video_id).body)
                         return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`]
                     }
                     default:
@@ -1078,15 +814,19 @@ source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabiliti
 function getSearchChannelContentsCapabilities() {
     log("BiliBili log: getting space capabilities")
     // TODO there are filter options but they only show up after a search has been returned
-    return new ResultCapabilities<FilterGroupIDs>([Type.Feed.Videos, "POSTS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup(
-        "Additional Content",
-        [
-            new FilterCapability("Live Rooms", "0", "Live Rooms"),
-            new FilterCapability("Posts", "1", "Posts")
-        ],
-        false,
-        "ADDITIONAL_CONTENT"
-    )])
+    return new ResultCapabilities<FilterGroupIDs>(
+        [Type.Feed.Videos, "POSTS"],
+        [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
+        [new FilterGroup(
+            "Additional Content",
+            [
+                new FilterCapability("Live Rooms", "0", "Live Rooms"),
+                new FilterCapability("Posts", "1", "Posts")
+            ],
+            false,
+            "ADDITIONAL_CONTENT"
+        )]
+    )
 }
 source.searchChannelContents = searchChannelContents
 function searchChannelContents(space_url: string, query: string, type: FeedType | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
@@ -1103,19 +843,22 @@ function searchChannelContents(space_url: string, query: string, type: FeedType 
     }
     const space_id = parseInt(maybe_space_id)
 
+    const page_size = 30 as const
+    const initial_page = 1 as const
+
     switch (type) {
         case "POSTS":
             log("BiliBili log: ordering posts is not supported")
             log(`BiliBili log: order ${order} ignored`)
-            return new ChannelPostsResultsPager(query, space_id, 1, 30)
+            return new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
         case Type.Feed.Videos:
-            return new ChannelVideoResultsPager(query, space_id, 1, 30, order)
+            return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
         case null:
             switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
                 case "post":
-                    return new ChannelPostsResultsPager(query, space_id, 1, 30)
+                    return new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
                 default:
-                    return new ChannelVideoResultsPager(query, space_id, 1, 30, order)
+                    return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
             }
         default:
             throw new ScriptException(`unhandled feed type ${type}`)
@@ -1334,9 +1077,7 @@ class SearchPager extends VideoPager {
         this.type = type
     }
     override nextPage(): this {
-        const now = Date.now()
         const raw_response = search_request(this.query, this.next_page, this.page_size, this.type, this.order, this.duration)
-        log_network_call(now)
         const { search_results, more } = extract_search_results(raw_response, this.type, this.next_page, this.page_size)
         if (search_results === null) {
             this.results = []
@@ -1353,19 +1094,60 @@ class SearchPager extends VideoPager {
     }
 }
 
+function get_post(post_id: string) {
+    const post_response = download_post(post_id)
+    const space_post = post_response.data.item
+    const desc = space_post.modules.module_dynamic.desc
+    const images: string[] = []
+    const thumbnails: Thumbnail[] = []
+
+    const primary_content = desc?.rich_text_nodes
+        .map((node) => { return format_text_node(node, images) })
+        .join("")
+
+    const major = space_post.modules.module_dynamic.major
+    const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
+
+    const topic = space_post.modules.module_dynamic.topic
+    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
+
+    const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
+
+    return new PlatformPostDetails({
+        // TODO currently there is a bug where this property is impossible to use
+        // thumbnails: new Thumbnails(thumbnails),
+        // TODO there is a bug that means that these images do not display
+        images,
+        description: content,
+        name: MISSING_NAME,
+        url: `${POST_URL_PREFIX}${space_post.id_str}`,
+        id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
+        rating: new RatingLikes(space_post.modules.module_stat.like.count),
+        textType: Type.Text.HTML,
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, space_post.modules.module_author.mid.toString(), plugin.config.id),
+            space_post.modules.module_author.name,
+            `${SPACE_URL_PREFIX}${space_post.modules.module_author.mid}`,
+            space_post.modules.module_author.face,
+            local_storage_cache.space_cache.get(space_post.modules.module_author.mid)?.num_fans
+        ),
+        content,
+        datetime: space_post.modules.module_author.pub_ts
+    })
+}
+
 function format_comments(
-    comments_response: CommentsJSON,
+    comments_response: CommentResponse,
     context_url: string,
     oid: number,
     type: 1 | 33,
     include_pinned_comment: boolean
 ): PlatformComment<BiliBiliCommentContext>[] {
-    const comment_data = comments_response.data
-    const comments = (
-        include_pinned_comment && comment_data.top.upper !== null
-            ? [comment_data.top.upper].concat(comment_data.replies)
-            : comment_data.replies
-    ).map((data) => {
+    const replies = comments_response.data.replies
+    if (include_pinned_comment && comments_response.data.top.upper !== null) {
+        replies.unshift(comments_response.data.top.upper)
+    }
+    const comments = replies.map((data) => {
         const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id)
         return new PlatformComment<BiliBiliCommentContext>({
             author: new PlatformAuthorLink(
@@ -1396,7 +1178,12 @@ function format_comments(
     return comments
 }
 
-function format_replies(comment_data: SubCommentsJSON, type: "1" | "33", oid: number, context_url: string): PlatformComment<BiliBiliCommentContext>[] {
+function format_replies(
+    comment_data: SubCommentsJSON,
+    type: "1" | "33",
+    oid: number,
+    context_url: string
+): PlatformComment<BiliBiliCommentContext>[] {
     const comments = comment_data.data.replies.map((comment) => {
         if (comment.replies.length !== 0) {
             // these could be supported but as far as we understand they do not exist on BiliBili
@@ -1519,7 +1306,6 @@ function format_text_node(node: TextNode, images: string[]) {
         default:
             throw assert_no_fall_through(node, `unhandled type on node ${node}`)
     }
-
 }
 
 // starts with the longer array or a if they are the same length
@@ -1543,8 +1329,6 @@ function assert_no_fall_through(value: never, exception_message?: string): Scrip
     return
 }
 
-// function get_comment_context_url
-
 // type is 33 for courses and 1 for everything else
 // oid for episodes and videos is the aid
 // oid for courses is the episode id
@@ -1562,14 +1346,14 @@ function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: num
     const url = create_signed_url(thread_prefix, params).toString()
     const now = Date.now()
     const json = local_http.GET(url, {}, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
 
     const results: SubCommentsJSON = JSON.parse(json)
     return results
 }
 
 
-function get_comments(oid: number, type: 1 | 33, page: number) {
+function get_comments(oid: number, type: 1 | 33, page: number): CommentResponse {
     const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main"
     const params: Params = {
         type: type.toString(),
@@ -1589,9 +1373,9 @@ function get_comments(oid: number, type: 1 | 33, page: number) {
 
     const now = Date.now()
     const json = local_http.GET(comment_url, {}, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
 
-    const results: CommentsJSON = JSON.parse(json)
+    const results: CommentResponse = JSON.parse(json)
     return results
 }
 
@@ -1715,7 +1499,7 @@ function download_post(post_id: string): PostResponse {
     const url = create_signed_url(single_post_prefix, params).toString()
     const now = Date.now()
     const json = local_http.GET(url, { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
     const post_response: PostResponse = JSON.parse(json)
     return post_response
 }
@@ -1996,12 +1780,18 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
     })
 }
 
-/*
-function festival_request(festival_id: string, op: BatchBuilder): BatchBuilder
-function festival_request(festival_id: string, op: HTTP): BridgeHttpResponse
-function festival_request(festival_id: string, op: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+
+function festival_request(festival_id: string, builder: BatchBuilder): BatchBuilder
+function festival_request(festival_id: string): BridgeHttpResponse
+function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const festival_url = `${FESTIVAL_URL_PREFIX}${festival_id}`
-    return op.GET(festival_url.toString(), {}, false)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(festival_url.toString(), {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
@@ -2017,27 +1807,6 @@ function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
     const results: FestivalResponse = JSON.parse(json)
     return results
 }
-*/
-
-function load_festival(festival_id: string): FestivalResponse {
-    const festival_html_regex = /<script>window\.__INITIAL_STATE__=(.*?);\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
-
-    const festival_url = `${FESTIVAL_URL_PREFIX}${festival_id}`
-    const now = Date.now()
-    const festival_html = local_http.GET(festival_url.toString(), {}, false).body
-    log_network_call(now)
-    const match_result = festival_html.match(festival_html_regex)
-    if (match_result === null) {
-        throw new ScriptException("unreachable")
-    }
-    const json = match_result[1]
-    if (json === undefined) {
-        throw new ScriptException("unreachable")
-    }
-    const results: FestivalResponse = JSON.parse(json)
-    return results
-}
-
 
 function execute_requests<T>(
     request: [RequestMetadata<T>],
@@ -2234,6 +2003,28 @@ function format_course(season_id: number, course_response: CourseResponse): Plat
     })
 }
 
+function course_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
+function course_play_request(episode_id: number): BridgeHttpResponse
+function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const play_url_prefix = "https://api.bilibili.com/pugv/player/web/playurl"
+    const params: Params = {
+        fnval: "4048",
+        ep_id: episode_id.toString()
+    }
+    const url = create_url(play_url_prefix, params).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        url,
+        { "User-Agent": GRAYJAY_USER_AGENT, Host: "api.bilibili.com" },
+        false
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+
 function course_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
 function course_request(id_obj: IdObj): BridgeHttpResponse
 function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
@@ -2267,7 +2058,7 @@ function format_season(season_id: number, season_response: SeasonResponse): Plat
         const url = `${EPISODE_URL_PREFIX}${episode.ep_id}`
         const video_id = new PlatformID(PLATFORM, episode.ep_id.toString(), plugin.config.id)
 
-        // update cache
+        // update cid cache
         local_storage_cache.cid_cache.set(episode.bvid, episode.cid)
 
         return new PlatformVideo({
@@ -2292,6 +2083,58 @@ function format_season(season_id: number, season_response: SeasonResponse): Plat
         videoCount: season_response.result.total,
         thumbnail: season_response.result.cover
     })
+}
+
+function format_sources(play_data: PlayData) {
+    const video_sources: VideoUrlSource[] = play_data.dash.video.map((video) => {
+        const name = play_data.accept_description[
+            play_data.accept_quality.findIndex((value) => {
+                return value === video.id
+            })
+        ]
+        if (name === undefined) {
+            throw new ScriptException("can't load content details")
+        }
+        const video_url_hostname = new URL(video.base_url).hostname
+        return new VideoUrlSource({
+            width: video.width,
+            height: video.height,
+            container: video.mime_type,
+            codec: video.codecs,
+            name: name,
+            bitrate: video.bandwidth,
+            duration: play_data.dash.duration,
+            url: video.base_url,
+            requestModifier: {
+                headers: {
+                    "Referer": "https://www.bilibili.com",
+                    "Host": video_url_hostname,
+                    "User-Agent": GRAYJAY_USER_AGENT
+                }
+            }
+        })
+    })
+
+    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map((audio) => {
+        const audio_url_hostname = new URL(audio.base_url).hostname
+        return new AudioUrlSource({
+            container: audio.mime_type,
+            codecs: audio.codecs,
+            name: `${audio.codecs} at ${audio.bandwidth}`,
+            bitrate: audio.bandwidth,
+            duration: play_data.dash.duration,
+            url: audio.base_url,
+            language: Language.UNKNOWN,
+            requestModifier: {
+                headers: {
+                    "Referer": "https://www.bilibili.com",
+                    "Host": audio_url_hostname,
+                    "User-Agent": GRAYJAY_USER_AGENT
+                }
+            }
+        })
+    })
+    return { audio_sources, video_sources }
 }
 
 function episode_info_request(episode_id: number, builder: BatchBuilder): BatchBuilder
@@ -2468,7 +2311,7 @@ function format_space_contents(
                 thumbnails: new Thumbnails([new Thumbnail(space_video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
                 author: author,
                 duration: parse_minutes_seconds(space_video.length),
-                viewCount: space_video.play,
+                viewCount: space_video.play === "--" ? 0 : space_video.play,
                 isLive: false,
                 shareUrl: url,
                 uploadDate: space_video.created
@@ -2495,7 +2338,7 @@ function format_space_contents(
 
             return new PlatformPostDetails({
                 // TODO currently there is a bug where this property is impossible to use
-                thumbnails: new Thumbnails(thumbnails),
+                // thumbnails: new Thumbnails(thumbnails),
                 images,
                 description: content,
                 // as far as i can tell posts don't have names
@@ -2697,166 +2540,6 @@ function space_favorites_request(space_id: number, builder: BatchBuilder | HTTP)
     )
 }
 
-/*
-// warning: makes up to 5 network requests in parallel
-function get_space_contents(space_id: number, download_options: SpaceDownloadOption[]): Array<{
-    response: SpaceVideosSearchResponse
-    type: "videos"
-} | {
-    response: SpacePostsResponse
-    type: "posts"
-} | {
-    response: SpaceCoursesResponse
-    type: "courses"
-} | {
-    response: SpaceCollectionsResponse
-    type: "collections"
-} | {
-    response: SpaceFavoritesResponse
-    type: "favorites"
-}> {
-    // TODO if we can get cid caching working then use this api to load the cids for all videos and cache them
-    // https://api.bilibili.com/x/v3/fav/resource/infos
-    // it's used when viewing a favorites list
-    const batch = http.batch()
-    download_options.forEach((download_option) => {
-        switch (download_option.type) {
-            case "videos": {
-                const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
-                const params: Params = {
-                    mid: space_id.toString(),
-                    pn: download_option.page.toString(),//"1",
-                    ps: download_option.page_size.toString()//"25",
-                }
-                const url = create_signed_url(space_contents_search_prefix, params).toString()
-                const b_nut = local_storage_cache.b_nut
-                log(url)
-                log(`buvid3=${local_storage_cache.buvid3};`)
-                log(`buvid4=${local_storage_cache.buvid4};`)
-                log(`b_nut=${b_nut};`)
-                batch.GET(
-                    url,
-                    {
-                        "User-Agent": GRAYJAY_USER_AGENT,
-                        Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}`,
-                        // Cookie: `buvid3=${local_storage_cache.buvid3}`,
-                        Host: "api.bilibili.com",
-                        Referer: "https://space.bilibili.com"
-                    },
-                    false)
-                break
-            }
-            case "posts": {
-                const space_post_feed_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
-                const params: Params = download_option.offset ? {
-                    host_mid: space_id.toString(),
-                    offset: download_option.offset.toString()
-                } : {
-                    host_mid: space_id.toString()
-                }
-                batch.GET(
-                    create_url(space_post_feed_prefix, params).toString(),
-                    { Host: "api.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}`, "User-Agent": GRAYJAY_USER_AGENT },
-                    false)
-                break
-            }
-            case "courses": {
-                const course_prefix = "https://api.bilibili.com/pugv/app/web/season/page"
-                const params: Params = {
-                    mid: space_id.toString(),
-                    pn: download_option.page.toString(),//"1",
-                    ps: download_option.page_size.toString()//"15"
-                }
-                batch.GET(create_url(course_prefix, params).toString(), {}, false)
-                break
-            }
-            case "collections": {
-                const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_series_list"
-                const params: Params = {
-                    mid: space_id.toString(),
-                    page_num: download_option.page.toString(),//"1",
-                    page_size: download_option.page_size.toString()//"20"
-                }
-                batch.GET(
-                    create_signed_url(collection_prefix, params).toString(),
-                    { Cookie: `buvid3=${local_storage_cache.buvid3}` },
-                    false)
-                break
-            }
-            // note there is another section on the page https://space.bilibili.com/<space_id>/favlist
-            // that has the users collected playlists. those are playlists created by others that the user has saved
-            // we won't load these into the feed because they aren't their playlists
-            // TODO we download everything every time. we should cache the result and use it
-            case "favorites": {
-                const favorites_prefix = "https://api.bilibili.com/x/v3/fav/folder/created/list-all"
-                const params: Params = {
-                    up_mid: space_id.toString()
-                }
-                batch.GET(
-                    create_url(favorites_prefix, params).toString(),
-                    { "User-Agent": GRAYJAY_USER_AGENT },
-                    false
-                )
-                break
-            }
-            default:
-                assert_no_fall_through(download_option)
-                break
-        }
-    })
-
-    const now = Date.now()
-    const results = batch.execute()
-    log(`BiliBili log: making ${results.length} network request(s) in parallel took ${Date.now() - now} milliseconds`)
-
-    return download_options.map((download_option, index) => {
-        switch (download_option.type) {
-            case "videos": {
-                const result = results[index]
-                if (result === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                return { response: JSON.parse(result.body), type: "videos" }
-            }
-            case "posts": {
-                const result = results[index]
-                if (result === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                return { response: JSON.parse(result.body), type: "posts" }
-            }
-            case "courses": {
-                const result = results[index]
-                if (result === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                return { response: JSON.parse(result.body), type: "courses" }
-            }
-            case "collections": {
-                const result = results[index]
-                if (result === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                return { response: JSON.parse(result.body), type: "collections" }
-            }
-            case "favorites": {
-                const result = results[index]
-                if (result === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                const response: SpaceFavoritesResponse = JSON.parse(result.body)
-                if (response.data === null || response.data.list === null) {
-                    return { response, type: "favorites" }
-                }
-                response.data.list = response.data.list.slice(download_option.page * download_option.page_size, download_option.page * download_option.page_size + download_option.page_size)
-                return { response, type: "favorites" }
-            }
-            default:
-                throw assert_no_fall_through(download_option, "unreachable")
-        }
-    })
-}*/
-
 function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
     return results.map((item) => {
         switch (item.type) {
@@ -2864,21 +2547,13 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                 const url = `${VIDEO_URL_PREFIX}${item.bvid}`
                 const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id)
                 const author_id = new PlatformID(PLATFORM, item.mid.toString(), plugin.config.id)
-                const parsed_length = item.duration.match(/^(\d+):(\d+)/)
-                if (parsed_length === null) {
-                    throw new ScriptException("unreachable regex error")
-                }
-                const minutes = parsed_length[1]
-                const seconds = parsed_length[2]
-                if (minutes === undefined || seconds === undefined) {
-                    throw new ScriptException("unreachable regex error")
-                }
-                const duration = parseInt(minutes) * 60 + parseInt(seconds)
+
+                const duration = parse_minutes_seconds(item.duration)
                 return new PlatformVideo({
                     id: video_id,
                     name: item.title,
                     url: url,
-                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, 1080)]), // TODO hardcoded 1080
+                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(
                         author_id,
                         item.author,
@@ -2900,8 +2575,13 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                     id: video_id,
                     name: item.title,
                     url: url,
-                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, 1080)]), // TODO hardcoded 1080
-                    author: new PlatformAuthorLink(author_id, item.uname, `${SPACE_URL_PREFIX}${item.uid}`, `https:${item.uface}`, local_storage_cache.space_cache.get(item.uid)?.num_fans),
+                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author: new PlatformAuthorLink(
+                        author_id,
+                        item.uname,
+                        `${SPACE_URL_PREFIX}${item.uid}`,
+                        `https:${item.uface}`,
+                        local_storage_cache.space_cache.get(item.uid)?.num_fans),
                     viewCount: item.watched_show.num,
                     isLive: true,
                     shareUrl: url,
@@ -2909,9 +2589,7 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                     uploadDate: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
                 })
             }
-            // TODO there are search result options for bangumi and courses. they show up with playlist metadata
-            // we either need to load the first episode to display in the search results
-            // or we need to be able to put playlists in search results
+            // TODO once the main search results support playlists courses and shows should return playlists
             case "ketang": {
                 const season_id = item.id
                 const course_response: CourseResponse = JSON.parse(course_request({ type: "season", id: season_id }).body)
@@ -2922,7 +2600,6 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                 }
                 return episode
             }
-            // TODO this is duplicated below
             case "media_bangumi": {
                 const first_episode = item.eps[0]
                 if (first_episode === undefined) {
@@ -2930,17 +2607,17 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                 }
                 const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
                 const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, "item.uid.toString()", plugin.config.id)
                 return new PlatformVideo({
                     id: video_id,
                     name: item.title,
                     url: url,
                     // TODO figure out if we should include both thumbnails
-                    thumbnails: new Thumbnails([new Thumbnail(first_episode.cover, 1080), new Thumbnail(item.cover, 1080)]), // TODO hardcoded 1080
-                    // TODO figure out what to do about bangumi authors
-                    author: new PlatformAuthorLink(author_id, "item.uname", `${SPACE_URL_PREFIX}${"item.uid"}`, `https:${"item.uface"}`, 11),
-                    // TODO hardcoded 0
-                    viewCount: 0,
+                    thumbnails: new Thumbnails([
+                        new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY),
+                        new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)
+                    ]),
+                    author: EMPTY_AUTHOR,
+                    viewCount: HARDCODED_ZERO,
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
@@ -2976,21 +2653,18 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                 }
                 const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
                 const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, "item.uid.toString()", plugin.config.id)
-                const thumbnails = [new Thumbnail(item.cover, 1080)]
+                const thumbnails = [new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)]
                 if (first_episode.cover !== undefined) {
-                    thumbnails.push(new Thumbnail(first_episode.cover, 1080))
+                    thumbnails.push(new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY))
                 }
                 return new PlatformVideo({
                     id: video_id,
                     name: item.title,
                     url: url,
                     // TODO figure out if we should include both thumbnails
-                    thumbnails: new Thumbnails(thumbnails), // TODO hardcoded 1080
-                    // TODO figure out what to do about bangumi authors
-                    author: new PlatformAuthorLink(author_id, "item.uname", `${SPACE_URL_PREFIX}${"item.uid"}`, `https:${"item.uface"}`, 11),
-                    // TODO hardcoded 0
-                    viewCount: 0,
+                    thumbnails: new Thumbnails(thumbnails),
+                    author: EMPTY_AUTHOR,
+                    viewCount: HARDCODED_ZERO,
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
@@ -3066,113 +2740,114 @@ function extract_search_results(
     if (type === "live") {
         const results: LiveSearchResponse = JSON.parse(raw_response.body)
         return {
-            search_results: results.data.result.live_room,
+            search_results: results.data.result === undefined ? null : results.data.result.live_room,
             more: results.data.pageinfo.live_room.total > page * page_size
         }
     }
 
     const results: SearchResponse = JSON.parse(raw_response.body)
     return {
-        search_results: results.data.result,
+        search_results: results.data.result === undefined ? null : results.data.result,
         more: results.data.numResults > page * page_size
     }
 }
 
-function get_video_details_json(video_id: string): [VideoInfoJSON, VideoPlayJSON] {
-    // const cid = local_storage_cache.cid_cache.get(video_id)
+function video_detail_request(bvid: string, builder: BatchBuilder): BatchBuilder
+function video_detail_request(bvid: string): BridgeHttpResponse
+function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail"
-    const params2: Params = {
-        bvid: video_id
+    const params: Params = {
+        bvid
     }
-    const info_url2 = create_signed_url(detail_prefix, params2)
+    const url = create_signed_url(detail_prefix, params)
     const buvid3 = local_storage_cache.buvid3
-    const url_prefix = "https://api.bilibili.com/x/player/wbi/playurl"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        url.toString(),
+        {
+            Host: "api.bilibili.com",
+            "User-Agent": CHROME_USER_AGENT,
+            Referer: "https://www.bilibili.com",
+            Cookie: `buvid3=${buvid3}`
+        },
+        false
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function video_play_request(bvid: string, cid: number, builder: BatchBuilder): BatchBuilder
+function video_play_request(bvid: string, cid: number): BridgeHttpResponse
+function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const play_prefix = "https://api.bilibili.com/x/player/wbi/playurl"
+    const params: Params = {
+        bvid,
+        fnval: "4048",
+        cid: cid.toString(),
+    }
+    const url = create_signed_url(play_prefix, params)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
 
-
+function load_video_details(video_id: string): [VideoDetailResponse, VideoPlayResponse] {
     const cid = local_storage_cache.cid_cache.get(video_id)
 
-    // TODO there is duplicated code here for whether or not the cid is cached.
-    // if it is we want to run the requests in parallel
     if (cid === undefined) {
-        const detail_now = Date.now()
-        const video_details_json = local_http.GET(
-            info_url2.toString(),
-            {
-                Host: "api.bilibili.com",
-                "User-Agent": CHROME_USER_AGENT,
-                Referer: "https://www.bilibili.com",
-                Cookie: `buvid3=${buvid3}`
-            },
-            false
-        ).body
-        log(`BiliBili log: making 1 network request took ${Date.now() - detail_now} milliseconds`)
-        const video_info = JSON.parse(video_details_json)
+        const detail_response: VideoDetailResponse = JSON.parse(video_detail_request(video_id).body)
+        const play_response: VideoPlayResponse = JSON.parse(video_play_request(video_id, detail_response.data.View.cid).body)
 
-        const params: Params = {
-            bvid: video_id,
-            fnval: "4048",
-            cid: video_info.data.View.cid.toString(),
-        }
-        const info_url = create_signed_url(url_prefix, params)
-
-        const play_now = Date.now()
-        const video_play_json = local_http.GET(info_url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, false).body
-        log(`BiliBili log: making 1 network request took ${Date.now() - play_now} milliseconds`)
-
-        const video_play: VideoPlayJSON = JSON.parse(video_play_json)
-        return [video_info, video_play]
+        return [detail_response, play_response]
     } else {
-        const batch = local_http.batch()
-        batch.GET(info_url2.toString(), { Host: "api.bilibili.com", "User-Agent": CHROME_USER_AGENT, Referer: "https://www.bilibili.com", Cookie: `buvid3=${buvid3}` }, false)
-        const params: Params = {
-            bvid: video_id,
-            fnval: "4048",
-            cid: cid.toString(),
-        }
-        const info_url = create_signed_url(url_prefix, params)
-        batch.GET(info_url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, false)
+        const requests: [RequestMetadata<VideoDetailResponse>, RequestMetadata<VideoPlayResponse>] = [
+            {
+                request(builder) { return video_detail_request(video_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) { return video_play_request(video_id, cid, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }
+        ]
 
-
-        const now = Date.now()
-        const [video_details_json, video_play_json] = batch.execute()
-        log(`BiliBili log: making 2 network requests in parallel took ${Date.now() - now} milliseconds`)
-
-        if (video_details_json === undefined || video_play_json === undefined) {
-            throw new ScriptException("unreachable")
-        }
-
-        const video_info = JSON.parse(video_details_json.body)
-
-        const video_play: VideoPlayJSON = JSON.parse(video_play_json.body)
-
-        return [video_info, video_play]
-
+        return execute_requests(requests)
     }
-
-    // TODO subtitiles require login
-    // https://api.bilibili.com/x/player/wbi/v2?aid=1402475665&cid=1487515536&isGaiaAvoided=false&web_location=1315873&w_rid=d0f2a387c3d7e19eb66f681e81b0385d&wts=1712248112
 }
 
 function fan_count_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function fan_count_request(space_id: number, builder: HTTP): BridgeHttpResponse
-function fan_count_request(space_id: number, builder: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function fan_count_request(space_id: number): BridgeHttpResponse
+function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const space_stat_url_prefix = "https://api.bilibili.com/x/relation/stat"
     const url = create_url(
         space_stat_url_prefix,
         {
             vmid: space_id.toString()
         }).toString()
-    return builder.GET(url, {}, false)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 function space_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_request(space_id: number, builder: HTTP): BridgeHttpResponse
-function space_request(space_id: number, builder: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_request(space_id: number): BridgeHttpResponse
+function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const space_stat_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info"
     const params: Params = {
         mid: space_id.toString(),
     }
     const url = create_signed_url(space_stat_url_prefix, params).toString()
-    return builder.GET(
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
         url,
         {
             Referer: "https://www.bilibili.com",
@@ -3181,41 +2856,11 @@ function space_request(space_id: number, builder: BatchBuilder | HTTP): BatchBui
             Cookie: `buvid3=${local_storage_cache.buvid3}`
         },
         false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
-
-/*
-function get_channel(space_id: number): [SpaceResponse, number] {
-    const space_info_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info"
-    const params: Params = {
-        mid: space_id.toString(),
-    }
-    const batch = local_http.batch()
-    batch.GET(
-        create_signed_url(space_info_url_prefix, params).toString(),
-        {
-            Referer: "https://www.bilibili.com",
-            Host: "api.bilibili.com",
-            "User-Agent": CHROME_USER_AGENT,
-            Cookie: `buvid3=${local_storage_cache.buvid3}`
-        },
-        false)
-    batch.GET(
-        create_url(
-            "https://api.bilibili.com/x/relation/stat",
-            { vmid: space_id.toString() }).toString(),
-        {},
-        false)
-    const now = Date.now()
-    const [space_result, stat_result] = batch.execute()
-    log(`BiliBili log: making 2 network requests in parallel took ${Date.now() - now} milliseconds`)
-    if (space_result === undefined || stat_result === undefined) {
-        throw new ScriptException("unreachable")
-    }
-    const space: SpaceResponse = JSON.parse(space_result.body)
-    const stats: { data: { follower: number } } = JSON.parse(stat_result.body)
-
-    return [space, stats.data.follower]
-}*/
 
 class SpacePager extends ChannelPager {
     readonly query: string
@@ -3444,38 +3089,7 @@ function format_space_results(space_search_results: SearchResultItem[]): Platfor
     })
 }
 
-function format_space_videos(space_videos_response: SpaceVideosSearchResponse, space_id: number): PlatformVideo[] {
-    // TODO we should combine the get_channel network requests with the search in a single batch
-    let space_info = local_storage_cache.space_cache.get(space_id)
-    if (space_info === undefined) {
-        const requests: [
-            RequestMetadata<SpaceResponse>,
-            RequestMetadata<{ data: { follower: number } }>
-        ] = [{
-            request(builder) { return space_request(space_id, builder) },
-            process(response) { return JSON.parse(response.body) }
-        }, {
-            request(builder) { return fan_count_request(space_id, builder) },
-            process(response) { return JSON.parse(response.body) }
-        }]
-
-        const [space, fan_count_response] = execute_requests(requests)
-        space_info = {
-            num_fans: fan_count_response.data.follower,
-            name: space.data.name,
-            face: space.data.face,
-            live_room: space.data.live_room === null ? null : {
-                title: space.data.live_room.title,
-                roomid: space.data.live_room.roomid,
-                live_status: space.data.live_room.liveStatus === 1,
-                cover: space.data.live_room.cover, watched_show: {
-                    num: space.data.live_room.watched_show.num
-                }
-            }
-        }
-        local_storage_cache.space_cache.set(space_id, space_info)
-    }
-
+function format_space_videos(space_videos_response: SpaceVideosSearchResponse, space_id: number, space_info: CoreSpaceInfo): PlatformVideo[] {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
     const author = new PlatformAuthorLink(
         author_id,
@@ -3488,69 +3102,23 @@ function format_space_videos(space_videos_response: SpaceVideosSearchResponse, s
     return space_videos_response.data.list.vlist.map((space_video) => {
         const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`
         const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id)
-        const parsed_length = space_video.length.match(/^(\d+):(\d+)/)
-        if (parsed_length === null) {
-            throw new ScriptException("unreachable regex error")
-        }
-        const minutes = parsed_length[1]
-        const seconds = parsed_length[2]
-        if (minutes === undefined || seconds === undefined) {
-            throw new ScriptException("unreachable regex error")
-        }
-        const duration = parseInt(minutes) * 60 + parseInt(seconds)
+
+        const duration = parse_minutes_seconds(space_video.length)
 
         return new PlatformVideo({
             id: video_id,
             name: space_video.title,
             url: url,
-            thumbnails: new Thumbnails([new Thumbnail(space_video.pic, 1080)]), // TODO hardcoded 1080
+            thumbnails: new Thumbnails([new Thumbnail(space_video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
             author,
-            duration: duration,
-            viewCount: space_video.play,
+            duration,
+            viewCount: space_video.play === "--" ? 0 : space_video.play,
             isLive: false,
             shareUrl: url,
             uploadDate: space_video.created
         })
     })
 }
-
-/*
-function search_space_videos(query: string, space_id: number, page: number, page_size: number, order: Order | null): SpaceVideosSearchResponse {
-    const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
-    const params: Params = {
-        mid: space_id.toString(),
-        order: ((order): OrderOptions => {
-            switch (order) {
-                case Type.Order.Chronological:
-                    return "pubdate"
-                case Type.Order.Favorites:
-                    return "stow"
-                case Type.Order.Views:
-                    return "click"
-                case null:
-                    return "pubdate"
-                default:
-                    throw new ScriptException(`unhandled ordering ${order}`)
-            }
-        })(order),
-        query,
-        pn: page.toString(),
-        ps: page_size.toString(),
-    }
-    const url = create_signed_url(space_contents_search_prefix, params).toString()
-
-    const json = http.GET(
-        url,
-        {
-            "User-Agent": GRAYJAY_USER_AGENT,
-            Cookie: `buvid3=${local_storage_cache.buvid3}`,
-            Host: "api.bilibili.com"
-        },
-        false).body
-    const search_response: SpaceVideosSearchResponse = JSON.parse(json)
-    return search_response
-}
-*/
 
 function search_space_posts(query: string, space_id: number, page: number, page_size: number): SpacePostsSearchResponse {
     const space_contents_search_prefix = "https://api.bilibili.com/x/space/dynamic/search"
@@ -3562,17 +3130,20 @@ function search_space_posts(query: string, space_id: number, page: number, page_
     }
     const url = create_url(space_contents_search_prefix, params).toString()
 
+    const now = Date.now()
     const json = local_http.GET(
         url,
         {},
         false).body
+    log_network_call(now)
+
     const search_response: SpacePostsSearchResponse = JSON.parse(json)
     return search_response
 }
 
 // TODO the post search results are really hard to parse. might be best to just load whole posts
 // directly
-function format_space_posts(response: SpacePostsSearchResponse): PlatformPost[] {
+function format_post_search_result(response: SpacePostsSearchResponse): PlatformPost[] {
     const space_posts_response = response
     if (space_posts_response.data.cards === null) {
         return []
@@ -3590,11 +3161,11 @@ function format_space_posts(response: SpacePostsSearchResponse): PlatformPost[] 
         )
         return new PlatformPost({
             // TODO currently there is a bug where this property is impossible to use
-            thumbnails: new Thumbnails([]),
+            // thumbnails: new Thumbnails([]),
             images: [],
             description: post.item?.content ?? post.item?.description ?? "",
             // as far as i can tell posts don't have names
-            name: "",
+            name: MISSING_NAME,
             url: `${POST_URL_PREFIX}${card.desc.dynamic_id_str}`,
             id: new PlatformID(PLATFORM, card.desc.dynamic_id_str, plugin.config.id),
             author,
@@ -3611,7 +3182,7 @@ class ChannelPostsResultsPager extends ContentPager {
     constructor(query: string, space_id: number, initial_page: number, page_size: number) {
         const response = search_space_posts(query, space_id, initial_page, page_size)
         const more = response.data.total > initial_page * page_size
-        super(format_space_posts(response), more)
+        super(format_post_search_result(response), more)
         this.next_page = initial_page + 1
         this.page_size = page_size
         this.space_id = space_id
@@ -3619,7 +3190,7 @@ class ChannelPostsResultsPager extends ContentPager {
     }
     override nextPage(): this {
         const response = search_space_posts(this.query, this.space_id, this.next_page, this.page_size)
-        this.results = format_space_posts(response)
+        this.results = format_post_search_result(response)
         this.hasMore = response.data.total > this.next_page * this.page_size
         this.next_page += 1
         return this
@@ -3635,20 +3206,61 @@ class ChannelVideoResultsPager extends ContentPager {
     readonly space_id: number
     readonly query: string
     readonly order: Order | null
+    readonly space_info: CoreSpaceInfo
     constructor(query: string, space_id: number, initial_page: number, page_size: number, order: Order | null) {
-        const response: SpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
-        const more = response.data.page.count > initial_page * page_size
-        super(format_space_videos(response, space_id), more)
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let search_response: SpaceVideosSearchResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>,
+                RequestMetadata<SpaceVideosSearchResponse>
+            ] = [{
+                request(builder) { return space_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) { return fan_count_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) {
+                    return space_videos_request(space_id, initial_page, page_size, query, order, builder)
+                },
+                process(response) { return JSON.parse(response.body) }
+            }]
+
+            const [space, fan_count_response, local_search_response] = execute_requests(requests)
+            search_response = local_search_response
+            space_info = {
+                num_fans: fan_count_response.data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+        } else {
+            search_response = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
+        }
+
+        const more = search_response.data.page.count > initial_page * page_size
+        super(format_space_videos(search_response, space_id, space_info), more)
         this.next_page = initial_page + 1
         this.page_size = page_size
         this.space_id = space_id
         this.query = query
         this.order = order
+        this.space_info = space_info
     }
     override nextPage(): this {
         const response_body = space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body
         const response: SpaceVideosSearchResponse = JSON.parse(response_body)
-        this.results = format_space_videos(response, this.space_id)
+        this.results = format_space_videos(response, this.space_id, this.space_info)
         this.hasMore = response.data.page.count > this.next_page * this.page_size
         this.next_page += 1
         return this
@@ -3703,7 +3315,7 @@ function format_home(home: HomeFeedResponse): PlatformVideo[] {
             case "ad":
                 return []
             case "av": {
-                // cache cid
+                // update cid cache
                 local_storage_cache.cid_cache.set(item.bvid, item.cid)
 
                 const fan_count = local_storage_cache.space_cache.get(item.owner.mid)?.num_fans
@@ -3845,7 +3457,7 @@ function download_mixin_constant(): readonly number[] {
 
     const now = Date.now()
     const html = local_http.GET(url, {}, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
     const mixin_constant_json = html.match(mixin_constant_regex)?.[1]
     if (mixin_constant_json === undefined) {
         throw new ScriptException("failed to acquire mixin_constant")
@@ -3857,7 +3469,7 @@ function download_wbi_keys(): Wbi {
     const url = "https://api.bilibili.com/x/web-interface/nav"
     const now = Date.now()
     const wbi_json = local_http.GET(url, {}, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
     const res: { data: { wbi_img: { img_url: string, sub_url: string } } } = JSON.parse(wbi_json)
 
     return {
@@ -3873,11 +3485,11 @@ function create_b_nut() {
 // TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
 // this will make things simpler
 function download_and_activate_buvid3_and_buvid4(b_nut: number) {
-    // download a buvid3
+    // download cookies
     const finger_spi_url = "https://api.bilibili.com/x/frontend/finger/spi"
     const now = Date.now()
     const json = local_http.GET(finger_spi_url, {}, false).body
-    log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+    log_network_call(now)
     const finger_spi_response: FingerSpiResponse = JSON.parse(json)
     const buvid3 = finger_spi_response.data.b_3
     const buvid4 = finger_spi_response.data.b_4
@@ -3895,7 +3507,7 @@ function download_and_activate_buvid3_and_buvid4(b_nut: number) {
                 "Content-Type": "application/json"
             },
             false)
-        log(`BiliBili log: making 1 network request took ${Date.now() - now} milliseconds`)
+        log_network_call(now)
     }
     return { buvid3, buvid4 }
 }
@@ -4104,14 +3716,15 @@ function md5(input: string): string {
 // https://cdn.jsdelivr.net/npm/md5-js-tools@1.0.2/lib/md5.min.js
 // @ts-expect-error TODO write our own Typescript implementation
 // eslint-disable-next-line
-var MD5: { generate?: any }; (() => { var r = { d: (n, t) => { for (var e in t) r.o(t, e) && !r.o(n, e) && Object.defineProperty(n, e, { enumerable: !0, get: t[e] }) }, o: (r, n) => Object.prototype.hasOwnProperty.call(r, n), r: r => { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(r, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(r, "__esModule", { value: !0 }) } }, n = {}; (() => { r.r(n), r.d(n, { MD5: () => d, generate: () => e }); var t = function (r) { r = r.replace(/\r\n/g, "\n"); for (var n = "", t = 0; t < r.length; t++) { var e = r.charCodeAt(t); e < 128 ? n += String.fromCharCode(e) : e > 127 && e < 2048 ? (n += String.fromCharCode(e >> 6 | 192), n += String.fromCharCode(63 & e | 128)) : (n += String.fromCharCode(e >> 12 | 224), n += String.fromCharCode(e >> 6 & 63 | 128), n += String.fromCharCode(63 & e | 128)) } return n }; function e(r) { var n, e, o, d, l, C, h, v, S, m; for (n = function (r) { for (var n, t = r.length, e = t + 8, o = 16 * ((e - e % 64) / 64 + 1), u = Array(o - 1), a = 0, f = 0; f < t;)a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | r.charCodeAt(f) << a, f++; return a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | 128 << a, u[o - 2] = t << 3, u[o - 1] = t >>> 29, u }(t(r)), h = 1732584193, v = 4023233417, S = 2562383102, m = 271733878, e = 0; e < n.length; e += 16)o = h, d = v, l = S, C = m, h = a(h, v, S, m, n[e + 0], 7, 3614090360), m = a(m, h, v, S, n[e + 1], 12, 3905402710), S = a(S, m, h, v, n[e + 2], 17, 606105819), v = a(v, S, m, h, n[e + 3], 22, 3250441966), h = a(h, v, S, m, n[e + 4], 7, 4118548399), m = a(m, h, v, S, n[e + 5], 12, 1200080426), S = a(S, m, h, v, n[e + 6], 17, 2821735955), v = a(v, S, m, h, n[e + 7], 22, 4249261313), h = a(h, v, S, m, n[e + 8], 7, 1770035416), m = a(m, h, v, S, n[e + 9], 12, 2336552879), S = a(S, m, h, v, n[e + 10], 17, 4294925233), v = a(v, S, m, h, n[e + 11], 22, 2304563134), h = a(h, v, S, m, n[e + 12], 7, 1804603682), m = a(m, h, v, S, n[e + 13], 12, 4254626195), S = a(S, m, h, v, n[e + 14], 17, 2792965006), h = f(h, v = a(v, S, m, h, n[e + 15], 22, 1236535329), S, m, n[e + 1], 5, 4129170786), m = f(m, h, v, S, n[e + 6], 9, 3225465664), S = f(S, m, h, v, n[e + 11], 14, 643717713), v = f(v, S, m, h, n[e + 0], 20, 3921069994), h = f(h, v, S, m, n[e + 5], 5, 3593408605), m = f(m, h, v, S, n[e + 10], 9, 38016083), S = f(S, m, h, v, n[e + 15], 14, 3634488961), v = f(v, S, m, h, n[e + 4], 20, 3889429448), h = f(h, v, S, m, n[e + 9], 5, 568446438), m = f(m, h, v, S, n[e + 14], 9, 3275163606), S = f(S, m, h, v, n[e + 3], 14, 4107603335), v = f(v, S, m, h, n[e + 8], 20, 1163531501), h = f(h, v, S, m, n[e + 13], 5, 2850285829), m = f(m, h, v, S, n[e + 2], 9, 4243563512), S = f(S, m, h, v, n[e + 7], 14, 1735328473), h = i(h, v = f(v, S, m, h, n[e + 12], 20, 2368359562), S, m, n[e + 5], 4, 4294588738), m = i(m, h, v, S, n[e + 8], 11, 2272392833), S = i(S, m, h, v, n[e + 11], 16, 1839030562), v = i(v, S, m, h, n[e + 14], 23, 4259657740), h = i(h, v, S, m, n[e + 1], 4, 2763975236), m = i(m, h, v, S, n[e + 4], 11, 1272893353), S = i(S, m, h, v, n[e + 7], 16, 4139469664), v = i(v, S, m, h, n[e + 10], 23, 3200236656), h = i(h, v, S, m, n[e + 13], 4, 681279174), m = i(m, h, v, S, n[e + 0], 11, 3936430074), S = i(S, m, h, v, n[e + 3], 16, 3572445317), v = i(v, S, m, h, n[e + 6], 23, 76029189), h = i(h, v, S, m, n[e + 9], 4, 3654602809), m = i(m, h, v, S, n[e + 12], 11, 3873151461), S = i(S, m, h, v, n[e + 15], 16, 530742520), h = c(h, v = i(v, S, m, h, n[e + 2], 23, 3299628645), S, m, n[e + 0], 6, 4096336452), m = c(m, h, v, S, n[e + 7], 10, 1126891415), S = c(S, m, h, v, n[e + 14], 15, 2878612391), v = c(v, S, m, h, n[e + 5], 21, 4237533241), h = c(h, v, S, m, n[e + 12], 6, 1700485571), m = c(m, h, v, S, n[e + 3], 10, 2399980690), S = c(S, m, h, v, n[e + 10], 15, 4293915773), v = c(v, S, m, h, n[e + 1], 21, 2240044497), h = c(h, v, S, m, n[e + 8], 6, 1873313359), m = c(m, h, v, S, n[e + 15], 10, 4264355552), S = c(S, m, h, v, n[e + 6], 15, 2734768916), v = c(v, S, m, h, n[e + 13], 21, 1309151649), h = c(h, v, S, m, n[e + 4], 6, 4149444226), m = c(m, h, v, S, n[e + 11], 10, 3174756917), S = c(S, m, h, v, n[e + 2], 15, 718787259), v = c(v, S, m, h, n[e + 9], 21, 3951481745), h = u(h, o), v = u(v, d), S = u(S, l), m = u(m, C); return g(h) + g(v) + g(S) + g(m) } function o(r, n) { return r << n | r >>> 32 - n } function u(r, n) { var t, e, o, u, a; return o = 2147483648 & r, u = 2147483648 & n, a = (1073741823 & r) + (1073741823 & n), (t = 1073741824 & r) & (e = 1073741824 & n) ? 2147483648 ^ a ^ o ^ u : t | e ? 1073741824 & a ? 3221225472 ^ a ^ o ^ u : 1073741824 ^ a ^ o ^ u : a ^ o ^ u } function a(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & n | ~r & t }(n, t, e), a), i)), u(o(r, f), n) } function f(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & t | n & ~t }(n, t, e), a), i)), u(o(r, f), n) } function i(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r ^ n ^ t }(n, t, e), a), i)), u(o(r, f), n) } function c(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return n ^ (r | ~t) }(n, t, e), a), i)), u(o(r, f), n) } function g(r) { var n, t = "", e = ""; for (n = 0; n <= 3; n++)t += (e = "0" + (r >>> 8 * n & 255).toString(16)).substr(e.length - 2, 2); return t } var d = { generate: e } })(), MD5 = n })();
+let MD5: { generate: any }; (() => { var r = { d: (n, t) => { for (var e in t) r.o(t, e) && !r.o(n, e) && Object.defineProperty(n, e, { enumerable: !0, get: t[e] }) }, o: (r, n) => Object.prototype.hasOwnProperty.call(r, n), r: r => { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(r, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(r, "__esModule", { value: !0 }) } }, n = {}; (() => { r.r(n), r.d(n, { MD5: () => d, generate: () => e }); var t = function (r) { r = r.replace(/\r\n/g, "\n"); for (var n = "", t = 0; t < r.length; t++) { var e = r.charCodeAt(t); e < 128 ? n += String.fromCharCode(e) : e > 127 && e < 2048 ? (n += String.fromCharCode(e >> 6 | 192), n += String.fromCharCode(63 & e | 128)) : (n += String.fromCharCode(e >> 12 | 224), n += String.fromCharCode(e >> 6 & 63 | 128), n += String.fromCharCode(63 & e | 128)) } return n }; function e(r) { var n, e, o, d, l, C, h, v, S, m; for (n = function (r) { for (var n, t = r.length, e = t + 8, o = 16 * ((e - e % 64) / 64 + 1), u = Array(o - 1), a = 0, f = 0; f < t;)a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | r.charCodeAt(f) << a, f++; return a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | 128 << a, u[o - 2] = t << 3, u[o - 1] = t >>> 29, u }(t(r)), h = 1732584193, v = 4023233417, S = 2562383102, m = 271733878, e = 0; e < n.length; e += 16)o = h, d = v, l = S, C = m, h = a(h, v, S, m, n[e + 0], 7, 3614090360), m = a(m, h, v, S, n[e + 1], 12, 3905402710), S = a(S, m, h, v, n[e + 2], 17, 606105819), v = a(v, S, m, h, n[e + 3], 22, 3250441966), h = a(h, v, S, m, n[e + 4], 7, 4118548399), m = a(m, h, v, S, n[e + 5], 12, 1200080426), S = a(S, m, h, v, n[e + 6], 17, 2821735955), v = a(v, S, m, h, n[e + 7], 22, 4249261313), h = a(h, v, S, m, n[e + 8], 7, 1770035416), m = a(m, h, v, S, n[e + 9], 12, 2336552879), S = a(S, m, h, v, n[e + 10], 17, 4294925233), v = a(v, S, m, h, n[e + 11], 22, 2304563134), h = a(h, v, S, m, n[e + 12], 7, 1804603682), m = a(m, h, v, S, n[e + 13], 12, 4254626195), S = a(S, m, h, v, n[e + 14], 17, 2792965006), h = f(h, v = a(v, S, m, h, n[e + 15], 22, 1236535329), S, m, n[e + 1], 5, 4129170786), m = f(m, h, v, S, n[e + 6], 9, 3225465664), S = f(S, m, h, v, n[e + 11], 14, 643717713), v = f(v, S, m, h, n[e + 0], 20, 3921069994), h = f(h, v, S, m, n[e + 5], 5, 3593408605), m = f(m, h, v, S, n[e + 10], 9, 38016083), S = f(S, m, h, v, n[e + 15], 14, 3634488961), v = f(v, S, m, h, n[e + 4], 20, 3889429448), h = f(h, v, S, m, n[e + 9], 5, 568446438), m = f(m, h, v, S, n[e + 14], 9, 3275163606), S = f(S, m, h, v, n[e + 3], 14, 4107603335), v = f(v, S, m, h, n[e + 8], 20, 1163531501), h = f(h, v, S, m, n[e + 13], 5, 2850285829), m = f(m, h, v, S, n[e + 2], 9, 4243563512), S = f(S, m, h, v, n[e + 7], 14, 1735328473), h = i(h, v = f(v, S, m, h, n[e + 12], 20, 2368359562), S, m, n[e + 5], 4, 4294588738), m = i(m, h, v, S, n[e + 8], 11, 2272392833), S = i(S, m, h, v, n[e + 11], 16, 1839030562), v = i(v, S, m, h, n[e + 14], 23, 4259657740), h = i(h, v, S, m, n[e + 1], 4, 2763975236), m = i(m, h, v, S, n[e + 4], 11, 1272893353), S = i(S, m, h, v, n[e + 7], 16, 4139469664), v = i(v, S, m, h, n[e + 10], 23, 3200236656), h = i(h, v, S, m, n[e + 13], 4, 681279174), m = i(m, h, v, S, n[e + 0], 11, 3936430074), S = i(S, m, h, v, n[e + 3], 16, 3572445317), v = i(v, S, m, h, n[e + 6], 23, 76029189), h = i(h, v, S, m, n[e + 9], 4, 3654602809), m = i(m, h, v, S, n[e + 12], 11, 3873151461), S = i(S, m, h, v, n[e + 15], 16, 530742520), h = c(h, v = i(v, S, m, h, n[e + 2], 23, 3299628645), S, m, n[e + 0], 6, 4096336452), m = c(m, h, v, S, n[e + 7], 10, 1126891415), S = c(S, m, h, v, n[e + 14], 15, 2878612391), v = c(v, S, m, h, n[e + 5], 21, 4237533241), h = c(h, v, S, m, n[e + 12], 6, 1700485571), m = c(m, h, v, S, n[e + 3], 10, 2399980690), S = c(S, m, h, v, n[e + 10], 15, 4293915773), v = c(v, S, m, h, n[e + 1], 21, 2240044497), h = c(h, v, S, m, n[e + 8], 6, 1873313359), m = c(m, h, v, S, n[e + 15], 10, 4264355552), S = c(S, m, h, v, n[e + 6], 15, 2734768916), v = c(v, S, m, h, n[e + 13], 21, 1309151649), h = c(h, v, S, m, n[e + 4], 6, 4149444226), m = c(m, h, v, S, n[e + 11], 10, 3174756917), S = c(S, m, h, v, n[e + 2], 15, 718787259), v = c(v, S, m, h, n[e + 9], 21, 3951481745), h = u(h, o), v = u(v, d), S = u(S, l), m = u(m, C); return g(h) + g(v) + g(S) + g(m) } function o(r, n) { return r << n | r >>> 32 - n } function u(r, n) { var t, e, o, u, a; return o = 2147483648 & r, u = 2147483648 & n, a = (1073741823 & r) + (1073741823 & n), (t = 1073741824 & r) & (e = 1073741824 & n) ? 2147483648 ^ a ^ o ^ u : t | e ? 1073741824 & a ? 3221225472 ^ a ^ o ^ u : 1073741824 ^ a ^ o ^ u : a ^ o ^ u } function a(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & n | ~r & t }(n, t, e), a), i)), u(o(r, f), n) } function f(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & t | n & ~t }(n, t, e), a), i)), u(o(r, f), n) } function i(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r ^ n ^ t }(n, t, e), a), i)), u(o(r, f), n) } function c(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return n ^ (r | ~t) }(n, t, e), a), i)), u(o(r, f), n) } function g(r) { var n, t = "", e = ""; for (n = 0; n <= 3; n++)t += (e = "0" + (r >>> 8 * n & 255).toString(16)).substr(e.length - 2, 2); return t } var d = { generate: e } })(), MD5 = n })();
 
-// export statements removed during build step
+// export statements are removed during build step
+// used to for unit testing in BiliBiliScript.test.ts
 export {
     interleave,
     getMixinKey,
     download_mixin_constant,
-    get_video_details_json,
+    load_video_details,
     create_signed_url,
     download_wbi_keys,
     init_local_storage

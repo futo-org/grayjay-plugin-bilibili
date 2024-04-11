@@ -2,11 +2,12 @@ import { before, describe, test } from "node:test"
 import assert from "node:assert"
 // initializes global state
 import "@grayjay/plugin/source.js"
+
 import {
     getMixinKey,
     download_mixin_constant,
     interleave,
-    get_video_details_json,
+    load_video_details,
     create_signed_url,
     download_wbi_keys,
     init_local_storage
@@ -15,14 +16,22 @@ import { Params } from "./types.js"
 
 const MIXIN_CONSTANT = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52] as const
 
-describe("script module", () => {
-    before(() => init_local_storage());
+describe("script module", { skip: false }, () => {
+    before(() => init_local_storage())
     test("test disable", { skip: false }, () => {
         if (source.disable === undefined) {
             throw new Error("Missing disable method")
         }
         source.disable()
     })
+    test("get video details", { skip: false }, () => {
+        const result = load_video_details("BV1ZW4y1Q7Y4")
+        assert.strictEqual(result[0].data.View.title, "被elo机制制裁的号到底有多难打\u{ff1f}",)
+        assert.strictEqual(result[1].data.dash.duration, 164)
+    })
+})
+describe("utility functions", () => {
+    before(() => init_local_storage())
     test("compute hash", { skip: false }, () => {
         {
             const url = "https://google.com"
@@ -62,10 +71,5 @@ describe("script module", () => {
         const a = [1, 2, 3, 4]
         const b = ["a", "b", "c"]
         assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c", 4])
-    })
-    test("get video details", { skip: false }, () => {
-        const result = get_video_details_json("BV1ZW4y1Q7Y4")
-        assert.strictEqual(result[0].data.View.title, "被elo机制制裁的号到底有多难打\u{ff1f}",)
-        assert.strictEqual(result[1].data.dash.duration, 164)
     })
 })
