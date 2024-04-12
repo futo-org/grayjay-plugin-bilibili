@@ -1,3 +1,4 @@
+//#region Constants
 import type {
     LocalCache,
     LiveSearchResponse,
@@ -12,7 +13,7 @@ import type {
     SpaceVideosSearchResponse,
     CollectionResponse,
     CommentResponse,
-    SubCommentsJSON,
+    SubCommentsResponse,
     BiliBiliCommentContext,
     SpacePostsResponse,
     EpisodePlayResponse,
@@ -46,12 +47,17 @@ import type {
     PlayData,
     CoreSpaceInfo,
     SubtitlesMetadataResponse,
-    SubtitlesDataResponse
+    SubtitlesDataResponse,
+    NavResponse,
+    LoggedInNavResponse,
+    UserSubscriptionsResponse,
+    WatchLaterResponse,
+    MaybeSpaceVideosSearchResponse
 } from "./types.js"
 
 const PLATFORM = "BiliBili" as const
 const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www|live|t)\.bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/
-const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=)(\d+|[0-9a-zA-Z]+)(\/|\?|$)/
+const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=|watchlater\/)(\d+|[0-9a-zA-Z]+|.*#\/list)(\/|\?|$)/
 const SPACE_URL_REGEX = /^https:\/\/space\.bilibili\.com\/(\d+)(\/|\?|$)/
 
 const VIDEO_URL_PREFIX = "https://www.bilibili.com/video/" as const
@@ -66,9 +72,11 @@ const COURSE_EPISODE_URL_PREFIX = "https://www.bilibili.com/cheese/play/ep" as c
 const FAVORITES_URL_PREFIX = "https://www.bilibili.com/medialist/detail/ml" as const
 const FESTIVAL_URL_PREFIX = "https://www.bilibili.com/festival/" as const
 const POST_URL_PREFIX = "https://t.bilibili.com/" as const
+const WATCH_LATER_URL = "https://www.bilibili.com/watchlater/#/list" as const
 
 const GRAYJAY_USER_AGENT = "Grayjay" as const
 const CHROME_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" as const
+const WATCH_LATER_ID = "WATCH_LATER"
 
 const local_http = http
 
@@ -79,19 +87,6 @@ const MISSING_NAME = "" as const
 const MISSING_THUMBNAIL = "" as const
 const HARDCODED_ZERO = 0 as const
 const MISSING_RATING = 0 as const
-
-// TODO we might need to create id prefixes
-// There are a lot of number ids and the different types probably overlap
-// TODO i have case statements where the same thing happens inside. these should be combined with case match || match: < I don't think this actually works :(
-// TODO move optional parameters to the end of functions
-// TODO currently for movies and shows the author object is essentially blank
-// TODO split out the regex matching code into functions so it can be tested more easily
-// TODO look into https://api.bilibili.com/x/gaia-vgate/v1/validate as captcha stuff
-// TODO implement an error message when rate limited
-// TODO subtitiles require login
-// https://api.bilibili.com/x/player/wbi/v2?aid=1402475665&cid=1487515536&isGaiaAvoided=false&web_location=1315873&w_rid=d0f2a387c3d7e19eb66f681e81b0385d&wts=1712248112
-
-let local_storage_cache: LocalCache
 
 // set missing constants
 Type.Order.Chronological = "Latest releases"
@@ -105,7 +100,10 @@ Type.Order.Chronological = "最新发布"
 Type.Order.Views = "最多播放"
 Type.Order.Favorites = "最多收藏"
 
-// Source Methods
+let local_storage_cache: LocalCache
+//#endregion
+
+//#region Source Methods
 source.enable = enable
 function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
     if (IS_TESTING) {
@@ -155,15 +153,7 @@ function isChannelUrl(url: string) {
 }
 source.getChannel = getChannel
 function getChannel(url: string) {
-    const match_results = url.match(SPACE_URL_REGEX)
-    if (match_results === null) {
-        throw new ScriptException(`malformed space url: ${url}`)
-    }
-    const maybe_space_id = match_results[1]
-    if (maybe_space_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const space_id = parseInt(maybe_space_id)
+    const space_id = parse_space_url(url)
 
     const requests: [
         RequestMetadata<SpaceResponse>,
@@ -221,15 +211,7 @@ function getChannelContents(
     log(["BiliBili log:", order])
     log(["BiliBili log:", filters])
 
-    const match_results = url.match(SPACE_URL_REGEX)
-    if (match_results === null) {
-        throw new ScriptException(`malformed space url: ${url}`)
-    }
-    const maybe_space_id = match_results[1]
-    if (maybe_space_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const space_id = parseInt(maybe_space_id)
+    const space_id = parse_space_url(url)
 
     return new SpaceContentsPager(space_id)
 }
@@ -252,6 +234,7 @@ function isContentDetailsUrl(url: string) {
 // https://space.bilibili.com/491461718/favlist?fid=3153093518
 // https://www.bilibili.com/medialist/detail/ml3153093518
 // https://www.bilibili.com/festival/2022bnj
+// https://www.bilibili.com/watchlater/#/list or https://www.bilibili.com/watchlater/?spm_id_from=333.999.0.0#/list
 source.isPlaylistUrl = isPlaylistUrl
 function isPlaylistUrl(url: string) {
     return PLAYLIST_URL_REGEX.test(url)
@@ -445,32 +428,78 @@ function getPlaylist(url: string) {
             const festival_id = maybe_playlist_id
             return format_festival(festival_id, festival_parse(festival_request(festival_id)))
         }
+        case "watchlater/": {
+            if (!bridge.isLoggedIn()) {
+                throw new LoginRequiredException("Login to view watch later")
+            }
+            const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
+                {
+                    request(builder) { return nav_request(true, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return watch_later_request(true, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }
+            ]
+            const [nav_response, watch_later_response] = execute_requests(requests)
+            const videos = watch_later_response.data.list.map((video) => {
+                const url = `${VIDEO_URL_PREFIX}${video.bvid}`
+
+                // update cid cache
+                local_storage_cache.cid_cache.set(video.bvid, video.cid)
+
+                const video_id = new PlatformID(PLATFORM, video.bvid.toString(), plugin.config.id)
+                const author = new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, video.owner.mid.toString(), plugin.config.id),
+                    video.owner.name,
+                    `${SPACE_URL_PREFIX}${video.owner.mid}`,
+                    video.owner.face,
+                    local_storage_cache.space_cache.get(video.owner.mid)?.num_fans)
+                return new PlatformVideo({
+                    id: video_id,
+                    name: video.title,
+                    url: url,
+                    thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author,
+                    duration: video.duration,
+                    viewCount: video.stat.view,
+                    isLive: false,
+                    shareUrl: url,
+                    uploadDate: video.pubdate
+                })
+            })
+            const first_video = watch_later_response.data.list[0]
+            if (first_video === undefined) {
+                throw new ScriptException("unreachable")
+            }
+
+            const author = new PlatformAuthorLink(
+                new PlatformID(PLATFORM, nav_response.data.mid.toString(), plugin.config.id),
+                nav_response.data.uname,
+                `${SPACE_URL_PREFIX}${nav_response.data.mid}`,
+                nav_response.data.face,
+                local_storage_cache.space_cache.get(nav_response.data.mid)?.num_fans)
+            return new PlatformPlaylistDetails({
+                id: new PlatformID(PLATFORM, WATCH_LATER_ID, plugin.config.id),
+                name: "稍后再看", // Watch Later
+                author,
+                url: WATCH_LATER_URL,
+                contents: new VideoPager(videos, false),
+                videoCount: watch_later_response.data.count,
+                // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
+                thumbnail: first_video.pic
+            })
+        }
         default:
             throw assert_no_fall_through(playlist_type, "unreachable")
     }
 }
-// TODO handle content that requires logging in, requires a premium subscription, or is restricted in the region
+// TODO handle content that requires a premium subscription,
 // TODO consider switching from like rating to 0-10 scale rating for bangumi
 source.getContentDetails = getContentDetails
 function getContentDetails(url: string) {
-    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
-    if (regex_match_result === null) {
-        throw new ScriptException(`malformed content url: ${url}`)
-    }
-    const maybe_subdomain: "live" | "t" | "www" | undefined = regex_match_result[1] as "live" | "t" | "www" | undefined
-    if (maybe_subdomain === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const subdomain = maybe_subdomain
-    const maybe_content_type: ContentType | undefined = regex_match_result[2] as ContentType | undefined
-    if (maybe_content_type === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const content_type = maybe_content_type
-    const maybe_content_id: string | undefined = regex_match_result[3]
-    if (maybe_content_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
+    const { subdomain, content_type, content_id } = parse_content_details_url(url)
+
     switch (subdomain) {
         case "live": {
             // TODO this currently parses the html
@@ -478,7 +507,7 @@ function getContentDetails(url: string) {
             // https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo
             // https://api.live.bilibili.com/room/v1/Room/get_info
 
-            const room_id = parseInt(maybe_content_id)
+            const room_id = parseInt(content_id)
 
             const response = livestream_process((livestream_request(room_id)))
 
@@ -562,13 +591,14 @@ function getContentDetails(url: string) {
             })
         }
         case "t": {
-            const post_id = maybe_content_id
+            const post_id = content_id
             return get_post(post_id)
         }
         case "www":
             switch (content_type) {
+                // TODO as far as i can tell bangumi don't have subtitles
                 case "bangumi/play/ep": {
-                    const episode_id = parseInt(maybe_content_id)
+                    const episode_id = parseInt(content_id)
 
                     const requests: [
                         RequestMetadata<EpisodePlayResponse>,
@@ -586,6 +616,13 @@ function getContentDetails(url: string) {
                     }]
 
                     const [episode_response, season_response, episode_info_response] = execute_requests(requests)
+
+                    // region restricted
+                    if (episode_response.code === -10403) {
+                        let message = "非常抱歉，根据版权方要求\n"
+                        message += "您所在的地区无法观看本片"
+                        throw new UnavailableException(message)
+                    }
 
                     const { video_sources, audio_sources } = format_sources(episode_response.result.video_info)
 
@@ -628,7 +665,7 @@ function getContentDetails(url: string) {
                 }
                 case "cheese/play/ep": {
                     // TODO there are some videos that don't have dash sections. in those cases we need to use the durl section
-                    const episode_id = parseInt(maybe_content_id)
+                    const episode_id = parseInt(content_id)
 
                     const requests: [RequestMetadata<CourseEpisodePlayResponse>, RequestMetadata<CourseResponse>] = [{
                         request(builder) { return course_play_request(episode_id, builder) },
@@ -640,6 +677,7 @@ function getContentDetails(url: string) {
 
                     const [episode_play_response, season_response] = execute_requests(requests)
 
+
                     const { video_sources, audio_sources } = format_sources(episode_play_response.data)
 
                     const upload_info = season_response.data.up_info
@@ -648,17 +686,39 @@ function getContentDetails(url: string) {
                     }
                     const owner_id = upload_info.mid
 
-                    const episode_season_meta = season_response.data.episodes.find((episode) => episode.id === episode_id)
-                    if (episode_season_meta === undefined) {
+                    const episode_season_metadata = season_response.data.episodes.find((episode) => episode.id === episode_id)
+                    if (episode_season_metadata === undefined) {
                         throw new ScriptException("episode missing from season")
                     }
 
+                    let subtitles: ISubtitleSource[] | undefined = undefined
+                    if (bridge.isLoggedIn()) {
+                        const subtitles_response: SubtitlesMetadataResponse = JSON.parse(subtitles_request(
+                            { aid: episode_season_metadata.aid },
+                            episode_season_metadata.cid).body
+                        )
+                        subtitles = subtitles_response.data.subtitle.subtitles.map((subtitle): ISubtitleSource => {
+                            const url = `https:${subtitle.subtitle_url}`
+                            return {
+                                url,
+                                name: subtitle.lan_doc,
+                                getSubtitles() {
+                                    const json = local_http.GET(url, {}, false).body
+                                    const response: SubtitlesDataResponse = JSON.parse(json)
+                                    return convert_subtitles(response)
+                                },
+                                format: "text/vtt",
+                            }
+                        })
+                    }
+
+
                     const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id)
                     const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id)
-                    const details: PlatformContentDetails = new PlatformVideoDetails({
+                    const platform_video_details_def: IPlatformVideoDetailsDef = {
                         id: platform_video_ID,
-                        name: episode_season_meta.title,
-                        thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+                        name: episode_season_metadata.title,
+                        thumbnails: new Thumbnails([new Thumbnail(episode_season_metadata.cover, HARDCODED_THUMBNAIL_QUALITY)]),
                         author: new PlatformAuthorLink(
                             platform_creator_ID,
                             upload_info.uname,
@@ -667,7 +727,7 @@ function getContentDetails(url: string) {
                             upload_info.follower
                         ),
                         duration: episode_play_response.data.dash.duration,
-                        viewCount: episode_season_meta.play,
+                        viewCount: episode_season_metadata.play,
                         url: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
                         isLive: false,
                         // TODO this will include HTML tags and render poorly
@@ -676,16 +736,20 @@ function getContentDetails(url: string) {
                         // TODO figure out a rating to use. courses/course episodes don't have likes
                         rating: new RatingLikes(MISSING_RATING),
                         shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                        uploadDate: episode_season_meta.release_date
+                        uploadDate: episode_season_metadata.release_date
+                    }
+                    const details: PlatformContentDetails = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
+                        ...platform_video_details_def,
+                        subtitles
                     })
                     return details
                 }
                 case "opus/": {
-                    const post_id = maybe_content_id
+                    const post_id = content_id
                     return get_post(post_id)
                 }
                 case "video/": {
-                    const video_id = maybe_content_id
+                    const video_id = content_id
                     let video_info, play_info, subtitle_response
 
                     if (bridge.isLoggedIn()) {
@@ -698,22 +762,13 @@ function getContentDetails(url: string) {
 
                     const subtitles = subtitle_response?.data.subtitle.subtitles.map((subtitle): ISubtitleSource => {
                         const url = `https:${subtitle.subtitle_url}`
-                        const convert = seconds_to_WebVTT_timestamp
                         return {
                             url,
                             name: subtitle.lan_doc,
                             getSubtitles() {
                                 const json = local_http.GET(url, {}, false).body
                                 const response: SubtitlesDataResponse = JSON.parse(json)
-                                let text = "WEBVTT\n"
-                                text += "\n"
-                                for (const item of response.body) {
-                                    text += `${item.sid}\n`
-                                    text += `${convert(item.from)} --> ${convert(item.to)}\n`
-                                    text += `${item.content}\n`
-                                    text += "\n"
-                                }
-                                return text
+                                return convert_subtitles(response)
                             },
                             format: "text/vtt",
                         }
@@ -772,40 +827,21 @@ function getContentDetails(url: string) {
 // we should cache them so that when getSubComments is called we don't have to make any networks requests
 source.getComments = getComments
 function getComments(url: string): CommentPager<BiliBiliCommentContext> {
-    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
-    if (regex_match_result === null) {
-        throw new ScriptException(`malformed content url: ${url}`)
-    }
-    const maybe_subdomain: "live" | "t" | "www" | undefined = regex_match_result[1] as "live" | "t" | "www" | undefined
-    if (maybe_subdomain === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const subdomain = maybe_subdomain
-    const maybe_content_type: ContentType | undefined = regex_match_result[2] as ContentType | undefined
-    if (maybe_content_type === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const content_type = maybe_content_type
-    const maybe_content_id: string | undefined = regex_match_result[3]
-    if (maybe_content_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
+    const { subdomain, content_type, content_id } = parse_content_details_url(url)
     if (subdomain === "live") {
         return new CommentPager([], false)
     }
     const [oid, type, context_url] = ((): [number, 1 | 33, string] => {
         switch (subdomain) {
-            // TODO this code is the same as the code for loading channel contents
-            // we should merge some of it. maybe just the major handling
             case "t": {
-                const post_id = maybe_content_id
+                const post_id = content_id
                 const post_response = download_post(post_id)
                 return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
             }
             case "www":
                 switch (content_type) {
                     case "bangumi/play/ep": {
-                        const episode_id = parseInt(maybe_content_id)
+                        const episode_id = parseInt(content_id)
                         const season_response: SeasonResponse = JSON.parse(season_request({ id: episode_id, type: "episode" }).body)
                         const episode_info = season_response.result.episodes.find((episode) => episode.ep_id === episode_id)
                         if (episode_info === undefined) {
@@ -814,16 +850,16 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
                         return [episode_info.aid, 1, `${EPISODE_URL_PREFIX}${episode_id}`]
                     }
                     case "cheese/play/ep": {
-                        const episode_id = parseInt(maybe_content_id)
+                        const episode_id = parseInt(content_id)
                         return [episode_id, 33, `${COURSE_EPISODE_URL_PREFIX}${episode_id}`]
                     }
                     case "opus/": {
-                        const post_id = maybe_content_id
+                        const post_id = content_id
                         const post_response = download_post(post_id)
                         return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
                     }
                     case "video/": {
-                        const video_id = maybe_content_id
+                        const video_id = content_id
                         const video_info: VideoDetailResponse = JSON.parse(video_detail_request(video_id).body)
                         return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`]
                     }
@@ -869,15 +905,7 @@ function searchChannelContents(space_url: string, query: string, type: FeedType 
     log(["BiliBili log:", type])
     log(["BiliBili log:", order])
     log(["BiliBili log:", filters])
-    const match_results = space_url.match(SPACE_URL_REGEX)
-    if (match_results === null) {
-        throw new ScriptException(`malformed space url: ${space_url}`)
-    }
-    const maybe_space_id = match_results[1]
-    if (maybe_space_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const space_id = parseInt(maybe_space_id)
+    const space_id = parse_space_url(space_url)
 
     const page_size = 30 as const
     const initial_page = 1 as const
@@ -1024,6 +1052,50 @@ function getLiveChatWindow(url: string) {
         removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
     }
 }
+source.getUserSubscriptions = getUserSubscriptions
+function getUserSubscriptions() {
+    if (!bridge.isLoggedIn()) {
+        throw new ScriptException("unreachable")
+    }
+    const nav_response: LoggedInNavResponse = JSON.parse(nav_request(true).body)
+    const subscriptions: string[] = []
+    let total = Number.MAX_SAFE_INTEGER
+    let page = 1
+    const page_size = 20
+    while (total > page * page_size) {
+        const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body)
+        total = subscriptions_response.data.total
+        subscriptions.push(...subscriptions_response.data.list.map((subscription) => `${SPACE_URL_PREFIX}${subscription.mid}`))
+        page += 1
+    }
+
+    return subscriptions
+}
+source.getUserPlaylists = getUserPlaylists
+function getUserPlaylists() {
+    if (!bridge.isLoggedIn()) {
+        throw new ScriptException("unreachable")
+    }
+    const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
+        {
+            request(builder) { return nav_request(true, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }, {
+            request(builder) { return watch_later_request(true, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }
+    ]
+    const [nav_response, watch_later_response] = execute_requests(requests)
+    const favorites_response: SpaceFavoritesResponse = JSON.parse(space_favorites_request(nav_response.data.mid).body)
+    log(favorites_response)
+    const playlists: string[] = favorites_response.data?.list?.map((list) => {
+        return `${FAVORITES_URL_PREFIX}${list.id}`
+    }) ?? []
+    if (watch_later_response.data.count > 0) {
+        playlists.push(WATCH_LATER_URL)
+    }
+    return playlists
+}
 
 if (IS_TESTING) {
     const assert_source: BiliBiliSource = {
@@ -1048,7 +1120,9 @@ if (IS_TESTING) {
         isPlaylistUrl,
         getPlaylist,
         searchPlaylists,
-        getLiveChatWindow
+        getLiveChatWindow,
+        getUserPlaylists,
+        getUserSubscriptions
     }
     if (source.enable === undefined) { assert_never(source.enable) }
     if (source.disable === undefined) { assert_never(source.disable) }
@@ -1072,12 +1146,13 @@ if (IS_TESTING) {
     if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
     if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
     if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
+    if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
+    if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
     log(assert_source)
 }
+//#endregion
 
-function assert_never(value: never) {
-    log(value)
-}
+//#region Core logic
 
 class SearchPager extends VideoPager {
     next_page: number
@@ -1215,7 +1290,7 @@ function format_comments(
 }
 
 function format_replies(
-    comment_data: SubCommentsJSON,
+    comment_data: SubCommentsResponse,
     type: "1" | "33",
     oid: number,
     context_url: string
@@ -1344,27 +1419,6 @@ function format_text_node(node: TextNode, images: string[]) {
     }
 }
 
-// starts with the longer array or a if they are the same length
-function interleave<T, U>(a: T[], b: U[]): Array<T | U> {
-    const [first, second] = b.length > a.length ? [b, a] : [a, b]
-    return first.flatMap((a_value, index) => {
-        const b_value = second[index]
-        if (second[index] === undefined) {
-            return a_value
-        }
-        return b_value !== undefined ? [a_value, b_value] : a_value
-    })
-}
-function assert_no_fall_through(value: never): void
-function assert_no_fall_through(value: never, exception_message: string): ScriptException
-function assert_no_fall_through(value: never, exception_message?: string): ScriptException | undefined {
-    log(["BiliBili log:", value])
-    if (exception_message !== undefined) {
-        return new ScriptException(exception_message)
-    }
-    return
-}
-
 // type is 33 for courses and 1 for everything else
 // oid for episodes and videos is the aid
 // oid for courses is the episode id
@@ -1384,7 +1438,7 @@ function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: num
     const json = local_http.GET(url, {}, false).body
     log_network_call(now)
 
-    const results: SubCommentsJSON = JSON.parse(json)
+    const results: SubCommentsResponse = JSON.parse(json)
     return results
 }
 
@@ -1492,10 +1546,11 @@ function load_favorites(favorites_id: number, page: number, page_size: number): 
     const url = create_url(series_prefix, params)
     const buvid3 = local_storage_cache.buvid3
     const now = Date.now()
+    // use the authenticated client so logged in users can view their private favorites lists
     const json = local_http.GET(
         url.toString(),
         { Cookie: `buvid3=${buvid3}` },
-        false
+        true
     ).body
     log_network_call(now)
     const results: FavoritesResponse = JSON.parse(json)
@@ -1525,6 +1580,41 @@ function livestream_process(raw_live_response: BridgeHttpResponse): LiveResponse
     }
     const response: LiveResponse = JSON.parse(json)
     return response
+}
+
+function parse_space_url(url: string) {
+    const match_results = url.match(SPACE_URL_REGEX)
+    if (match_results === null) {
+        throw new ScriptException(`malformed space url: ${url}`)
+    }
+    const maybe_space_id = match_results[1]
+    if (maybe_space_id === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const space_id = parseInt(maybe_space_id)
+    return space_id
+}
+
+function parse_content_details_url(url: string) {
+    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
+    if (regex_match_result === null) {
+        throw new ScriptException(`malformed content url: ${url}`)
+    }
+    const maybe_subdomain: "live" | "t" | "www" | undefined = regex_match_result[1] as "live" | "t" | "www" | undefined
+    if (maybe_subdomain === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const subdomain = maybe_subdomain
+    const maybe_content_type: ContentType | undefined = regex_match_result[2] as ContentType | undefined
+    if (maybe_content_type === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const content_type = maybe_content_type
+    const maybe_content_id: string | undefined = regex_match_result[3]
+    if (maybe_content_id === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    return { subdomain, content_type, content_id: maybe_content_id }
 }
 
 function download_post(post_id: string): PostResponse {
@@ -1768,14 +1858,6 @@ function collection_request(space_id: number, collection_id: number, page: numbe
 }
 
 function format_festival(festival_id: string, festival_response: FestivalResponse): PlatformPlaylistDetails {
-    // TODO decide how to handle
-    const author = new PlatformAuthorLink(
-        new PlatformID(PLATFORM, "festival_response.data.up_info.mid.toString()", plugin.config.id),
-        "festival_response.data.up_info.uname",
-        `${SPACE_URL_PREFIX}${"festival_response.data.up_info.mid"}`,
-        "festival_response.data.up_info.avatar",
-        3534)
-
     const episodes = festival_response.sectionEpisodes.map((episode) => {
         const url = `${VIDEO_URL_PREFIX}${episode.bvid}`
         const video_id = new PlatformID(PLATFORM, episode.bvid, plugin.config.id)
@@ -1787,13 +1869,13 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
             id: video_id,
             name: episode.title,
             url: url,
-            thumbnails: new Thumbnails([new Thumbnail(episode.cover, 1080)]), // TODO hardcoded 1080
+            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
             author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, "festival_response.data.up_info.mid.toString()", plugin.config.id),
-                "festival_response.data.up_info.uname",
-                `${SPACE_URL_PREFIX}${"festival_response.data.up_info.mid"}`,
-                "festival_response.data.up_info.avatar",
-                3534),
+                new PlatformID(PLATFORM, episode.author.mid.toString(), plugin.config.id),
+                episode.author.name,
+                `${SPACE_URL_PREFIX}${episode.author.mid}`,
+                episode.author.face,
+                local_storage_cache.space_cache.get(episode.author.mid)?.num_fans),
             // TODO potentially load this some other way
             // duration: episode.duration / 1000,
             // TODO load this some other way
@@ -1807,7 +1889,7 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
     return new PlatformPlaylistDetails({
         id: new PlatformID(PLATFORM, festival_id.toString(), plugin.config.id),
         name: festival_response.title,
-        author,
+        author: EMPTY_AUTHOR,
         url: `${FESTIVAL_URL_PREFIX}${festival_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: festival_response.sectionEpisodes.length,
@@ -1816,6 +1898,26 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
     })
 }
 
+function user_subscriptions_request(mid: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function user_subscriptions_request(mid: number, page: number, page_size: number): BridgeHttpResponse
+function user_subscriptions_request(mid: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const following_url = "https://api.bilibili.com/x/relation/followings"
+    const params: Params = {
+        vmid: mid.toString(),
+        pn: page.toString(),
+        ps: page_size.toString()
+    }
+    const runner = builder === undefined ? local_http : builder
+    const url = create_url(following_url, params).toString()
+    const now = Date.now()
+    // use the authenticated client so logged in users can view their subscriptions even if they are private
+    const result = runner.GET(url, {}, true)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+
+}
 
 function festival_request(festival_id: string, builder: BatchBuilder): BatchBuilder
 function festival_request(festival_id: string): BridgeHttpResponse
@@ -1842,166 +1944,6 @@ function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
     }
     const results: FestivalResponse = JSON.parse(json)
     return results
-}
-
-function execute_requests<T>(
-    request: [RequestMetadata<T>],
-    http: HTTP
-): T
-
-function execute_requests<T, U>(
-    requests: [RequestMetadata<T>, RequestMetadata<U>]
-): [T, U]
-
-function execute_requests<T, U, V>(
-    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>]
-): [T, U, V]
-
-function execute_requests<T, U, V, W>(
-    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>]
-): [T, U, V, W]
-
-function execute_requests<T, U, V, W, X>(
-    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>, RequestMetadata<X>]
-): [T, U, V, W, X]
-
-function execute_requests<T, U, V, W, X>(
-    requests: [
-        RequestMetadata<T> | undefined,
-        RequestMetadata<U> | undefined,
-        RequestMetadata<V> | undefined,
-        RequestMetadata<W> | undefined,
-        RequestMetadata<X> | undefined
-    ]
-): [T | undefined, U | undefined, V | undefined, W | undefined, X | undefined]
-
-function execute_requests<T, U, V, W, X>(
-    requests:
-        [RequestMetadata<T>]
-        | [RequestMetadata<T>, RequestMetadata<U>]
-        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>]
-        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>]
-        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>, RequestMetadata<X>]
-        | [
-            RequestMetadata<T> | undefined,
-            RequestMetadata<U> | undefined,
-            RequestMetadata<V> | undefined,
-            RequestMetadata<W> | undefined,
-            RequestMetadata<X> | undefined
-        ]
-): T | [T, U] | [T, U, V] | [T, U, V, W] | [T, U, V, W, X] | [T | undefined, U | undefined, V | undefined, W | undefined, X | undefined] {
-
-    const batch = local_http.batch()
-
-    for (const request of requests) {
-        if (request !== undefined) {
-            request.request(batch)
-        }
-    }
-
-    const now = Date.now()
-    const responses = batch.execute()
-    log(`BiliBili log: made ${responses.length} network request(s) in parallel taking ${Date.now() - now} milliseconds`)
-    switch (requests.length) {
-        case 1: {
-            const response_0 = responses[0]
-            if (response_0 === undefined) {
-                throw new ScriptException("unreachable")
-            }
-            return requests[0].process(response_0)
-        }
-        case 2: {
-            const response_0 = responses[0]
-            const response_1 = responses[1]
-            if (response_0 === undefined || response_1 === undefined) {
-                throw new ScriptException("unreachable")
-            }
-            return [requests[0].process(response_0), requests[1].process(response_1)]
-        }
-        case 3: {
-            const response_0 = responses[0]
-            const response_1 = responses[1]
-            const response_2 = responses[2]
-            if (response_0 === undefined || response_1 === undefined || response_2 === undefined) {
-                throw new ScriptException("unreachable")
-            }
-            return [requests[0].process(response_0), requests[1].process(response_1), requests[2].process(response_2)]
-        }
-        case 4: {
-            const response_0 = responses[0]
-            const response_1 = responses[1]
-            const response_2 = responses[2]
-            const response_3 = responses[3]
-            if (response_0 === undefined || response_1 === undefined || response_2 === undefined || response_3 === undefined) {
-                throw new ScriptException("unreachable")
-            }
-            return [
-                requests[0].process(response_0),
-                requests[1].process(response_1),
-                requests[2].process(response_2),
-                requests[3].process(response_3)
-            ]
-        }
-        case 5: {
-            let next_response = 0
-            let result_0: T | undefined
-            let result_1: U | undefined
-            let result_2: V | undefined
-            let result_3: W | undefined
-            let result_4: X | undefined
-            if (requests[0] === undefined) {
-                result_0 = undefined
-            } else {
-                const response = responses[next_response]
-                if (response === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                result_0 = requests[0].process(response)
-                next_response += 1
-            }
-            if (requests[1] === undefined) {
-                result_1 = undefined
-            } else {
-                const response = responses[next_response]
-                if (response === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                result_1 = requests[1].process(response)
-                next_response += 1
-            } if (requests[2] === undefined) {
-                result_2 = undefined
-            } else {
-                const response = responses[next_response]
-                if (response === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                result_2 = requests[2].process(response)
-                next_response += 1
-            } if (requests[3] === undefined) {
-                result_3 = undefined
-            } else {
-                const response = responses[next_response]
-                if (response === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                result_3 = requests[3].process(response)
-                next_response += 1
-            } if (requests[4] === undefined) {
-                result_4 = undefined
-            } else {
-                const response = responses[next_response]
-                if (response === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                result_4 = requests[4].process(response)
-                next_response += 1
-            }
-            return [result_0, result_1, result_2, result_3, result_4]
-        }
-        default:
-            throw assert_no_fall_through(requests, "unreachable")
-    }
-
 }
 
 function format_course(season_id: number, course_response: CourseResponse): PlatformPlaylistDetails {
@@ -2175,6 +2117,24 @@ function format_sources(play_data: PlayData) {
     return { audio_sources, video_sources }
 }
 
+function watch_later_request(logged_in: true, builder: BatchBuilder): BatchBuilder
+function watch_later_request(logged_in: true): BridgeHttpResponse
+function watch_later_request(logged_in: true, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const watch_later_url = "https://api.bilibili.com/x/v2/history/toview/web"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client because watch later is only available when logged in
+    const result = runner.GET(
+        watch_later_url,
+        {},
+        logged_in
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+
 function episode_info_request(episode_id: number, builder: BatchBuilder): BatchBuilder
 function episode_info_request(episode_id: number): BridgeHttpResponse
 function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
@@ -2183,11 +2143,17 @@ function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP)
         ep_id: episode_id.toString()
     }
     const runner = builder === undefined ? local_http : builder
-    return runner.GET(
-        create_url(episode_info_prefix, info_params).toString(),
+    const url = create_url(episode_info_prefix, info_params).toString()
+    const now = Date.now()
+    const result = runner.GET(
+        url,
         {},
         false
     )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 function episode_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
@@ -2199,11 +2165,17 @@ function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP)
         ep_id: episode_id.toString()
     }
     const runner = builder === undefined ? local_http : builder
-    return runner.GET(
-        create_url(play_url_prefix, params).toString(),
+    const url = create_url(play_url_prefix, params).toString()
+    const now = Date.now()
+    const result = runner.GET(
+        url,
         { "User-Agent": GRAYJAY_USER_AGENT, Host: "api.bilibili.com" },
         false
     )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 function season_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
@@ -2282,32 +2254,15 @@ function format_major(major: Major, thumbnails: Thumbnail[], images: string[]): 
     }
 }
 
-function parse_minutes_seconds(minutes_seconds: string): number {
-    const parsed_length = minutes_seconds.match(/^(\d+):(\d+)/)
-    if (parsed_length === null) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const minutes = parsed_length[1]
-    const seconds = parsed_length[2]
-    if (minutes === undefined || seconds === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const duration = parseInt(minutes) * 60 + parseInt(seconds)
-    return duration
-}
-
 function format_space_contents(
     space_id: number,
+    space_info: CoreSpaceInfo,
     space_videos_response?: SpaceVideosSearchResponse,
     space_posts_response?: SpacePostsResponse,
     space_courses_response?: SpaceCoursesResponse,
     space_collections_response?: SpaceCollectionsResponse,
     space_favorites_response?: SpaceFavoritesResponse
 ): IPlatformContent[] {
-    const space_info = local_storage_cache.space_cache.get(space_id)
-    if (space_info === undefined) {
-        throw new ScriptException("unreachable")
-    }
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
     const author = new PlatformAuthorLink(
         author_id,
@@ -2479,29 +2434,29 @@ function space_videos_request(space_id: number, page: number, page_size: number,
         params = { ...params, query, }
     }
     const url = create_signed_url(space_contents_search_prefix, params).toString()
-    const b_nut = local_storage_cache.b_nut
-    // const b_nut = create_b_nut()
+    const b_nut = local_storage_cache.space_video_search_cookies.b_nut
+    const buvid4 = local_storage_cache.space_video_search_cookies.buvid4
+    const buvid3 = local_storage_cache.space_video_search_cookies.buvid3
     log(url)
-    log(`buvid3=${local_storage_cache.buvid3};`)
-    log(`buvid4=${local_storage_cache.buvid4};`)
+    log(`buvid4=${buvid4};`)
     log(`b_nut=${b_nut};`)
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
+    // use the authenticated client because BiliBili blocks logged out users
     const result = runner.GET(
         url,
         {
-            "User-Agent": CHROME_USER_AGENT,
-            // "User-Agent": GRAYJAY_USER_AGENT,
-            Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}`,
-            // Cookie: `buvid3=${local_storage_cache.buvid3}`,
-            // Cookie: `buvid4=${local_storage_cache.buvid4}; b_nut=${b_nut}; buvid3=${local_storage_cache.buvid3}`,
+            // "User-Agent": CHROME_USER_AGENT,
+            "User-Agent": GRAYJAY_USER_AGENT,
+            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
             Host: "api.bilibili.com",
-            Referer: "https://space.bilibili.com"
+            // Referer: "https://space.bilibili.com"
         },
-        false)
+        true)
     if (builder === undefined) {
         log_network_call(now)
     }
+
     return result
 }
 function space_posts_request(space_id: number, offset: number | undefined, builder: BatchBuilder): BatchBuilder
@@ -2523,7 +2478,8 @@ function space_posts_request(space_id: number, offset: number | undefined, build
     // log(`b_nut=${b_nut};`)
 
     const runner = builder === undefined ? local_http : builder
-    return runner.GET(
+    const now = Date.now()
+    const result = runner.GET(
         url,
         {
             Host: "api.bilibili.com",
@@ -2532,32 +2488,49 @@ function space_posts_request(space_id: number, offset: number | undefined, build
             "User-Agent": GRAYJAY_USER_AGENT
         },
         false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 function space_courses_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_courses_request(space_id: number, page: number, page_size: number, builder: HTTP): BridgeHttpResponse
-function space_courses_request(space_id: number, page: number, page_size: number, builder: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_courses_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
+function space_courses_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const course_prefix = "https://api.bilibili.com/pugv/app/web/season/page"
     const params: Params = {
         mid: space_id.toString(),
         pn: page.toString(),
         ps: page_size.toString()
     }
-    return builder.GET(create_url(course_prefix, params).toString(), {}, false)
+    const url = create_url(course_prefix, params).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 function space_collections_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_collections_request(space_id: number, page: number, page_size: number, builder: HTTP): BridgeHttpResponse
-function space_collections_request(space_id: number, page: number, page_size: number, builder: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_collections_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
+function space_collections_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_series_list"
     const params: Params = {
         mid: space_id.toString(),
         page_num: page.toString(),
         page_size: page_size.toString()
     }
-    return builder.GET(
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
         create_signed_url(collection_prefix, params).toString(),
         { Cookie: `buvid3=${local_storage_cache.buvid3}` },
         false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 // note there is another section on the page https://space.bilibili.com/<space_id>/favlist
@@ -2565,17 +2538,24 @@ function space_collections_request(space_id: number, page: number, page_size: nu
 // we won't load these into the feed because they aren't their playlists
 // TODO we download everything every time. we should cache the result and use it
 function space_favorites_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_favorites_request(space_id: number, builder: HTTP): BridgeHttpResponse
-function space_favorites_request(space_id: number, builder: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_favorites_request(space_id: number): BridgeHttpResponse
+function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const favorites_prefix = "https://api.bilibili.com/x/v3/fav/folder/created/list-all"
     const params: Params = {
         up_mid: space_id.toString()
     }
-    return builder.GET(
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client so logged in users can view their private favorites lists
+    const result = runner.GET(
         create_url(favorites_prefix, params).toString(),
         { "User-Agent": GRAYJAY_USER_AGENT },
-        false
+        true
     )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
 }
 
 function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
@@ -2668,20 +2648,12 @@ function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
                     if (item.ep_size !== 0) {
                         throw new ScriptException("unreachable")
                     }
-                    // TODO copied from get content detail url parsing
                     const url = item.url
-                    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
-                    if (regex_match_result === null) {
-                        throw new ScriptException(`malformed content url: ${url}`)
-                    }
-                    const maybe_content_id: string | undefined = regex_match_result[3]
-                    if (maybe_content_id === undefined) {
-                        throw new ScriptException("unreachable regex error")
-                    }
+                    const { content_id } = parse_content_details_url(url)
 
                     first_episode = {
                         cover: undefined,
-                        id: parseInt(maybe_content_id)
+                        id: parseInt(content_id)
                     }
                 } else {
                     first_episode = item.eps[0]
@@ -2816,17 +2788,22 @@ function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): Batc
     }
     return result
 }
-function subtitles_request(bvid: string, cid: number, builder: BatchBuilder): BatchBuilder
-function subtitles_request(bvid: string, cid: number): BridgeHttpResponse
-function subtitles_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder: BatchBuilder): BatchBuilder
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number): BridgeHttpResponse
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const subtitles_prefix = "https://api.bilibili.com/x/player/wbi/v2"
-    const params: Params = {
-        bvid,
+    const params: Params = "bvid" in id ? {
+        bvid: id.bvid,
+        cid: cid.toString(),
+    } : {
+        aid: id.aid.toString(),
         cid: cid.toString(),
     }
     const url = create_signed_url(subtitles_prefix, params)
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
+    // use the authenticated client because login is required to view subtitles
     const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true)
     if (builder === undefined) {
         log_network_call(now)
@@ -2845,16 +2822,13 @@ function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | 
     const url = create_signed_url(play_prefix, params)
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
+    // use the authenticated client to get higher resolution videos for logged in users
     const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true)
     if (builder === undefined) {
         log_network_call(now)
     }
 
     return result
-}
-
-function seconds_to_WebVTT_timestamp(seconds: number){
-    return new Date(seconds * 1000).toISOString().substring(11,23)
 }
 
 function load_video_details(video_id: string): [VideoDetailResponse, VideoPlayResponse]
@@ -2873,7 +2847,7 @@ function load_video_details(video_id: string, is_logged_in: boolean = false): [V
                     process(response) { return JSON.parse(response.body) }
                 }, {
                     request(builder) {
-                        return subtitles_request(video_id, detail_response.data.View.cid, builder)
+                        return subtitles_request({ bvid: video_id }, detail_response.data.View.cid, builder)
                     },
                     process(response) { return JSON.parse(response.body) }
                 }
@@ -2900,7 +2874,7 @@ function load_video_details(video_id: string, is_logged_in: boolean = false): [V
                         request(builder) { return video_play_request(video_id, cid, builder) },
                         process(response) { return JSON.parse(response.body) }
                     }, {
-                        request(builder) { return subtitles_request(video_id, cid, builder) },
+                        request(builder) { return subtitles_request({ bvid: video_id }, cid, builder) },
                         process(response) { return JSON.parse(response.body) }
                     }
                 ]
@@ -3004,6 +2978,7 @@ class SpaceContentsPager extends ContentPager {
     }
     next_page: number
     posts_offset: number
+    readonly space_info: CoreSpaceInfo
     readonly space_id: number
     readonly has_more: {
         videos: boolean
@@ -3027,56 +3002,170 @@ class SpaceContentsPager extends ContentPager {
             collections: 2,
             favorites: 2
         } as const
-        const requests: [
-            RequestMetadata<SpaceVideosSearchResponse>,
-            RequestMetadata<SpacePostsResponse>,
-            RequestMetadata<SpaceCoursesResponse>,
-            RequestMetadata<SpaceCollectionsResponse>,
-            RequestMetadata<SpaceFavoritesResponse>,
-        ] = [
-                {
-                    request(builder) {
-                        return space_videos_request(
-                            space_id,
-                            initial_page,
-                            page_size.videos,
-                            undefined,
-                            undefined,
-                            builder)
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let contents: [SpaceVideosSearchResponse, SpacePostsResponse, SpaceCoursesResponse, SpaceCollectionsResponse, SpaceFavoritesResponse]
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<MaybeSpaceVideosSearchResponse>,
+                RequestMetadata<SpacePostsResponse>,
+                RequestMetadata<SpaceCoursesResponse>,
+                RequestMetadata<SpaceCollectionsResponse>,
+                RequestMetadata<SpaceFavoritesResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [
+                    {
+                        request(builder) {
+                            return space_videos_request(
+                                space_id,
+                                initial_page,
+                                page_size.videos,
+                                undefined,
+                                undefined,
+                                builder)
+                        },
+                        process(response) { return JSON.parse(response.body) }
                     },
-                    process(response) { return JSON.parse(response.body) }
-                },
-                {
-                    request(builder) { return space_posts_request(space_id, undefined, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                },
-                {
-                    request(builder) { return space_courses_request(space_id, initial_page, page_size.courses, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                },
-                {
-                    request(builder) {
-                        return space_collections_request(space_id, initial_page, page_size.collections, builder)
+                    {
+                        request(builder) { return space_posts_request(space_id, undefined, builder) },
+                        process(response) { return JSON.parse(response.body) }
                     },
-                    process(response) { return JSON.parse(response.body) }
-                },
-                {
-                    request(builder) { return space_favorites_request(space_id, builder) },
-                    process(raw_response) {
-                        const response: SpaceFavoritesResponse = JSON.parse(raw_response.body)
-                        if (response.data === null || response.data.list === null) {
+                    {
+                        request(builder) { return space_courses_request(space_id, initial_page, page_size.courses, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) {
+                            return space_collections_request(space_id, initial_page, page_size.collections, builder)
+                        },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) { return space_favorites_request(space_id, builder) },
+                        process(raw_response) {
+                            const response: SpaceFavoritesResponse = JSON.parse(raw_response.body)
+                            if (response.data === null || response.data.list === null) {
+                                return response
+                            }
+                            response.data.list = response.data.list.slice(
+                                initial_page * page_size.favorites,
+                                initial_page * page_size.favorites + page_size.favorites
+                            )
                             return response
                         }
-                        response.data.list = response.data.list.slice(
-                            initial_page * page_size.favorites,
-                            initial_page * page_size.favorites + page_size.favorites
-                        )
-                        return response
+                    }, {
+                        request(builder) { return space_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }
+                ]
+            const results = execute_requests(requests)
+            const space = results[5]
+            space_info = {
+                num_fans: results[6].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
                     }
                 }
-            ]
-
-        const contents = execute_requests(requests)
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            let space_search_response
+            if (results[0].code === -352) {
+                while (space_search_response === undefined) {
+                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+                        space_id,
+                        initial_page,
+                        page_size.videos,
+                        undefined,
+                        undefined).body)
+                    if (response.code === -352) {
+                        refresh_space_video_search_cookies()
+                        continue
+                    }
+                    space_search_response = response
+                }
+            } else {
+                space_search_response = results[0]
+            }
+            contents = [space_search_response, results[1], results[2], results[3], results[4]]
+        } else {
+            const requests: [
+                RequestMetadata<MaybeSpaceVideosSearchResponse>,
+                RequestMetadata<SpacePostsResponse>,
+                RequestMetadata<SpaceCoursesResponse>,
+                RequestMetadata<SpaceCollectionsResponse>,
+                RequestMetadata<SpaceFavoritesResponse>
+            ] = [
+                    {
+                        request(builder) {
+                            return space_videos_request(
+                                space_id,
+                                initial_page,
+                                page_size.videos,
+                                undefined,
+                                undefined,
+                                builder)
+                        },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) { return space_posts_request(space_id, undefined, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) { return space_courses_request(space_id, initial_page, page_size.courses, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) {
+                            return space_collections_request(space_id, initial_page, page_size.collections, builder)
+                        },
+                        process(response) { return JSON.parse(response.body) }
+                    },
+                    {
+                        request(builder) { return space_favorites_request(space_id, builder) },
+                        process(raw_response) {
+                            const response: SpaceFavoritesResponse = JSON.parse(raw_response.body)
+                            if (response.data === null || response.data.list === null) {
+                                return response
+                            }
+                            response.data.list = response.data.list.slice(
+                                initial_page * page_size.favorites,
+                                initial_page * page_size.favorites + page_size.favorites
+                            )
+                            return response
+                        }
+                    }
+                ]
+            const results = execute_requests(requests)
+            let space_search_response
+            if (results[0].code === -352) {
+                while (space_search_response === undefined) {
+                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+                        space_id,
+                        initial_page,
+                        page_size.videos,
+                        undefined,
+                        undefined).body)
+                    if (response.code === -352) {
+                        refresh_space_video_search_cookies()
+                        continue
+                    }
+                    space_search_response = response
+                }
+            } else {
+                space_search_response = results[0]
+            }
+            contents = [space_search_response, results[1], results[2], results[3], results[4]]
+        }
 
         const has_more = {
             videos: contents[0].data.page.count > initial_page * page_size.videos,
@@ -3086,7 +3175,8 @@ class SpaceContentsPager extends ContentPager {
             favorites: contents[4].data ? contents[4].data.count > initial_page * page_size.favorites : false
         }
         super(
-            format_space_contents(space_id, contents[0], contents[1], contents[2], contents[3], contents[4]),
+            format_space_contents(space_id, space_info, contents[0], contents[1], contents[2], contents[3], contents[4]),
+            // format_space_contents(space_id, space_info, undefined, contents[1], undefined, undefined, undefined),
             has_more.videos || has_more.posts || has_more.courses || has_more.collections || has_more.favorites
         )
         this.next_page = 2
@@ -3094,10 +3184,11 @@ class SpaceContentsPager extends ContentPager {
         this.posts_offset = contents[1].data.offset
         this.space_id = space_id
         this.page_size = page_size
+        this.space_info = space_info
     }
     override nextPage(): this {
         const requests: [
-            RequestMetadata<SpaceVideosSearchResponse> | undefined,
+            RequestMetadata<MaybeSpaceVideosSearchResponse> | undefined,
             RequestMetadata<SpacePostsResponse> | undefined,
             RequestMetadata<SpaceCoursesResponse> | undefined,
             RequestMetadata<SpaceCollectionsResponse> | undefined,
@@ -3143,7 +3234,32 @@ class SpaceContentsPager extends ContentPager {
                 } : undefined
             ]
 
-        const contents = execute_requests(requests)
+        const results = execute_requests(requests)
+        let space_search_response
+        if (results[0] !== undefined && results[0].code === -352) {
+            while (space_search_response === undefined) {
+                const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+                    this.space_id,
+                    this.next_page,
+                    this.page_size.videos,
+                    undefined,
+                    undefined).body)
+                if (response.code === -352) {
+                    refresh_space_video_search_cookies()
+                    continue
+                }
+                space_search_response = response
+            }
+        } else {
+            space_search_response = results[0]
+        }
+        const contents: [
+            SpaceVideosSearchResponse | undefined,
+            SpacePostsResponse | undefined,
+            SpaceCoursesResponse | undefined,
+            SpaceCollectionsResponse | undefined,
+            SpaceFavoritesResponse | undefined,
+        ] = [space_search_response, results[1], results[2], results[3], results[4]]
 
         if (contents[0] !== undefined) {
             this.has_more.videos = contents[0].data.page.count > this.next_page * this.page_size.videos
@@ -3162,7 +3278,8 @@ class SpaceContentsPager extends ContentPager {
             this.has_more.favorites = contents[4].data ? contents[4].data.count > this.next_page * this.page_size.favorites : false
         }
 
-        this.results = format_space_contents(this.space_id, contents[0], contents[1], contents[2], contents[3], contents[4])
+        this.results = format_space_contents(this.space_id, this.space_info, contents[0], contents[1], contents[2], contents[3], contents[4])
+        // this.results = format_space_contents(this.space_id, this.space_info, undefined, contents[1], undefined, undefined, undefined)
 
         this.hasMore = this.has_more.videos || this.has_more.posts || this.has_more.courses || this.has_more.collections || this.has_more.favorites
         this.next_page += 1
@@ -3315,7 +3432,7 @@ class ChannelVideoResultsPager extends ContentPager {
             const requests: [
                 RequestMetadata<SpaceResponse>,
                 RequestMetadata<{ data: { follower: number } }>,
-                RequestMetadata<SpaceVideosSearchResponse>
+                RequestMetadata<MaybeSpaceVideosSearchResponse>
             ] = [{
                 request(builder) { return space_request(space_id, builder) },
                 process(response) { return JSON.parse(response.body) }
@@ -3330,7 +3447,25 @@ class ChannelVideoResultsPager extends ContentPager {
             }]
 
             const [space, fan_count_response, local_search_response] = execute_requests(requests)
-            search_response = local_search_response
+            let space_search_response
+            if (local_search_response.code === -352) {
+                while (space_search_response === undefined) {
+                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+                        space_id,
+                        initial_page,
+                        page_size,
+                        undefined,
+                        undefined).body)
+                    if (response.code === -352) {
+                        refresh_space_video_search_cookies()
+                        continue
+                    }
+                    space_search_response = response
+                }
+            } else {
+                space_search_response = local_search_response
+            }
+            search_response = space_search_response
             space_info = {
                 num_fans: fan_count_response.data.follower,
                 name: space.data.name,
@@ -3346,7 +3481,16 @@ class ChannelVideoResultsPager extends ContentPager {
             }
             local_storage_cache.space_cache.set(space_id, space_info)
         } else {
-            search_response = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
+            let local_search_response: SpaceVideosSearchResponse | undefined = undefined
+            while (local_search_response === undefined) {
+                const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
+                if (response.code !== -352) {
+                    local_search_response = response
+                } else {
+                    refresh_space_video_search_cookies()
+                }
+            }
+            search_response = local_search_response
         }
 
         const more = search_response.data.page.count > initial_page * page_size
@@ -3359,8 +3503,16 @@ class ChannelVideoResultsPager extends ContentPager {
         this.space_info = space_info
     }
     override nextPage(): this {
-        const response_body = space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body
-        const response: SpaceVideosSearchResponse = JSON.parse(response_body)
+        let local_search_response: SpaceVideosSearchResponse | undefined = undefined
+        while (local_search_response === undefined) {
+            const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
+            if (response.code !== -352) {
+                local_search_response = response
+            } else {
+                refresh_space_video_search_cookies()
+            }
+        }
+        const response = local_search_response
         this.results = format_space_videos(response, this.space_id, this.space_info)
         this.hasMore = response.data.page.count > this.next_page * this.page_size
         this.next_page += 1
@@ -3447,7 +3599,7 @@ function format_home(home: HomeFeedResponse): PlatformVideo[] {
                     id: room_id,
                     name: item.title,
                     url: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
-                    thumbnails: new Thumbnails([new Thumbnail(item.pic, 1080)]), // TODO hardcoded 1080
+                    thumbnails: new Thumbnails([new Thumbnail(item.pic, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(
                         author_id,
                         item.owner.name,
@@ -3463,22 +3615,6 @@ function format_home(home: HomeFeedResponse): PlatformVideo[] {
                 throw assert_no_fall_through(item, `unhandled type on home page item ${item}`)
         }
     })
-}
-
-function init_local_storage() {
-    const { wbi_img_key, wbi_sub_key } = download_wbi_keys()
-    const b_nut = create_b_nut()
-    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut)
-    // these caches don't work that well because they aren't shared between plugin instances
-    // saveState is what we need
-    local_storage_cache = {
-        buvid3,
-        buvid4,
-        b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
-        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant())
-    }
 }
 
 // page starts at 0
@@ -3498,58 +3634,60 @@ function get_home(page: number, page_size: number): HomeFeedResponse {
 
     const url = create_url(home_api_url, params).toString()
     const now = Date.now()
+    // use auth client so that logged in users get a personalized home feed
     const home_json = local_http.GET(
         url,
         { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}` },
-        false).body
+        true).body
 
     log_network_call(now)
     const home_response: HomeFeedResponse = JSON.parse(home_json)
     return home_response
 }
 
-function log_network_call(before_run_timestamp: number) {
-    log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`)
-}
-
-function create_signed_url(base_url: string, params: Params, wts?: number): URL {
-    const augmented_params: Params = {
-        ...params,
-        // timestamp
-        wts: wts === undefined ? Math.round(Date.now() / 1e3).toString() : wts.toString(),
-        // device fingerprint values
-        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
-        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
-        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
-        dm_img_list: "[]",
+function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
+function nav_request(useAuthClient: boolean): BridgeHttpResponse
+function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const url = "https://api.bilibili.com/x/web-interface/nav"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, useAuthClient)
+    if (builder === undefined) {
+        log_network_call(now)
     }
-
-    const sorted_query_string = Object
-        .entries(augmented_params)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, value]) => {
-            return `${name}=${encodeURIComponent(value)}`
-        })
-        .join("&")
-    const w_rid = md5(sorted_query_string + local_storage_cache.mixin_key)
-    return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`)
+    return result
 }
 
-function create_url(base_url: string, params: Params): URL {
-    const url = new URL(base_url)
-    for (const [name, value] of Object.entries(params)){
-        url.searchParams.set(name, value)
+//#endregion
+
+function refresh_space_video_search_cookies() {
+    log("BiliBili log: refreshing space videos cookies")
+    const b_nut = create_b_nut()
+    local_storage_cache.space_video_search_cookies.buvid4 = download_and_activate_buvid3_and_buvid4(b_nut).buvid4
+    local_storage_cache.space_video_search_cookies.b_nut = b_nut
+}
+
+function init_local_storage() {
+    const { wbi_img_key, wbi_sub_key } = download_wbi_keys()
+    const b_nut = create_b_nut()
+    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut)
+    const space_b_nut = create_b_nut()
+    const space_cookies = download_and_activate_buvid3_and_buvid4(b_nut)
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        buvid3,
+        buvid4,
+        b_nut,
+        cid_cache: new Map(),
+        space_cache: new Map(),
+        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant()),
+        space_video_search_cookies: {
+            b_nut: space_b_nut,
+            buvid4: space_cookies.buvid4,
+            buvid3: space_cookies.buvid3
+        }
     }
-    return url
-}
-
-// "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
-function getMixinKey(e: string, encryption_info: readonly number[]) {
-    return encryption_info.filter((value) => {
-        return e[value] !== undefined
-    }).map((value) => {
-        return e[value]
-    }).join("").slice(0, 32)
 }
 
 function download_mixin_constant(): readonly number[] {
@@ -3567,20 +3705,12 @@ function download_mixin_constant(): readonly number[] {
 }
 
 function download_wbi_keys(): Wbi {
-    const url = "https://api.bilibili.com/x/web-interface/nav"
-    const now = Date.now()
-    const wbi_json = local_http.GET(url, {}, false).body
-    log_network_call(now)
-    const res: { data: { wbi_img: { img_url: string, sub_url: string } } } = JSON.parse(wbi_json)
+    const response: NavResponse = JSON.parse(nav_request(false).body)
 
     return {
-        wbi_img_key: res.data.wbi_img.img_url.slice(29, 61),
-        wbi_sub_key: res.data.wbi_img.sub_url.slice(29, 61)
+        wbi_img_key: response.data.wbi_img.img_url.slice(29, 61),
+        wbi_sub_key: response.data.wbi_img.sub_url.slice(29, 61)
     }
-}
-
-function create_b_nut() {
-    return Math.floor((new Date).getTime() / 1e3)
 }
 
 // TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
@@ -3611,6 +3741,344 @@ function download_and_activate_buvid3_and_buvid4(b_nut: number) {
         log_network_call(now)
     }
     return { buvid3, buvid4 }
+}
+
+//#region Utilities
+
+function assert_no_fall_through(value: never): void
+function assert_no_fall_through(value: never, exception_message: string): ScriptException
+function assert_no_fall_through(value: never, exception_message?: string): ScriptException | undefined {
+    log(["BiliBili log:", value])
+    if (exception_message !== undefined) {
+        return new ScriptException(exception_message)
+    }
+    return
+}
+
+function parse_minutes_seconds(minutes_seconds: string): number {
+    const parsed_length = minutes_seconds.match(/^(\d+):(\d+)/)
+    if (parsed_length === null) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const minutes = parsed_length[1]
+    const seconds = parsed_length[2]
+    if (minutes === undefined || seconds === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const duration = parseInt(minutes) * 60 + parseInt(seconds)
+    return duration
+}
+
+function convert_subtitles(subtitles_data: SubtitlesDataResponse) {
+    let text = "WEBVTT\n"
+    text += "\n"
+    for (const item of subtitles_data.body) {
+        text += `${item.sid}\n`
+        text += `${seconds_to_WebVTT_timestamp(item.from)} --> ${seconds_to_WebVTT_timestamp(item.to)}\n`
+        text += `${item.content}\n`
+        text += "\n"
+    }
+    return text
+}
+
+function seconds_to_WebVTT_timestamp(seconds: number) {
+    return new Date(seconds * 1000).toISOString().substring(11, 23)
+}
+
+// starts with the longer array or a if they are the same length
+function interleave<T, U>(a: T[], b: U[]): Array<T | U> {
+    const [first, second] = b.length > a.length ? [b, a] : [a, b]
+    return first.flatMap((a_value, index) => {
+        const b_value = second[index]
+        if (second[index] === undefined) {
+            return a_value
+        }
+        return b_value !== undefined ? [a_value, b_value] : a_value
+    })
+}
+
+function assert_never(value: never) {
+    log(value)
+}
+
+function log_network_call(before_run_timestamp: number) {
+    log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`)
+}
+
+// "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
+function getMixinKey(e: string, encryption_info: readonly number[]) {
+    return encryption_info.filter((value) => {
+        return e[value] !== undefined
+    }).map((value) => {
+        return e[value]
+    }).join("").slice(0, 32)
+}
+
+function create_b_nut() {
+    return Math.floor((new Date).getTime() / 1e3)
+}
+
+function create_signed_url(base_url: string, params: Params, wts?: number): URL {
+    const augmented_params: Params = {
+        ...params,
+        // timestamp
+        wts: wts === undefined ? Math.round(Date.now() / 1e3).toString() : wts.toString(),
+        // device fingerprint values
+        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
+        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
+        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_list: "[]",
+    }
+
+    const sorted_query_string = Object
+        .entries(augmented_params)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, value]) => {
+            return `${name}=${encodeURIComponent(value)}`
+        })
+        .join("&")
+    const w_rid = md5(sorted_query_string + local_storage_cache.mixin_key)
+    return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`)
+}
+
+function create_url(base_url: string, params: Params): URL {
+    const url = new URL(base_url)
+    for (const [name, value] of Object.entries(params)) {
+        url.searchParams.set(name, value)
+    }
+    return url
+}
+
+function execute_requests<T>(
+    request: [RequestMetadata<T>],
+    http: HTTP
+): T
+function execute_requests<T, U>(
+    requests: [RequestMetadata<T>, RequestMetadata<U>]
+): [T, U]
+function execute_requests<T, U, V>(
+    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>]
+): [T, U, V]
+function execute_requests<T, U, V, W>(
+    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>]
+): [T, U, V, W]
+function execute_requests<T, U, V, W, X>(
+    requests: [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>, RequestMetadata<X>]
+): [T, U, V, W, X]
+function execute_requests<T, U, V, W, X>(
+    requests: [
+        RequestMetadata<T> | undefined,
+        RequestMetadata<U> | undefined,
+        RequestMetadata<V> | undefined,
+        RequestMetadata<W> | undefined,
+        RequestMetadata<X> | undefined
+    ]
+): [T | undefined, U | undefined, V | undefined, W | undefined, X | undefined]
+function execute_requests<T, U, V, W, X, Y>(
+    requests: [
+        RequestMetadata<T>,
+        RequestMetadata<U>,
+        RequestMetadata<V>,
+        RequestMetadata<W>,
+        RequestMetadata<X>,
+        RequestMetadata<Y>,
+    ]
+): [T, U, V, W, X, Y]
+function execute_requests<T, U, V, W, X, Y, Z>(
+    requests: [
+        RequestMetadata<T>,
+        RequestMetadata<U>,
+        RequestMetadata<V>,
+        RequestMetadata<W>,
+        RequestMetadata<X>,
+        RequestMetadata<Y>,
+        RequestMetadata<Z>,
+    ]
+): [T, U, V, W, X, Y, Z]
+function execute_requests<T, U, V, W, X, Y, Z>(
+    requests:
+        [RequestMetadata<T>]
+        | [RequestMetadata<T>, RequestMetadata<U>]
+        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>]
+        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>]
+        | [RequestMetadata<T>, RequestMetadata<U>, RequestMetadata<V>, RequestMetadata<W>, RequestMetadata<X>]
+        | [RequestMetadata<T> | undefined,
+            RequestMetadata<U> | undefined,
+            RequestMetadata<V> | undefined,
+            RequestMetadata<W> | undefined,
+            RequestMetadata<X> | undefined]
+        | [RequestMetadata<T>,
+            RequestMetadata<U>,
+            RequestMetadata<V>,
+            RequestMetadata<W>,
+            RequestMetadata<X>,
+            RequestMetadata<Y>]
+        | [RequestMetadata<T>,
+            RequestMetadata<U>,
+            RequestMetadata<V>,
+            RequestMetadata<W>,
+            RequestMetadata<X>,
+            RequestMetadata<Y>,
+            RequestMetadata<Z>]
+): T
+    | [T, U]
+    | [T, U, V]
+    | [T, U, V, W]
+    | [T, U, V, W, X]
+    | [T | undefined, U | undefined, V | undefined, W | undefined, X | undefined]
+    | [T, U, V, W, X, Y]
+    | [T, U, V, W, X, Y, Z] {
+
+    const batch = local_http.batch()
+
+    for (const request of requests) {
+        if (request !== undefined) {
+            request.request(batch)
+        }
+    }
+
+    const now = Date.now()
+    const responses = batch.execute()
+    log(`BiliBili log: made ${responses.length} network request(s) in parallel taking ${Date.now() - now} milliseconds`)
+    switch (requests.length) {
+        case 1: {
+            const response_0 = responses[0]
+            if (response_0 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return requests[0].process(response_0)
+        }
+        case 2: {
+            const response_0 = responses[0]
+            const response_1 = responses[1]
+            if (response_0 === undefined || response_1 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return [requests[0].process(response_0), requests[1].process(response_1)]
+        }
+        case 3: {
+            const response_0 = responses[0]
+            const response_1 = responses[1]
+            const response_2 = responses[2]
+            if (response_0 === undefined || response_1 === undefined || response_2 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return [requests[0].process(response_0), requests[1].process(response_1), requests[2].process(response_2)]
+        }
+        case 4: {
+            const response_0 = responses[0]
+            const response_1 = responses[1]
+            const response_2 = responses[2]
+            const response_3 = responses[3]
+            if (response_0 === undefined || response_1 === undefined || response_2 === undefined || response_3 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return [
+                requests[0].process(response_0),
+                requests[1].process(response_1),
+                requests[2].process(response_2),
+                requests[3].process(response_3)
+            ]
+        }
+        case 5: {
+            let next_response = 0
+            let result_0: T | undefined
+            let result_1: U | undefined
+            let result_2: V | undefined
+            let result_3: W | undefined
+            let result_4: X | undefined
+            if (requests[0] === undefined) {
+                result_0 = undefined
+            } else {
+                const response = responses[next_response]
+                if (response === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result_0 = requests[0].process(response)
+                next_response += 1
+            }
+            if (requests[1] === undefined) {
+                result_1 = undefined
+            } else {
+                const response = responses[next_response]
+                if (response === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result_1 = requests[1].process(response)
+                next_response += 1
+            } if (requests[2] === undefined) {
+                result_2 = undefined
+            } else {
+                const response = responses[next_response]
+                if (response === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result_2 = requests[2].process(response)
+                next_response += 1
+            } if (requests[3] === undefined) {
+                result_3 = undefined
+            } else {
+                const response = responses[next_response]
+                if (response === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result_3 = requests[3].process(response)
+                next_response += 1
+            } if (requests[4] === undefined) {
+                result_4 = undefined
+            } else {
+                const response = responses[next_response]
+                if (response === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result_4 = requests[4].process(response)
+                next_response += 1
+            }
+            return [result_0, result_1, result_2, result_3, result_4]
+        }
+        case 6: {
+            const response_0 = responses[0]
+            const response_1 = responses[1]
+            const response_2 = responses[2]
+            const response_3 = responses[3]
+            const response_4 = responses[4]
+            const response_5 = responses[5]
+            if (response_0 === undefined || response_1 === undefined || response_2 === undefined || response_3 === undefined || response_4 === undefined || response_5 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return [
+                requests[0].process(response_0),
+                requests[1].process(response_1),
+                requests[2].process(response_2),
+                requests[3].process(response_3),
+                requests[4].process(response_4),
+                requests[5].process(response_5)
+            ]
+        }
+        case 7: {
+            const response_0 = responses[0]
+            const response_1 = responses[1]
+            const response_2 = responses[2]
+            const response_3 = responses[3]
+            const response_4 = responses[4]
+            const response_5 = responses[5]
+            const response_6 = responses[6]
+            if (response_0 === undefined || response_1 === undefined || response_2 === undefined || response_3 === undefined || response_4 === undefined || response_5 === undefined || response_6 === undefined) {
+                throw new ScriptException("unreachable")
+            }
+            return [
+                requests[0].process(response_0),
+                requests[1].process(response_1),
+                requests[2].process(response_2),
+                requests[3].process(response_3),
+                requests[4].process(response_4),
+                requests[5].process(response_5),
+                requests[6].process(response_6)
+            ]
+        }
+        default:
+            throw assert_no_fall_through(requests, "unreachable")
+    }
 }
 
 const post_body_for_ExClimbWuzhi = JSON.stringify({
@@ -3818,6 +4286,7 @@ function md5(input: string): string {
 // @ts-expect-error TODO write our own Typescript implementation
 // eslint-disable-next-line
 let MD5: { generate: any }; (() => { var r = { d: (n, t) => { for (var e in t) r.o(t, e) && !r.o(n, e) && Object.defineProperty(n, e, { enumerable: !0, get: t[e] }) }, o: (r, n) => Object.prototype.hasOwnProperty.call(r, n), r: r => { "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(r, Symbol.toStringTag, { value: "Module" }), Object.defineProperty(r, "__esModule", { value: !0 }) } }, n = {}; (() => { r.r(n), r.d(n, { MD5: () => d, generate: () => e }); var t = function (r) { r = r.replace(/\r\n/g, "\n"); for (var n = "", t = 0; t < r.length; t++) { var e = r.charCodeAt(t); e < 128 ? n += String.fromCharCode(e) : e > 127 && e < 2048 ? (n += String.fromCharCode(e >> 6 | 192), n += String.fromCharCode(63 & e | 128)) : (n += String.fromCharCode(e >> 12 | 224), n += String.fromCharCode(e >> 6 & 63 | 128), n += String.fromCharCode(63 & e | 128)) } return n }; function e(r) { var n, e, o, d, l, C, h, v, S, m; for (n = function (r) { for (var n, t = r.length, e = t + 8, o = 16 * ((e - e % 64) / 64 + 1), u = Array(o - 1), a = 0, f = 0; f < t;)a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | r.charCodeAt(f) << a, f++; return a = f % 4 * 8, u[n = (f - f % 4) / 4] = u[n] | 128 << a, u[o - 2] = t << 3, u[o - 1] = t >>> 29, u }(t(r)), h = 1732584193, v = 4023233417, S = 2562383102, m = 271733878, e = 0; e < n.length; e += 16)o = h, d = v, l = S, C = m, h = a(h, v, S, m, n[e + 0], 7, 3614090360), m = a(m, h, v, S, n[e + 1], 12, 3905402710), S = a(S, m, h, v, n[e + 2], 17, 606105819), v = a(v, S, m, h, n[e + 3], 22, 3250441966), h = a(h, v, S, m, n[e + 4], 7, 4118548399), m = a(m, h, v, S, n[e + 5], 12, 1200080426), S = a(S, m, h, v, n[e + 6], 17, 2821735955), v = a(v, S, m, h, n[e + 7], 22, 4249261313), h = a(h, v, S, m, n[e + 8], 7, 1770035416), m = a(m, h, v, S, n[e + 9], 12, 2336552879), S = a(S, m, h, v, n[e + 10], 17, 4294925233), v = a(v, S, m, h, n[e + 11], 22, 2304563134), h = a(h, v, S, m, n[e + 12], 7, 1804603682), m = a(m, h, v, S, n[e + 13], 12, 4254626195), S = a(S, m, h, v, n[e + 14], 17, 2792965006), h = f(h, v = a(v, S, m, h, n[e + 15], 22, 1236535329), S, m, n[e + 1], 5, 4129170786), m = f(m, h, v, S, n[e + 6], 9, 3225465664), S = f(S, m, h, v, n[e + 11], 14, 643717713), v = f(v, S, m, h, n[e + 0], 20, 3921069994), h = f(h, v, S, m, n[e + 5], 5, 3593408605), m = f(m, h, v, S, n[e + 10], 9, 38016083), S = f(S, m, h, v, n[e + 15], 14, 3634488961), v = f(v, S, m, h, n[e + 4], 20, 3889429448), h = f(h, v, S, m, n[e + 9], 5, 568446438), m = f(m, h, v, S, n[e + 14], 9, 3275163606), S = f(S, m, h, v, n[e + 3], 14, 4107603335), v = f(v, S, m, h, n[e + 8], 20, 1163531501), h = f(h, v, S, m, n[e + 13], 5, 2850285829), m = f(m, h, v, S, n[e + 2], 9, 4243563512), S = f(S, m, h, v, n[e + 7], 14, 1735328473), h = i(h, v = f(v, S, m, h, n[e + 12], 20, 2368359562), S, m, n[e + 5], 4, 4294588738), m = i(m, h, v, S, n[e + 8], 11, 2272392833), S = i(S, m, h, v, n[e + 11], 16, 1839030562), v = i(v, S, m, h, n[e + 14], 23, 4259657740), h = i(h, v, S, m, n[e + 1], 4, 2763975236), m = i(m, h, v, S, n[e + 4], 11, 1272893353), S = i(S, m, h, v, n[e + 7], 16, 4139469664), v = i(v, S, m, h, n[e + 10], 23, 3200236656), h = i(h, v, S, m, n[e + 13], 4, 681279174), m = i(m, h, v, S, n[e + 0], 11, 3936430074), S = i(S, m, h, v, n[e + 3], 16, 3572445317), v = i(v, S, m, h, n[e + 6], 23, 76029189), h = i(h, v, S, m, n[e + 9], 4, 3654602809), m = i(m, h, v, S, n[e + 12], 11, 3873151461), S = i(S, m, h, v, n[e + 15], 16, 530742520), h = c(h, v = i(v, S, m, h, n[e + 2], 23, 3299628645), S, m, n[e + 0], 6, 4096336452), m = c(m, h, v, S, n[e + 7], 10, 1126891415), S = c(S, m, h, v, n[e + 14], 15, 2878612391), v = c(v, S, m, h, n[e + 5], 21, 4237533241), h = c(h, v, S, m, n[e + 12], 6, 1700485571), m = c(m, h, v, S, n[e + 3], 10, 2399980690), S = c(S, m, h, v, n[e + 10], 15, 4293915773), v = c(v, S, m, h, n[e + 1], 21, 2240044497), h = c(h, v, S, m, n[e + 8], 6, 1873313359), m = c(m, h, v, S, n[e + 15], 10, 4264355552), S = c(S, m, h, v, n[e + 6], 15, 2734768916), v = c(v, S, m, h, n[e + 13], 21, 1309151649), h = c(h, v, S, m, n[e + 4], 6, 4149444226), m = c(m, h, v, S, n[e + 11], 10, 3174756917), S = c(S, m, h, v, n[e + 2], 15, 718787259), v = c(v, S, m, h, n[e + 9], 21, 3951481745), h = u(h, o), v = u(v, d), S = u(S, l), m = u(m, C); return g(h) + g(v) + g(S) + g(m) } function o(r, n) { return r << n | r >>> 32 - n } function u(r, n) { var t, e, o, u, a; return o = 2147483648 & r, u = 2147483648 & n, a = (1073741823 & r) + (1073741823 & n), (t = 1073741824 & r) & (e = 1073741824 & n) ? 2147483648 ^ a ^ o ^ u : t | e ? 1073741824 & a ? 3221225472 ^ a ^ o ^ u : 1073741824 ^ a ^ o ^ u : a ^ o ^ u } function a(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & n | ~r & t }(n, t, e), a), i)), u(o(r, f), n) } function f(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r & t | n & ~t }(n, t, e), a), i)), u(o(r, f), n) } function i(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return r ^ n ^ t }(n, t, e), a), i)), u(o(r, f), n) } function c(r, n, t, e, a, f, i) { return r = u(r, u(u(function (r, n, t) { return n ^ (r | ~t) }(n, t, e), a), i)), u(o(r, f), n) } function g(r) { var n, t = "", e = ""; for (n = 0; n <= 3; n++)t += (e = "0" + (r >>> 8 * n & 255).toString(16)).substr(e.length - 2, 2); return t } var d = { generate: e } })(), MD5 = n })();
+//#endregion
 
 // export statements are removed during build step
 // used to for unit testing in BiliBiliScript.test.ts

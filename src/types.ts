@@ -1,3 +1,4 @@
+//#region Custom types
 export type BiliBiliCommentContext = {
     // the id of the content
     readonly oid: string
@@ -7,6 +8,44 @@ export type BiliBiliCommentContext = {
     readonly type: "33" | "1"
 }
 
+export type RequestMetadata<X> = {
+    request(builder: BatchBuilder): BatchBuilder
+    process(http_response: BridgeHttpResponse): X
+}
+
+export type Params = {
+    readonly [key: string]: string
+}
+
+export type IdObj = {
+    id: number,
+    type: "season"
+} | {
+    id: number,
+    type: "episode"
+}
+
+export type OrderOptions = "click" | "pubdate" | "stow"
+
+export type ContentType = "bangumi/play/ep" | "video/" | "opus/" | "cheese/play/ep"
+
+export type PlaylistType = "bangumi/play/ss"
+    | "cheese/play/ss"
+    | "/channel/collectiondetail?sid="
+    | "/channel/seriesdetail?sid="
+    | "/favlist?fid="
+    | "medialist/detail/ml"
+    | "festival/"
+    | "watchlater/"
+
+    export type Settings = unknown
+
+export type BiliBiliSource = Required<Source<BiliBiliCommentContext, FilterGroupIDs>>
+
+export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
+
+export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
+
 export type LocalCache = {
     readonly buvid3: string
     readonly buvid4: string
@@ -14,6 +53,11 @@ export type LocalCache = {
     readonly mixin_key: string
     readonly cid_cache: Map<string, number>
     readonly space_cache: Map<number, CoreSpaceInfo>
+    readonly space_video_search_cookies: {
+        buvid4: string
+        b_nut: number
+        buvid3: string
+    }
 }
 
 export type CoreSpaceInfo = {
@@ -30,6 +74,9 @@ export type CoreSpaceInfo = {
         }
     }
 }
+//#endregion
+
+//#region JSON types
 
 export type FingerSpiResponse = {
     readonly data: {
@@ -38,13 +85,33 @@ export type FingerSpiResponse = {
     }
 }
 
-export type Settings = unknown
+export type NavResponse = {
+    readonly data: {
+        readonly isLogin: false
+        readonly wbi_img: {
+            readonly img_url: string,
+            readonly sub_url: string
+        }
+    }
+}
 
-export type BiliBiliSource = Required<Source<BiliBiliCommentContext, FilterGroupIDs>>
+export type LoggedInNavResponse = {
+    readonly data: {
+        readonly isLogin: true
+        readonly mid: number
+        readonly face: string
+        readonly uname: string
+    }
+}
 
-export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
-
-export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
+export type UserSubscriptionsResponse = {
+    readonly data: {
+        readonly list: {
+            readonly mid: number
+        }[]
+        readonly total: number
+    }
+}
 
 export type SpaceVideos = {
     readonly data: {
@@ -173,11 +240,7 @@ export type SpaceResponse = {
     }
 }
 
-export type Params = {
-    readonly [key: string]: string
-}
-
-export type SubCommentsJSON = {
+export type SubCommentsResponse = {
     readonly data: {
         readonly page: {
             readonly count: number
@@ -216,12 +279,27 @@ export type CommentResponse = {
     }
 }
 
-export type IdObj = {
-    id: number,
-    type: "season"
-} | {
-    id: number,
-    type: "episode"
+export type WatchLaterResponse = {
+    readonly data: {
+        readonly count: number
+        readonly list: {
+            readonly pic: string
+            readonly title: string
+            readonly pubdate: number
+            readonly owner: {
+                readonly mid: number
+                readonly name: string
+                readonly face: string
+            }
+            readonly duration: number
+            readonly bvid: string
+            readonly cid: number
+            readonly stat: {
+                readonly view: number
+                readonly like: number
+            }
+        }[]
+    }
 }
 
 export type FavoritesResponse = {
@@ -364,16 +442,6 @@ export type SeriesResponse = {
         }
     }
 }
-
-export type ContentType = "bangumi/play/ep" | "video/" | "opus/" | "cheese/play/ep"
-
-export type PlaylistType = "bangumi/play/ss"
-    | "cheese/play/ss"
-    | "/channel/collectiondetail?sid="
-    | "/channel/seriesdetail?sid="
-    | "/favlist?fid="
-    | "medialist/detail/ml"
-    | "festival/"
 
 export type TextNode = {
     readonly text: string
@@ -557,18 +625,13 @@ export type SpacePostsSearchResponse = {
                     }
                 }
             }
-            // a json string
+            // a JSON string
             readonly card: string
         }[]
     }
 }
 
-export type RequestMetadata<X> = {
-    request(builder: BatchBuilder): BatchBuilder
-    process(http_response: BridgeHttpResponse): X
-}
-
-export type OrderOptions = "click" | "pubdate" | "stow"
+export type MaybeSpaceVideosSearchResponse = SpaceVideosSearchResponse | { readonly code: -352 }
 
 export type SpaceVideosSearchResponse = {
     readonly data: {
@@ -589,6 +652,7 @@ export type SpaceVideosSearchResponse = {
             readonly pn: number
         }
     }
+    readonly code: 0
 }
 
 export type LiveSearchResponse = {
@@ -662,7 +726,7 @@ export type SearchResultItem = {
     readonly id: number
     readonly episode_count_text: string
     // i think this is always 0 :(
-    readonly pubdate: number
+    readonly pubdate: never
 } | {
     readonly mid: number
     readonly uname: string
@@ -751,6 +815,11 @@ export type EpisodePlayResponse = {
     readonly result: {
         readonly video_info: PlayData
     }
+    readonly code: 0
+    readonly message: "success"
+} | {
+    readonly code: -10403,
+    readonly message: "抱歉您所在地区不可观看！"
 }
 
 export type VideoPlayResponse = {
@@ -827,3 +896,4 @@ export type SuggestionsResponse = {
         }[]
     }
 }
+//#endregion
