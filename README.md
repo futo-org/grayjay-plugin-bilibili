@@ -10,7 +10,7 @@ Prevents some rate limiting/captcha scenarios
 - [ ]   Figure out captcha verification for space posts and space videos or at least proper rate limiting error messages
         The captcha only shows up for posts. for videos there is just a login prompt that shows up whenever taking an action
         However once the posts captcha is done the login prompts stop
-        Clear site data and go to https://space.bilibili.com/<space id>/dynamic and scroll down until the captcha shows up
+        Clear site data and go to https://space.bilibili.com/{space id}/dynamic and scroll down until the captcha shows up
 - [ ]   Write tests for regex matching and testing code
 - [ ]   Write tests for the all of the request functions to continually verify that they are retrieving expected data
 - [ ]   Write tests for all the utility functions
@@ -21,6 +21,7 @@ Prevents some rate limiting/captcha scenarios
 - [ ]   Add in function and property documentation
 - [ ]   Add playback tracker so that the homepage reflects and adapts to what you watch
 - [ ]   Test premium content
+- [ ]   Add a logging option that will log the urls, headers, and results of all network requests
 ## Grayjay Bugs
 - [ ]   Links in posts aren't clickable
 - [ ]   When going back from a post detail opened on a channel page hangs the app
