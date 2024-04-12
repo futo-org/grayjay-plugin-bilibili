@@ -1,5 +1,6 @@
 ## TO-DO
 - [ ]   Seems like video links time out and stop working fairly quickly. Can we prevent that by send cookies along with the requests?
+- [ ]   Check the user agent in the auth config
 ## Bugs
 - [ ]   Links in posts aren't clickable
 - [ ]   When going back from a post detail opened on a channel page hangs the app
@@ -13,3 +14,4 @@
 - [ ]   Search capabilities aren't distinct between channel search and home feed search
 - [ ]   The thumbnail property of a PlatformPlaylistDetails object doesn't seem to do anything
 - [ ]   When making a live PlatformVideoDetails the video option needs to be a blank VideoSourceDescriptor which is kinda weird
+- [ ]   the getSubtitles call is wrapped in an exception swalling thing so when i was hitting a non allow listed domain it was just silently failing

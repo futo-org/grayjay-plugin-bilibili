@@ -21,6 +21,11 @@
         "api.bilibili.com",
         "s1.hdslb.com",
         "live.bilibili.com",
-        "s.search.bilibili.com"
-    ]
+        "s.search.bilibili.com",
+        "aisubtitle.hdslb.com"
+    ],
+    "authentication": {
+		"loginUrl": "https://passport.bilibili.com/h5-app/passport/login",
+		"cookiesToFind": ["SESSDATA"]
+	}
 }

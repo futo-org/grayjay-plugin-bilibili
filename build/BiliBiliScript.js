@@ -541,8 +541,36 @@ function getContentDetails(url) {
                 }
                 case "video/": {
                     const video_id = maybe_content_id;
-                    const [video_info, plsy_info] = load_video_details(video_id);
-                    const { video_sources, audio_sources } = format_sources(plsy_info.data);
+                    let video_info, play_info, subtitle_response;
+                    if (bridge.isLoggedIn()) {
+                        [video_info, play_info, subtitle_response] = load_video_details(video_id, true);
+                    }
+                    else {
+                        [video_info, play_info] = load_video_details(video_id);
+                    }
+                    const { video_sources, audio_sources } = format_sources(play_info.data);
+                    const subtitles = subtitle_response?.data.subtitle.subtitles.map((subtitle) => {
+                        const url = `https:${subtitle.subtitle_url}`;
+                        const convert = seconds_to_WebVTT_timestamp;
+                        return {
+                            url,
+                            name: subtitle.lan_doc,
+                            getSubtitles() {
+                                const json = local_http.GET(url, {}, false).body;
+                                const response = JSON.parse(json);
+                                let text = "WEBVTT\n";
+                                text += "\n";
+                                for (const item of response.body) {
+                                    text += `${item.sid}\n`;
+                                    text += `${convert(item.from)} --> ${convert(item.to)}\n`;
+                                    text += `${item.content}\n`;
+                                    text += "\n";
+                                }
+                                return text;
+                            },
+                            format: "text/vtt",
+                        };
+                    });
                     const description = video_info.data.View.desc_v2 === null
                         ? { raw_text: "" }
                         : video_info.data.View.desc_v2[0];
@@ -552,14 +580,14 @@ function getContentDetails(url) {
                     const owner_id = video_info.data.View.owner.mid.toString();
                     const platform_video_ID = new PlatformID(PLATFORM, video_id, plugin.config.id);
                     const platform_creator_ID = new PlatformID(PLATFORM, owner_id, plugin.config.id);
-                    const details = new PlatformVideoDetails({
+                    const platform_video_details_def = {
                         id: platform_video_ID,
                         name: video_info.data.View.title,
                         thumbnails: new Thumbnails([
                             new Thumbnail(video_info.data.View.pic, HARDCODED_THUMBNAIL_QUALITY)
                         ]),
                         author: new PlatformAuthorLink(platform_creator_ID, video_info.data.View.owner.name, `${SPACE_URL_PREFIX}${video_info.data.View.owner.mid}`, video_info.data.View.owner.face, video_info.data.Card.card.fans),
-                        duration: plsy_info.data.dash.duration,
+                        duration: play_info.data.dash.duration,
                         viewCount: video_info.data.View.stat.view,
                         url: `${VIDEO_URL_PREFIX}${video_id}`,
                         isLive: false,
@@ -567,8 +595,13 @@ function getContentDetails(url) {
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(video_info.data.View.stat.like),
                         shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
-                        uploadDate: video_info.data.View.pubdate
-                    });
+                        uploadDate: video_info.data.View.pubdate,
+                    };
+                    if (subtitles === undefined) {
+                        const details = new PlatformVideoDetails(platform_video_details_def);
+                        return details;
+                    }
+                    const details = new PlatformVideoDetails({ ...platform_video_details_def, subtitles });
                     return details;
                 }
                 default:
@@ -1103,9 +1136,9 @@ function format_text_node(node, images) {
         case "RICH_TEXT_NODE_TYPE_VOTE":
             return node.text;
         case "RICH_TEXT_NODE_TYPE_VIEW_PICTURE": {
-            node.pics.forEach((pic) => {
+            for (const pic of node.pics) {
                 images.push(pic.src);
-            });
+            }
             return;
         }
         case "RICH_TEXT_NODE_TYPE_AT":
@@ -1540,11 +1573,11 @@ function festival_parse(festival_html) {
 }
 function execute_requests(requests) {
     const batch = local_http.batch();
-    requests.forEach((request) => {
+    for (const request of requests) {
         if (request !== undefined) {
             request.request(batch);
         }
-    });
+    }
     const now = Date.now();
     const responses = batch.execute();
     log(`BiliBili log: made ${responses.length} network request(s) in parallel taking ${Date.now() - now} milliseconds`);
@@ -1847,33 +1880,33 @@ function season_request(id_obj, builder) {
 function format_major(major, thumbnails, images) {
     switch (major.type) {
         case "MAJOR_TYPE_ARCHIVE":
-            thumbnails.push(new Thumbnail(major.archive.cover, 1080)); // TODO hardcoded 1080
+            thumbnails.push(new Thumbnail(major.archive.cover, HARDCODED_THUMBNAIL_QUALITY));
             return `<a href="${VIDEO_URL_PREFIX}${major.archive.bvid}">${major.archive.title}</a>`;
         case "MAJOR_TYPE_DRAW":
-            major.draw.items.forEach((pic) => {
+            for (const pic of major.draw.items) {
                 images.push(pic.src);
-            });
+            }
             return undefined;
         case "MAJOR_TYPE_OPUS":
-            major.opus.pics.forEach((pic) => {
+            for (const pic of major.opus.pics) {
                 images.push(pic.url);
-            });
+            }
             return major.opus.summary.rich_text_nodes.map((node) => {
                 return format_text_node(node, images);
             }).join("");
         case "MAJOR_TYPE_LIVE_RCMD": {
             const live_rcmd = JSON.parse(major.live_rcmd.content);
-            thumbnails.push(new Thumbnail(live_rcmd.live_play_info.cover, 1080)); // TODO hardcoded 1080
+            thumbnails.push(new Thumbnail(live_rcmd.live_play_info.cover, HARDCODED_THUMBNAIL_QUALITY));
             return `<a href="${LIVE_ROOM_URL_PREFIX}${live_rcmd.live_play_info.room_id}">${live_rcmd.live_play_info.title}</a>`;
         }
         case "MAJOR_TYPE_COMMON": {
-            thumbnails.push(new Thumbnail(major.common.cover, 1080)); // TODO hardcoded 1080
+            thumbnails.push(new Thumbnail(major.common.cover, HARDCODED_THUMBNAIL_QUALITY));
             return `<a href="${major.common.jump_url}">${major.common.title}</a>`;
         }
         case "MAJOR_TYPE_ARTICLE": {
-            major.article.covers.forEach((cover) => {
-                thumbnails.push(new Thumbnail(cover, 1080)); // TODO hardcoded 1080
-            });
+            for (const cover of major.article.covers) {
+                thumbnails.push(new Thumbnail(cover, HARDCODED_THUMBNAIL_QUALITY));
+            }
             return `<a href="https://www.bilibili.com/read/cv${major.article.id}">${major.article.title}</a>`;
         }
         default:
@@ -2300,6 +2333,21 @@ function video_detail_request(bvid, builder) {
     }
     return result;
 }
+function subtitles_request(bvid, cid, builder) {
+    const subtitles_prefix = "https://api.bilibili.com/x/player/wbi/v2";
+    const params = {
+        bvid,
+        cid: cid.toString(),
+    };
+    const url = create_signed_url(subtitles_prefix, params);
+    const runner = builder === undefined ? local_http : builder;
+    const now = Date.now();
+    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true);
+    if (builder === undefined) {
+        log_network_call(now);
+    }
+    return result;
+}
 function video_play_request(bvid, cid, builder) {
     const play_prefix = "https://api.bilibili.com/x/player/wbi/playurl";
     const params = {
@@ -2310,20 +2358,55 @@ function video_play_request(bvid, cid, builder) {
     const url = create_signed_url(play_prefix, params);
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
-    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, false);
+    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true);
     if (builder === undefined) {
         log_network_call(now);
     }
     return result;
 }
-function load_video_details(video_id) {
+function seconds_to_WebVTT_timestamp(seconds) {
+    return new Date(seconds * 1000).toISOString().substring(11, 23);
+}
+function load_video_details(video_id, is_logged_in = false) {
     const cid = local_storage_cache.cid_cache.get(video_id);
     if (cid === undefined) {
         const detail_response = JSON.parse(video_detail_request(video_id).body);
+        if (is_logged_in) {
+            const requests = [
+                {
+                    request(builder) {
+                        return video_play_request(video_id, detail_response.data.View.cid, builder);
+                    },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) {
+                        return subtitles_request(video_id, detail_response.data.View.cid, builder);
+                    },
+                    process(response) { return JSON.parse(response.body); }
+                }
+            ];
+            const [play_response, subtitles_response] = execute_requests(requests);
+            return [detail_response, play_response, subtitles_response];
+        }
         const play_response = JSON.parse(video_play_request(video_id, detail_response.data.View.cid).body);
         return [detail_response, play_response];
     }
     else {
+        if (is_logged_in) {
+            const requests = [
+                {
+                    request(builder) { return video_detail_request(video_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return video_play_request(video_id, cid, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return subtitles_request(video_id, cid, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }
+            ];
+            return execute_requests(requests);
+        }
         const requests = [
             {
                 request(builder) { return video_detail_request(video_id, builder); },
@@ -2832,9 +2915,9 @@ function create_signed_url(base_url, params, wts) {
 }
 function create_url(base_url, params) {
     const url = new URL(base_url);
-    Object.entries(params).forEach(([name, value]) => {
+    for (const [name, value] of Object.entries(params)) {
         url.searchParams.set(name, value);
-    });
+    }
     return url;
 }
 // "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"

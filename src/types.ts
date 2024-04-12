@@ -579,7 +579,7 @@ export type SpaceVideosSearchResponse = {
                 readonly length: string
                 readonly pic: string
                 // can be "--" for removed videos
-                readonly play: number | "--" 
+                readonly play: number | "--"
                 readonly author: string
                 readonly created: number
             }[]
@@ -755,6 +755,29 @@ export type EpisodePlayResponse = {
 
 export type VideoPlayResponse = {
     readonly data: PlayData
+}
+
+export type SubtitlesMetadataResponse = {
+    readonly data: {
+        readonly subtitle: {
+            readonly subtitles: {
+                lan: string
+                lan_doc: string
+                subtitle_url: string
+            }[]
+        }
+    }
+}
+
+export type SubtitlesDataResponse = {
+    readonly body: {
+        readonly from: number
+        readonly to: number
+        readonly sid: number
+        readonly location: number
+        readonly content: string
+        readonly string: number
+    }[]
 }
 
 type HomeFeedItem = {
