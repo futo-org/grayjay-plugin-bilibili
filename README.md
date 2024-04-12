@@ -22,6 +22,7 @@ Prevents some rate limiting/captcha scenarios
 - [ ]   Add playback tracker so that the homepage reflects and adapts to what you watch
 - [ ]   Test premium content
 - [ ]   Add a logging option that will log the urls, headers, and results of all network requests
+- [ ]   Implement live chat websocket protocol
 ## Grayjay Bugs
 - [ ]   Links in posts aren't clickable
 - [ ]   When going back from a post detail opened on a channel page hangs the app
