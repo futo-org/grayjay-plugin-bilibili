@@ -705,7 +705,7 @@ function getContentDetails(url: string) {
                                 getSubtitles() {
                                     const json = local_http.GET(url, {}, false).body
                                     const response: SubtitlesDataResponse = JSON.parse(json)
-                                    return convert_subtitles(response)
+                                    return convert_subtitles(response, subtitle.lan_doc)
                                 },
                                 format: "text/vtt",
                             }
@@ -768,7 +768,7 @@ function getContentDetails(url: string) {
                             getSubtitles() {
                                 const json = local_http.GET(url, {}, false).body
                                 const response: SubtitlesDataResponse = JSON.parse(json)
-                                return convert_subtitles(response)
+                                return convert_subtitles(response, subtitle.lan_doc)
                             },
                             format: "text/vtt",
                         }
@@ -3769,8 +3769,8 @@ function parse_minutes_seconds(minutes_seconds: string): number {
     return duration
 }
 
-function convert_subtitles(subtitles_data: SubtitlesDataResponse) {
-    let text = "WEBVTT\n"
+function convert_subtitles(subtitles_data: SubtitlesDataResponse, name: string) {
+    let text = `WEBVTT ${name}\n`
     text += "\n"
     for (const item of subtitles_data.body) {
         text += `${item.sid}\n`
