@@ -11,7 +11,7 @@
         "npm-eslint": "npx eslint .",
         "bun-test": "bun run build && node --test",
         "test": "npm run build && node --test",
-        "build": "tsc && cp src/BiliBiliScript.[tj]s* build/ && sed -i '/^export/ d' build/BiliBiliScript.[tj]s",
+        "build": "tsc && cp src/BiliBiliScript.[tj]s* build && sed -i '/^export/ d' build/BiliBiliScript.[tj]s",
         "bun-release": "bun install && bun update && bun x npm-check-updates && bun run bun-test && bun run bun-eslint",
         "npm-release": "npm install && npm update && npx npm-check-updates && npm test && npm run npm-eslint",
         "bun-dev": "bun run build && bun x http-server build",
