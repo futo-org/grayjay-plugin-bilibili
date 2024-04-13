@@ -1,10 +1,10 @@
 ## What does logging in get you?
-Subtitles
-Greater than 480p quality
-Premium content
-View and save private playlists
-View and save subscriptions list
-Prevents some rate limiting/captcha scenarios
+-   Subtitles
+-   Greater than 480p quality
+-   Premium content
+-   View and save private playlists
+-   View and save subscriptions list
+-   Prevents some rate limiting/captcha scenarios
 ## TO-DO
 - [ ]   Seems like video links time out and stop working fairly quickly. Can we prevent that by send cookies along with the requests?
 - [ ]   Figure out captcha verification for space posts and space videos or at least proper rate limiting error messages
@@ -23,6 +23,7 @@ Prevents some rate limiting/captcha scenarios
 - [ ]   Test premium content
 - [ ]   Add a logging option that will log the urls, headers, and results of all network requests
 - [ ]   Implement live chat websocket protocol
+- [ ]   Fix the local caching to use saveState
 ## Grayjay Bugs
 - [ ]   Links in posts aren't clickable
 - [ ]   When going back from a post detail opened on a channel page hangs the app
