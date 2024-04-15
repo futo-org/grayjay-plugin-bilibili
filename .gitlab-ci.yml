@@ -28,6 +28,7 @@ deploy-job:      # This job runs in the deploy stage.
     - cp -r .ssh ~/.ssh
     - cd build
     - PRIVATE_KEY_PASSPHRASE="$passphrase" bash sign-script.sh BiliBiliScript.js > results.txt
+    - cat results.txt
     - bash add_signature.sh results.txt BiliBiliConfig.json
     - cat BiliBiliConfig.json
   artifacts:
