@@ -16,7 +16,7 @@ PUBLIC_KEY_PATH=~/.ssh/id_rsa.pub
 [[ $PRIVATE_KEY_PASSPHRASE ]] && passphrase_subcommand="-passin pass:$PRIVATE_KEY_PASSPHRASE" || passphrase_subcommand=""
 
 PUBLIC_KEY_PKCS8=$(ssh-keygen -f "$PUBLIC_KEY_PATH" -e -m pkcs8 | tail -n +2 | head -n -1 | tr -d '\n')
-echo "This is your public key: '$PUBLIC_KEY_PKCS8'"
+echo "\"scriptPublicKey\": \"$PUBLIC_KEY_PKCS8\","
 
 if [ $# -eq 0 ]; then
   # No parameter provided, read from stdin
@@ -27,4 +27,4 @@ else
 fi
 
 SIGNATURE=$(echo -n "$DATA" | openssl dgst -sha512 -sign "$PRIVATE_KEY_PATH" $passphrase_subcommand | base64 -w 0)
-echo "This is your signature: '$SIGNATURE'"
+echo "\"scriptSignature\": \"$SIGNATURE\","
