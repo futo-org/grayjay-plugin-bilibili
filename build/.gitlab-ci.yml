@@ -35,4 +35,4 @@ deploy-job:      # This job runs in the deploy stage.
     paths:
       - build/BiliBiliConfig.json
       - build/BiliBiliScript.js
-      - build/BiliBiliIcon.svg
+      - build/BiliBiliIcon.png
