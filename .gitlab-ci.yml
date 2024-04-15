@@ -30,3 +30,8 @@ deploy-job:      # This job runs in the deploy stage.
     - PRIVATE_KEY_PASSPHRASE="$passphrase" bash sign-script.sh BiliBiliScript.js > results.txt
     - bash add_signature.sh results.txt BiliBiliConfig.json
     - cat BiliBiliConfig.json
+  artifacts:
+    paths:
+      - build/BiliBiliConfig.json
+      - build/BiliBiliScript.js
+      - build/BiliBiliIcon.svg
