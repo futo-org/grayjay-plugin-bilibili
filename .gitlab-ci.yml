@@ -22,9 +22,10 @@ stages:          # List of stages for jobs, and their order of execution
 deploy-job:      # This job runs in the deploy stage.
   stage: deploy  # It only runs when *both* jobs in the test stage complete successfully.
   variables:
-    SECURE_FILES_DOWNLOAD_PATH: './.ssh'
+    SECURE_FILES_DOWNLOAD_PATH: '.ssh'
   script:
     - curl --silent "https://gitlab.com/gitlab-org/incubation-engineering/mobile-devops/download-secure-files/-/raw/main/installer" | bash
     - cp -r .ssh ~/.ssh
     - cd build
-    - PRIVATE_KEY_PASSPHRASE="$passphrase" bash sign-script.sh BiliBiliScript.js
+    - PRIVATE_KEY_PASSPHRASE="$passphrase" bash sign-script.sh BiliBiliScript.js > results.txt
+    - bash add_signature.sh results.txt
