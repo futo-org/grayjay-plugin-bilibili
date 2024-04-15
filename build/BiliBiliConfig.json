@@ -4,7 +4,7 @@
     "author": "Kai DeLorenzo",
     "authorUrl": "https://gitlab.com/kaidelorenzo",
     "platformUrl": "https://bilibili.com",
-    "sourceUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin/-/blob/main/BiliBiliConfig.json",
+    "sourceUrl": "https://gitlab.com/api/v4/projects/56224394/jobs/artifacts/main/raw/build/BiliBiliConfig.json?job=deploy-job",
     "repositoryUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
     "scriptUrl": "./BiliBiliScript.js",
     "version": 1,
