@@ -1,3 +1,4 @@
+![https://gitlab.com/api/v4/projects/56224394/jobs/artifacts/main/raw/build/BiliBiliConfig.json?job=deploy-job](assets/bilibili-qr.svg "BiliBili Plugin")
 ## What does logging in get you?
 -   Subtitles
 -   Greater than 480p quality
