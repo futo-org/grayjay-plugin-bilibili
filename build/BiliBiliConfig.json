@@ -8,7 +8,7 @@
     "repositoryUrl": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
     "scriptUrl": "https://gitlab.com/api/v4/projects/56224394/jobs/artifacts/main/raw/build/BiliBiliScript.js?job=deploy-job",
     "version": 1,
-    "iconUrl": "https://gitlab.com/api/v4/projects/56224394/jobs/artifacts/main/raw/build/BiliBiliIcon.svg?job=deploy-job",
+    "iconUrl": "https://plugins.grayjay.app/Youtube/youtube.png",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
     "scriptSignature": "",
     "scriptPublicKey": "",
