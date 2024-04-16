@@ -5,11 +5,13 @@ import "@grayjay/plugin/source.js"
 
 import {
     getMixinKey,
-    download_mixin_constant,
+    mixin_constant_request,
+    process_mixin_constant,
     interleave,
     load_video_details,
     create_signed_url,
-    download_wbi_keys,
+    process_wbi_keys,
+    nav_request,
     init_local_storage
 } from "./BiliBiliScript.js"
 import { Params } from "./types.js"
@@ -54,10 +56,10 @@ describe("utility functions", () => {
         assert.strictEqual(mixin_key, "ea1db124af3c7062474693fa704f4ff8")
     })
     test("get_mixin_constant", { skip: false }, () => {
-        assert.deepStrictEqual(download_mixin_constant(), MIXIN_CONSTANT)
+        assert.deepStrictEqual(process_mixin_constant(mixin_constant_request()), MIXIN_CONSTANT)
     })
     test("get wbi keys", { skip: false }, () => {
-        assert.deepStrictEqual(download_wbi_keys(), {
+        assert.deepStrictEqual(process_wbi_keys(nav_request(false)), {
             wbi_img_key: "7cd084941338484aae1ad9425b84077c",
             wbi_sub_key: "4932caff0ff746eab6f01bf08b70ac45"
         })

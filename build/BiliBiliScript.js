@@ -3022,15 +3022,32 @@ function nav_request(useAuthClient, builder) {
 function refresh_space_video_search_cookies() {
     log("BiliBili log: refreshing space videos cookies");
     const b_nut = create_b_nut();
-    local_storage_cache.space_video_search_cookies.buvid4 = download_and_activate_buvid3_and_buvid4(b_nut).buvid4;
+    const finger_spi_response = JSON.parse(cookie_request().body);
+    const buvid3 = finger_spi_response.data.b_3;
+    const buvid4 = finger_spi_response.data.b_4;
+    activate_cookies(b_nut, buvid3, buvid4);
+    local_storage_cache.space_video_search_cookies.buvid3 = buvid3;
+    local_storage_cache.space_video_search_cookies.buvid4 = buvid4;
     local_storage_cache.space_video_search_cookies.b_nut = b_nut;
 }
 function init_local_storage() {
-    const { wbi_img_key, wbi_sub_key } = download_wbi_keys();
     const b_nut = create_b_nut();
-    const { buvid3, buvid4 } = download_and_activate_buvid3_and_buvid4(b_nut);
-    const space_b_nut = create_b_nut();
-    const space_cookies = download_and_activate_buvid3_and_buvid4(b_nut);
+    const requests = [{
+            request: mixin_constant_request,
+            process: process_mixin_constant
+        }, {
+            request(builder) { return nav_request(false, builder); },
+            process: process_wbi_keys
+        }, {
+            request: cookie_request,
+            process(response) { return JSON.parse(response.body); }
+        }];
+    const [mixin_constant, { wbi_img_key, wbi_sub_key }, finger_spi_response] = execute_requests(requests);
+    const buvid3 = finger_spi_response.data.b_3;
+    const buvid4 = finger_spi_response.data.b_4;
+    activate_cookies(b_nut, buvid3, buvid4);
+    const space_b_nut = b_nut;
+    const space_cookies = { buvid3, buvid4 };
     // these caches don't work that well because they aren't shared between plugin instances
     // saveState is what we need
     local_storage_cache = {
@@ -3039,7 +3056,7 @@ function init_local_storage() {
         b_nut,
         cid_cache: new Map(),
         space_cache: new Map(),
-        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, download_mixin_constant()),
+        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
         space_video_search_cookies: {
             b_nut: space_b_nut,
             buvid4: space_cookies.buvid4,
@@ -3047,50 +3064,53 @@ function init_local_storage() {
         }
     };
 }
-function download_mixin_constant() {
+function mixin_constant_request(builder) {
     const url = "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js";
-    const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/;
+    const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
-    const html = local_http.GET(url, {}, false).body;
-    log_network_call(now);
-    const mixin_constant_json = html.match(mixin_constant_regex)?.[1];
+    const result = runner.GET(url, {}, false);
+    if (builder === undefined) {
+        log_network_call(now);
+    }
+    return result;
+}
+function process_mixin_constant(html) {
+    const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/;
+    const mixin_constant_json = html.body.match(mixin_constant_regex)?.[1];
     if (mixin_constant_json === undefined) {
         throw new ScriptException("failed to acquire mixin_constant");
     }
-    return JSON.parse(mixin_constant_json);
+    const mixin_constant = JSON.parse(mixin_constant_json);
+    return mixin_constant;
 }
-function download_wbi_keys() {
-    const response = JSON.parse(nav_request(false).body);
+function process_wbi_keys(raw_response) {
+    const response = JSON.parse(raw_response.body);
     return {
         wbi_img_key: response.data.wbi_img.img_url.slice(29, 61),
         wbi_sub_key: response.data.wbi_img.sub_url.slice(29, 61)
     };
 }
-// TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
-// this will make things simpler
-function download_and_activate_buvid3_and_buvid4(b_nut) {
-    // download cookies
+function cookie_request(builder) {
     const finger_spi_url = "https://api.bilibili.com/x/frontend/finger/spi";
+    const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
-    const json = local_http.GET(finger_spi_url, {}, false).body;
-    log_network_call(now);
-    const finger_spi_response = JSON.parse(json);
-    const buvid3 = finger_spi_response.data.b_3;
-    const buvid4 = finger_spi_response.data.b_4;
-    {
-        // activate the cookie
-        const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi";
-        const now = Date.now();
-        local_http.POST(cookie_activation_url, post_body_for_ExClimbWuzhi, {
-            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
-            "User-Agent": GRAYJAY_USER_AGENT,
-            Host: "api.bilibili.com",
-            "Content-Length": post_body_for_ExClimbWuzhi.length.toString(),
-            "Content-Type": "application/json"
-        }, false);
+    const result = runner.GET(finger_spi_url, {}, false);
+    if (builder === undefined) {
         log_network_call(now);
     }
-    return { buvid3, buvid4 };
+    return result;
+}
+function activate_cookies(b_nut, buvid3, buvid4) {
+    const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi";
+    const now = Date.now();
+    local_http.POST(cookie_activation_url, post_body_for_ExClimbWuzhi, {
+        Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
+        "User-Agent": GRAYJAY_USER_AGENT,
+        Host: "api.bilibili.com",
+        "Content-Length": post_body_for_ExClimbWuzhi.length.toString(),
+        "Content-Type": "application/json"
+    }, false);
+    log_network_call(now);
 }
 function assert_no_fall_through(value, exception_message) {
     log(["BiliBili log:", value]);

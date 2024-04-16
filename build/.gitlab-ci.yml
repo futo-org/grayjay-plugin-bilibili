@@ -11,7 +11,7 @@ deploy-job:
     - cd build
     - PRIVATE_KEY_PASSPHRASE="$passphrase" bash sign-script.sh BiliBiliScript.js > results.txt
     - cat results.txt
-    - bash add_signature.sh results.txt BiliBiliConfig.json
+    - bash add-signature.sh results.txt BiliBiliConfig.json
     - cat BiliBiliConfig.json
   artifacts:
     paths:

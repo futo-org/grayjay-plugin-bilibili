@@ -11,7 +11,7 @@
         "npm-eslint": "npx eslint .",
         "bun-test": "bun run build && node --test",
         "test": "npm run build && node --test",
-        "build": "tsc && cp src/BiliBiliScript.[tj]s* build && sed -i '/^export/ d' build/BiliBiliScript.[tj]s",
+        "build": "tsc && cp src/BiliBiliScript.[tj]s* build && sed -i '/^export/ d' build/BiliBiliScript.[tj]s && cp build/BiliBiliConfig.json build/dev-config.json && sed -i -e 's|\"scriptUrl\": \"https://gitlab.com/api/v4/projects/56224394/jobs/artifacts/main/raw/build/BiliBiliScript.js?job=deploy-job\",|\"scriptUrl\": \"BiliBiliScript.js\",|' build/dev-config.json",
         "bun-release": "bun install && bun update && bun x npm-check-updates && bun run bun-test && bun run bun-eslint",
         "npm-release": "npm install && npm update && npx npm-check-updates && npm test && npm run npm-eslint",
         "bun-dev": "bun run build && bun x http-server build",
@@ -32,7 +32,7 @@
     },
     "homepage": "https://gitlab.com/kaidelorenzo/grayjay-bilibili.com-plugin",
     "peerDependencies": {
-        "typescript": "^5.0.0"
+        "typescript": "^5.1.3"
     },
     "type": "module",
     "devDependencies": {
@@ -41,7 +41,7 @@
         "eslint": "^8.57.0",
         "eslint-plugin-node": "^11.1.0",
         "http-server": "^14.1.1",
-        "typescript-eslint": "^7.6.0",
+        "typescript-eslint": "^7.7.0",
         "npm-check-updates": "^16.14.18"
     }
 }
