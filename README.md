@@ -43,9 +43,9 @@
 - [ ]   Support for playlists, posts, movies, shows, and custom playlist types as search feed type
 - [ ]   The removal of elements from the getlivechatwindow doesn't work likely because it runs before the elements have been created
 - [ ]   Issues with passing search feed type to search api calls
-     -  when searching from the main home page search type in the search function call is always null regardless of what is set in getsearchcapabilities
-     -  when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
-     -  getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
+    -   when searching from the main home page search type in the search function call is always null regardless of what is set in getsearchcapabilities
+    -   when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
+    -   getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
 
 
 
