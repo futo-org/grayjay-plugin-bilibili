@@ -29,7 +29,11 @@ describe("script module", { skip: false }, () => {
     test("get video details", { skip: false }, () => {
         const result = load_video_details("BV1ZW4y1Q7Y4")
         assert.strictEqual(result[0].data.View.title, "被elo机制制裁的号到底有多难打\u{ff1f}",)
-        assert.strictEqual(result[1].data.dash.duration, 164)
+        if("durl" in result[1].data){
+            assert.strictEqual("durl" in result[1].data, false)
+        }else{
+            assert.strictEqual(result[1].data.dash.duration, 164)
+        }
     })
 })
 describe("utility functions", () => {

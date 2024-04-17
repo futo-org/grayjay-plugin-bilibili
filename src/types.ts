@@ -369,6 +369,11 @@ export type FestivalResponse = {
 
 export type CourseEpisodePlayResponse = {
     readonly data: PlayData
+    readonly code: 0
+} | InsufficientCourseEpisodePlayResponse
+
+export type InsufficientCourseEpisodePlayResponse = {
+    readonly code: -403
 }
 
 export type CourseResponse = {
@@ -798,7 +803,7 @@ export type EpisodeInfoResponse = {
     }
 }
 
-export type PlayData = {
+export type PlayDataDash = {
     readonly accept_description: string[]
     readonly accept_quality: number[]
     readonly video_codecid: number
@@ -821,6 +826,10 @@ export type PlayData = {
             readonly bandwidth: number
         }[]
     }
+}
+
+export type PlayData = PlayDataDash | {
+    readonly durl: []
 }
 
 export type EpisodePlayResponse = {

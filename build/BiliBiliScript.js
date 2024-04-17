@@ -15,6 +15,7 @@ const FAVORITES_URL_PREFIX = "https://www.bilibili.com/medialist/detail/ml";
 const FESTIVAL_URL_PREFIX = "https://www.bilibili.com/festival/";
 const POST_URL_PREFIX = "https://t.bilibili.com/";
 const WATCH_LATER_URL = "https://www.bilibili.com/watchlater/#/list";
+const PREMIUM_CONTENT_MESSAGE = "本片是大会员专享内容";
 const GRAYJAY_USER_AGENT = "Grayjay";
 const CHROME_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const WATCH_LATER_ID = "WATCH_LATER";
@@ -141,7 +142,12 @@ function getChannelCapabilities() {
 }
 source.getChannelContents = getChannelContents;
 function getChannelContents(url, type, order, filters) {
-    if (type === Type.Feed.Mixed || type === null) {
+    log(`BiliBili log: feed type ${type}`);
+    if (type === Type.Feed.Mixed) {
+        log("BiliBili log: incorrect feed type converting to VIDEOS");
+        type = Type.Feed.Videos;
+    }
+    if (type === null) {
         log("BiliBili log: missing feed type");
         return new ContentPager([], false);
     }
@@ -594,6 +600,10 @@ function getContentDetails(url) {
                         message += "您所在的地区无法观看本片";
                         throw new UnavailableException(message);
                     }
+                    // premium content
+                    if ("durl" in episode_response.result.video_info) {
+                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
+                    }
                     const { video_sources, audio_sources } = format_sources(episode_response.result.video_info);
                     const upload_info = episode_info_response.data.related_up[0];
                     if (upload_info === undefined) {
@@ -625,7 +635,6 @@ function getContentDetails(url) {
                     return details;
                 }
                 case "cheese/play/ep": {
-                    // TODO there are some videos that don't have dash sections. in those cases we need to use the durl section
                     const episode_id = parseInt(content_id);
                     const requests = [{
                             request(builder) { return course_play_request(episode_id, builder); },
@@ -635,6 +644,13 @@ function getContentDetails(url) {
                             process(response) { return JSON.parse(response.body); }
                         }];
                     const [episode_play_response, season_response] = execute_requests(requests);
+                    // premium content
+                    if (episode_play_response.code === -403) {
+                        throw new UnavailableException("Purchase Course");
+                    }
+                    if ("durl" in episode_play_response.data) {
+                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
+                    }
                     const { video_sources, audio_sources } = format_sources(episode_play_response.data);
                     const upload_info = season_response.data.up_info;
                     if (upload_info === undefined) {
@@ -699,6 +715,10 @@ function getContentDetails(url) {
                     }
                     else {
                         [video_info, play_info] = load_video_details(video_id);
+                    }
+                    // premium content
+                    if ("durl" in play_info.data) {
+                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
                     }
                     const { video_sources, audio_sources } = format_sources(play_info.data);
                     const subtitles = subtitle_response?.data.subtitle.subtitles.map((subtitle) => {
@@ -834,7 +854,9 @@ function searchChannelContents(space_url, query, type, order, filters) {
                 type = Type.Feed.Posts;
                 break;
             case undefined:
-                return new ContentPager([], false);
+                log("BiliBili log: missing feed type defaulting to VIDEOS");
+                type = Type.Feed.Videos;
+                break;
             default:
                 throw new ScriptException("unreachable");
         }
@@ -897,7 +919,9 @@ function search(query, type, order, filters) {
                 type = Type.Feed.Shows;
                 break;
             case undefined:
-                return new ContentPager([], false);
+                type = Type.Feed.Videos;
+                log("BiliBili log: missing feed type defaulting to VIDEOS");
+                break;
             default:
                 throw new ScriptException("unreachable");
         }
