@@ -30,9 +30,12 @@ const MISSING_RATING = 0;
 Type.Order.Chronological = "Latest releases";
 Type.Order.Views = "Most played";
 Type.Order.Favorites = "Most favorited";
-Type.Feed.Shows = "SHOWS";
 Type.Feed.Posts = "POSTS";
+Type.Feed.Shows = "SHOWS";
 Type.Feed.Movies = "MOVIES";
+Type.Feed.Courses = "COURSES";
+Type.Feed.Favorites = "FAVORITES";
+Type.Feed.Collections = "COLLECTIONS";
 // align with the rest of the plugin use Simplified Chinese
 Type.Order.Chronological = "最新发布";
 Type.Order.Views = "最多播放";
@@ -121,20 +124,131 @@ function getChannel(url) {
         url: `${SPACE_URL_PREFIX}${space_id}`,
     });
 }
-// TODO implement this once it's used
 source.getChannelCapabilities = getChannelCapabilities;
 function getChannelCapabilities() {
-    return new ResultCapabilities([], [], []);
+    return new ResultCapabilities([
+        Type.Feed.Collections,
+        Type.Feed.Courses,
+        Type.Feed.Favorites,
+        Type.Feed.Live,
+        Type.Feed.Posts,
+        Type.Feed.Videos
+    ], [
+        Type.Order.Chronological,
+        Type.Order.Favorites,
+        Type.Order.Views
+    ], []);
 }
-// TODO handle different capabilities onces it's implemented
 source.getChannelContents = getChannelContents;
 function getChannelContents(url, type, order, filters) {
-    // there isn't a way for the user to change these
-    log(["BiliBili log:", type]);
-    log(["BiliBili log:", order]);
-    log(["BiliBili log:", filters]);
+    if (type === Type.Feed.Mixed || type === null) {
+        log("BiliBili log: missing feed type");
+        return new ContentPager([], false);
+    }
+    if (filters !== null) {
+        throw new ScriptException("unreachable");
+    }
+    if (order !== null && type !== Type.Feed.Videos) {
+        log("BiliBili log: order only applies to videos");
+    }
     const space_id = parse_space_url(url);
-    return new SpaceContentsPager(space_id);
+    switch (type) {
+        case Type.Feed.Collections:
+            return new SpaceCollectionsContentPager(space_id, 1, 20);
+        case Type.Feed.Courses:
+            return new SpaceCoursesContentPager(space_id, 1, 15);
+        case Type.Feed.Favorites: {
+            let space_info = local_storage_cache.space_cache.get(space_id);
+            let space_favorites_response;
+            if (space_info === undefined) {
+                const requests = [
+                    {
+                        request(builder) { return space_favorites_request(space_id, builder); },
+                        process(response) { return JSON.parse(response.body); }
+                    }, {
+                        request(builder) { return space_request(space_id, builder); },
+                        process(response) { return JSON.parse(response.body); }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder); },
+                        process(response) { return JSON.parse(response.body); }
+                    }
+                ];
+                const results = execute_requests(requests);
+                const space = results[1];
+                space_info = {
+                    num_fans: results[2].data.follower,
+                    name: space.data.name,
+                    face: space.data.face,
+                    live_room: space.data.live_room === null ? null : {
+                        title: space.data.live_room.title,
+                        roomid: space.data.live_room.roomid,
+                        live_status: space.data.live_room.liveStatus === 1,
+                        cover: space.data.live_room.cover, watched_show: {
+                            num: space.data.live_room.watched_show.num
+                        }
+                    }
+                };
+                local_storage_cache.space_cache.set(space_id, space_info);
+                space_favorites_response = results[0];
+            }
+            else {
+                space_favorites_response = JSON.parse(space_favorites_request(space_id).body);
+            }
+            const formatted_favorites = format_space_favorites(space_favorites_response, space_id, space_info);
+            return new PlaylistPager(formatted_favorites, false);
+        }
+        case Type.Feed.Live: {
+            let space_info = local_storage_cache.space_cache.get(space_id);
+            if (space_info === undefined) {
+                const requests = [{
+                        request(builder) { return space_request(space_id, builder); },
+                        process(response) { return JSON.parse(response.body); }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder); },
+                        process(response) { return JSON.parse(response.body); }
+                    }];
+                const [space, fan_count_response] = execute_requests(requests);
+                space_info = {
+                    num_fans: fan_count_response.data.follower,
+                    name: space.data.name,
+                    face: space.data.face,
+                    live_room: space.data.live_room === null ? null : {
+                        title: space.data.live_room.title,
+                        roomid: space.data.live_room.roomid,
+                        live_status: space.data.live_room.liveStatus === 1,
+                        cover: space.data.live_room.cover, watched_show: {
+                            num: space.data.live_room.watched_show.num
+                        }
+                    }
+                };
+                // cache results
+                local_storage_cache.space_cache.set(space_id, space_info);
+            }
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+            const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
+            const live_room = space_info.live_room !== null
+                && space_info.live_room.live_status === true
+                ? [new PlatformVideo({
+                        id: new PlatformID(PLATFORM, space_info.live_room.roomid.toString(), plugin.config.id),
+                        name: space_info.live_room.title,
+                        url: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
+                        thumbnails: new Thumbnails([new Thumbnail(space_info.live_room.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+                        author,
+                        viewCount: space_info.live_room.watched_show.num,
+                        isLive: true,
+                        shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
+                        // TODO load from cache uploadDate:
+                    })]
+                : [];
+            return new VideoPager(live_room, false);
+        }
+        case Type.Feed.Posts:
+            return new SpacePostsContentPager(space_id);
+        case Type.Feed.Videos:
+            return new SpaceVideosContentPager(space_id, 1, 25, order === null ? Type.Order.Chronological : order);
+        default:
+            throw assert_no_fall_through(type, "unreachable");
+    }
 }
 // examples of handled urls
 // https://www.bilibili.com/bangumi/play/ep510760
@@ -700,42 +814,53 @@ function getSubComments(parent_comment) {
 // TODO the order and filtering only applies to videos not posts but there is not a way of specifying that
 source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities;
 function getSearchChannelContentsCapabilities() {
-    log("BiliBili log: getting space capabilities");
     // TODO there are filter options but they only show up after a search has been returned
-    return new ResultCapabilities([Type.Feed.Videos, "POSTS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup("Additional Content", [
-            new FilterCapability("Live Rooms", "0", "Live Rooms"),
-            new FilterCapability("Posts", "1", "Posts")
+    return new ResultCapabilities([Type.Feed.Videos, Type.Feed.Posts], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], [new FilterGroup("Additional Content", [
+            new FilterCapability("Videos", "VIDEOS", "Videos"),
+            new FilterCapability("Posts", "POSTS", "Posts")
         ], false, "ADDITIONAL_CONTENT")]);
 }
 source.searchChannelContents = searchChannelContents;
 function searchChannelContents(space_url, query, type, order, filters) {
-    log(["BiliBili log:", type]);
-    log(["BiliBili log:", order]);
-    log(["BiliBili log:", filters]);
+    if (type === null) {
+        if (filters === null) {
+            return new ContentPager([], false);
+        }
+        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
+            case "VIDEOS":
+                type = Type.Feed.Videos;
+                break;
+            case "POSTS":
+                type = Type.Feed.Posts;
+                break;
+            case undefined:
+                return new ContentPager([], false);
+            default:
+                throw new ScriptException("unreachable");
+        }
+    }
+    if (order !== null && type !== Type.Feed.Videos) {
+        log("BiliBili log: order only applies to videos");
+    }
+    if (order === null) {
+        order = Type.Order.Chronological;
+    }
     const space_id = parse_space_url(space_url);
     const page_size = 30;
     const initial_page = 1;
+    order = order === null ? Type.Order.Chronological : order;
     switch (type) {
-        case "POSTS":
-            log("BiliBili log: ordering posts is not supported");
-            log(`BiliBili log: order ${order} ignored`);
+        case Type.Feed.Posts:
             return new ChannelPostsResultsPager(query, space_id, initial_page, page_size);
         case Type.Feed.Videos:
             return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order);
-        case null:
-            switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-                case "post":
-                    return new ChannelPostsResultsPager(query, space_id, initial_page, page_size);
-                default:
-                    return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order);
-            }
         default:
             throw new ScriptException(`unhandled feed type ${type}`);
     }
 }
 source.getSearchCapabilities = getSearchCapabilities;
 function getSearchCapabilities() {
-    return new ResultCapabilities([Type.Feed.Videos, Type.Feed.Live, "MOVIES", "SHOWS"], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], 
+    return new ResultCapabilities([Type.Feed.Videos, Type.Feed.Live, Type.Feed.Movies, Type.Feed.Shows], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], 
     // TODO implement category filtering
     [new FilterGroup("期间", // Duration
         [
@@ -746,17 +871,37 @@ function getSearchCapabilities() {
             new FilterCapability("60分钟以上", "4", "60分钟以上"), // More than 60 minutes
         ], false, "DURATION_FILTER"),
         new FilterGroup("Additional Content", [
-            new FilterCapability("Live Rooms", "live", "Live Rooms"),
-            new FilterCapability("Posts", "post", "Posts"),
-            new FilterCapability("Shows", "show", "Shows"),
-            new FilterCapability("Movies", "movie", "Movies")
+            new FilterCapability("Live Rooms", "LIVE", "Live Rooms"),
+            new FilterCapability("Videos", "VIDEOS", "Videos"),
+            new FilterCapability("Shows", "SHOWS", "Shows"),
+            new FilterCapability("Movies", "MOVIES", "Movies")
         ], false, "ADDITIONAL_CONTENT")]);
 }
 source.search = search;
 function search(query, type, order, filters) {
-    log(["BiliBili log:", type]);
-    log(["BiliBili log:", order]);
-    log(["BiliBili log:", filters]);
+    if (type === null) {
+        if (filters === null) {
+            return new ContentPager([], false);
+        }
+        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
+            case "VIDEOS":
+                type = Type.Feed.Videos;
+                break;
+            case "LIVE":
+                type = Type.Feed.Live;
+                break;
+            case "MOVIES":
+                type = Type.Feed.Movies;
+                break;
+            case "SHOWS":
+                type = Type.Feed.Shows;
+                break;
+            case undefined:
+                return new ContentPager([], false);
+            default:
+                throw new ScriptException("unreachable");
+        }
+    }
     const query_type = ((type) => {
         switch (type) {
             case "LIVE":
@@ -767,17 +912,6 @@ function search(query, type, order, filters) {
                 return "media_ft";
             case "VIDEOS":
                 return "video";
-            case null:
-                switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-                    case "live":
-                        return "live";
-                    case "show":
-                        return "media_bangumi";
-                    case "movie":
-                        return "media_ft";
-                    default:
-                        return "video";
-                }
             default:
                 throw new ScriptException(`unhandled feed type ${type}`);
         }
@@ -1050,9 +1184,7 @@ function get_post(post_id) {
     const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
     const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
     return new PlatformPostDetails({
-        // TODO currently there is a bug where this property is impossible to use
-        // thumbnails: new Thumbnails(thumbnails),
-        // TODO there is a bug that means that these images do not display
+        thumbnails,
         images,
         description: content,
         name: MISSING_NAME,
@@ -1868,32 +2000,38 @@ function season_request(id_obj, builder) {
 function format_major(major, thumbnails, images) {
     switch (major.type) {
         case "MAJOR_TYPE_ARCHIVE":
-            thumbnails.push(new Thumbnail(major.archive.cover, HARDCODED_THUMBNAIL_QUALITY));
+            images.push(major.archive.cover);
+            thumbnails.push(new Thumbnails([new Thumbnail(major.archive.cover, HARDCODED_THUMBNAIL_QUALITY)]));
             return `<a href="${VIDEO_URL_PREFIX}${major.archive.bvid}">${major.archive.title}</a>`;
         case "MAJOR_TYPE_DRAW":
             for (const pic of major.draw.items) {
                 images.push(pic.src);
+                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, HARDCODED_THUMBNAIL_QUALITY)]));
             }
             return undefined;
         case "MAJOR_TYPE_OPUS":
             for (const pic of major.opus.pics) {
                 images.push(pic.url);
+                thumbnails.push(new Thumbnails([new Thumbnail(pic.url, HARDCODED_THUMBNAIL_QUALITY)]));
             }
             return major.opus.summary.rich_text_nodes.map((node) => {
                 return format_text_node(node, images);
             }).join("");
         case "MAJOR_TYPE_LIVE_RCMD": {
             const live_rcmd = JSON.parse(major.live_rcmd.content);
-            thumbnails.push(new Thumbnail(live_rcmd.live_play_info.cover, HARDCODED_THUMBNAIL_QUALITY));
+            images.push(live_rcmd.live_play_info.cover);
+            thumbnails.push(new Thumbnails([new Thumbnail(live_rcmd.live_play_info.cover, HARDCODED_THUMBNAIL_QUALITY)]));
             return `<a href="${LIVE_ROOM_URL_PREFIX}${live_rcmd.live_play_info.room_id}">${live_rcmd.live_play_info.title}</a>`;
         }
         case "MAJOR_TYPE_COMMON": {
-            thumbnails.push(new Thumbnail(major.common.cover, HARDCODED_THUMBNAIL_QUALITY));
+            images.push(major.common.cover);
+            thumbnails.push(new Thumbnails([new Thumbnail(major.common.cover, HARDCODED_THUMBNAIL_QUALITY)]));
             return `<a href="${major.common.jump_url}">${major.common.title}</a>`;
         }
         case "MAJOR_TYPE_ARTICLE": {
             for (const cover of major.article.covers) {
-                thumbnails.push(new Thumbnail(cover, HARDCODED_THUMBNAIL_QUALITY));
+                images.push(cover);
+                thumbnails.push(new Thumbnails([new Thumbnail(cover, HARDCODED_THUMBNAIL_QUALITY)]));
             }
             return `<a href="https://www.bilibili.com/read/cv${major.article.id}">${major.article.title}</a>`;
         }
@@ -1901,122 +2039,59 @@ function format_major(major, thumbnails, images) {
             throw assert_no_fall_through(major, `unhandled type on major ${major}`);
     }
 }
-function format_space_contents(space_id, space_info, space_videos_response, space_posts_response, space_courses_response, space_collections_response, space_favorites_response) {
+function format_space_favorites(space_favorites_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    const results = [];
-    // TODO this currently creates a videos tab that shows videos then posts then playlists
-    // we might prefer for the results to be mixed up
-    if (space_videos_response !== undefined) {
-        const live_room = space_videos_response.data.page.pn === 1
-            && space_info.live_room !== null
-            && space_info.live_room.live_status === true
-            ? [new PlatformVideo({
-                    id: new PlatformID(PLATFORM, space_info.live_room.roomid.toString(), plugin.config.id),
-                    name: space_info.live_room.title,
-                    url: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
-                    thumbnails: new Thumbnails([new Thumbnail(space_info.live_room.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author,
-                    viewCount: space_info.live_room.watched_show.num,
-                    isLive: true,
-                    shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
-                    // TODO load from cache uploadDate:
-                })]
-            : [];
-        results.push(...live_room);
-        results.push(...space_videos_response.data.list.vlist.map((space_video) => {
-            const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`;
-            const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id);
-            return new PlatformVideo({
-                id: video_id,
-                name: space_video.title,
-                url: url,
-                thumbnails: new Thumbnails([new Thumbnail(space_video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-                author: author,
-                duration: parse_minutes_seconds(space_video.length),
-                viewCount: space_video.play === "--" ? 0 : space_video.play,
-                isLive: false,
-                shareUrl: url,
-                uploadDate: space_video.created
-            });
-        }));
-    }
-    if (space_posts_response !== undefined) {
-        results.push(...space_posts_response.data.items.map((space_post) => {
-            const desc = space_post.modules.module_dynamic.desc;
-            const images = [];
-            const thumbnails = [];
-            const primary_content = desc?.rich_text_nodes.map((node) => { return format_text_node(node, images); }).join("");
-            const major = space_post.modules.module_dynamic.major;
-            const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
-            const topic = space_post.modules.module_dynamic.topic;
-            const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
-            const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
-            return new PlatformPostDetails({
-                // TODO currently there is a bug where this property is impossible to use
-                // thumbnails: new Thumbnails(thumbnails),
-                images,
-                description: content,
-                // as far as i can tell posts don't have names
-                name: MISSING_NAME,
-                url: `${POST_URL_PREFIX}${space_post.id_str}`,
-                id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
-                rating: new RatingLikes(space_post.modules.module_stat.like.count),
-                textType: Type.Text.HTML,
-                author,
-                content,
-                datetime: space_post.modules.module_author.pub_ts
-            });
-        }));
-    }
-    if (space_courses_response !== undefined) {
-        results.push(...space_courses_response.data.items.map((course) => {
+    if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
+        return space_favorites_response.data.list.map((favorite_list) => {
             return new PlatformPlaylist({
-                id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
-                name: course.title,
+                id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
+                name: favorite_list.title,
                 author,
-                url: `${COURSE_URL_PREFIX}${course.season_id}`,
-                videoCount: course.ep_count,
-                thumbnail: course.cover
+                url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
+                videoCount: favorite_list.media_count,
+                thumbnail: MISSING_THUMBNAIL
             });
-        }));
+        });
     }
-    if (space_collections_response !== undefined) {
-        results.push(...space_collections_response.data.items_lists.seasons_list.map((season) => {
-            return new PlatformPlaylist({
-                id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
-                name: season.meta.name,
-                author,
-                url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${season.meta.season_id}`,
-                videoCount: season.meta.total,
-                thumbnail: season.meta.cover
-            });
-        }).concat(space_collections_response.data.items_lists.series_list.map((series) => {
-            return new PlatformPlaylist({
-                id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
-                name: series.meta.name,
-                author,
-                url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series.meta.series_id}`,
-                videoCount: series.meta.total,
-                thumbnail: series.meta.cover
-            });
-        })));
-    }
-    if (space_favorites_response !== undefined) {
-        if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
-            results.push(...space_favorites_response.data.list.map((favorite_list) => {
-                return new PlatformPlaylist({
-                    id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
-                    name: favorite_list.title,
-                    author,
-                    url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
-                    videoCount: favorite_list.media_count,
-                    thumbnail: MISSING_THUMBNAIL
-                });
-            }));
-        }
-    }
-    return results;
+    return [];
+}
+function format_space_collections(space_collections_response, space_id, space_info) {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+    const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
+    return space_collections_response.data.items_lists.seasons_list.map((season) => {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
+            name: season.meta.name,
+            author,
+            url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${season.meta.season_id}`,
+            videoCount: season.meta.total,
+            thumbnail: season.meta.cover
+        });
+    }).concat(space_collections_response.data.items_lists.series_list.map((series) => {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
+            name: series.meta.name,
+            author,
+            url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series.meta.series_id}`,
+            videoCount: series.meta.total,
+            thumbnail: series.meta.cover
+        });
+    }));
+}
+function format_space_courses(space_courses_response, space_id, space_info) {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+    const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
+    return space_courses_response.data.items.map((course) => {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
+            name: course.title,
+            author,
+            url: `${COURSE_URL_PREFIX}${course.season_id}`,
+            videoCount: course.ep_count,
+            thumbnail: course.cover
+        });
+    });
 }
 function space_videos_request(space_id, page, page_size, query, order, builder) {
     const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search";
@@ -2036,7 +2111,7 @@ function space_videos_request(space_id, page, page_size, query, order, builder) 
                         return "stow";
                     case Type.Order.Views:
                         return "click";
-                    case null:
+                    case "CHRONOLOGICAL":
                         return "pubdate";
                     default:
                         throw new ScriptException(`unhandled ordering ${order}`);
@@ -2472,61 +2547,21 @@ class SpacePager extends ChannelPager {
         return this.hasMore;
     }
 }
-class SpaceContentsPager extends ContentPager {
+class SpaceVideosContentPager extends VideoPager {
     page_size;
     next_page;
-    posts_offset;
     space_info;
     space_id;
-    has_more = {
-        videos: false,
-        posts: false,
-        courses: false,
-        collections: false,
-        favorites: false
-    };
-    constructor(space_id) {
-        const initial_page = 1;
-        const page_size = {
-            videos: 25,
-            courses: 2,
-            collections: 2,
-            favorites: 2
-        };
+    constructor(space_id, initial_page, page_size, order) {
         let space_info = local_storage_cache.space_cache.get(space_id);
-        let contents;
+        let space_videos_response;
         if (space_info === undefined) {
             const requests = [
                 {
                     request(builder) {
-                        return space_videos_request(space_id, initial_page, page_size.videos, undefined, undefined, builder);
+                        return space_videos_request(space_id, initial_page, page_size, undefined, order, builder);
                     },
                     process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_posts_request(space_id, undefined, builder); },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_courses_request(space_id, initial_page, page_size.courses, builder); },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) {
-                        return space_collections_request(space_id, initial_page, page_size.collections, builder);
-                    },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_favorites_request(space_id, builder); },
-                    process(raw_response) {
-                        const response = JSON.parse(raw_response.body);
-                        if (response.data === null || response.data.list === null) {
-                            return response;
-                        }
-                        response.data.list = response.data.list.slice(initial_page * page_size.favorites, initial_page * page_size.favorites + page_size.favorites);
-                        return response;
-                    }
                 }, {
                     request(builder) { return space_request(space_id, builder); },
                     process(response) { return JSON.parse(response.body); }
@@ -2536,9 +2571,9 @@ class SpaceContentsPager extends ContentPager {
                 }
             ];
             const results = execute_requests(requests);
-            const space = results[5];
+            const space = results[1];
             space_info = {
-                num_fans: results[6].data.follower,
+                num_fans: results[2].data.follower,
                 name: space.data.name,
                 face: space.data.face,
                 live_room: space.data.live_room === null ? null : {
@@ -2551,127 +2586,49 @@ class SpaceContentsPager extends ContentPager {
                 }
             };
             local_storage_cache.space_cache.set(space_id, space_info);
-            let space_search_response;
             if (results[0].code === -352) {
-                while (space_search_response === undefined) {
-                    const response = JSON.parse(space_videos_request(space_id, initial_page, page_size.videos, undefined, undefined).body);
+                while (space_videos_response === undefined) {
+                    const response = JSON.parse(space_videos_request(space_id, initial_page, page_size, undefined, order).body);
                     if (response.code === -352) {
                         refresh_space_video_search_cookies();
                         continue;
                     }
-                    space_search_response = response;
+                    space_videos_response = response;
                 }
             }
             else {
-                space_search_response = results[0];
+                space_videos_response = results[0];
             }
-            contents = [space_search_response, results[1], results[2], results[3], results[4]];
         }
         else {
-            const requests = [
-                {
-                    request(builder) {
-                        return space_videos_request(space_id, initial_page, page_size.videos, undefined, undefined, builder);
-                    },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_posts_request(space_id, undefined, builder); },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_courses_request(space_id, initial_page, page_size.courses, builder); },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) {
-                        return space_collections_request(space_id, initial_page, page_size.collections, builder);
-                    },
-                    process(response) { return JSON.parse(response.body); }
-                },
-                {
-                    request(builder) { return space_favorites_request(space_id, builder); },
-                    process(raw_response) {
-                        const response = JSON.parse(raw_response.body);
-                        if (response.data === null || response.data.list === null) {
-                            return response;
-                        }
-                        response.data.list = response.data.list.slice(initial_page * page_size.favorites, initial_page * page_size.favorites + page_size.favorites);
-                        return response;
-                    }
-                }
-            ];
-            const results = execute_requests(requests);
-            let space_search_response;
-            if (results[0].code === -352) {
-                while (space_search_response === undefined) {
-                    const response = JSON.parse(space_videos_request(space_id, initial_page, page_size.videos, undefined, undefined).body);
+            const maybe_space_videos_response = JSON.parse(space_videos_request(space_id, initial_page, page_size, undefined, undefined).body);
+            if (maybe_space_videos_response.code === -352) {
+                while (space_videos_response === undefined) {
+                    const response = JSON.parse(space_videos_request(space_id, initial_page, page_size, undefined, undefined).body);
                     if (response.code === -352) {
                         refresh_space_video_search_cookies();
                         continue;
                     }
-                    space_search_response = response;
+                    space_videos_response = response;
                 }
             }
             else {
-                space_search_response = results[0];
+                space_videos_response = maybe_space_videos_response;
             }
-            contents = [space_search_response, results[1], results[2], results[3], results[4]];
         }
-        const has_more = {
-            videos: contents[0].data.page.count > initial_page * page_size.videos,
-            posts: contents[1].data.has_more,
-            courses: contents[2].data.page.next,
-            collections: contents[3].data.items_lists.page.total > initial_page * page_size.collections,
-            favorites: contents[4].data ? contents[4].data.count > initial_page * page_size.favorites : false
-        };
-        super(format_space_contents(space_id, space_info, contents[0], contents[1], contents[2], contents[3], contents[4]), 
-        // format_space_contents(space_id, space_info, undefined, contents[1], undefined, undefined, undefined),
-        has_more.videos || has_more.posts || has_more.courses || has_more.collections || has_more.favorites);
+        const has_more = space_videos_response.data.page.count > initial_page * page_size;
+        super(format_space_videos(space_videos_response, space_id, space_info), has_more);
         this.next_page = 2;
-        this.has_more = has_more;
-        this.posts_offset = contents[1].data.offset;
         this.space_id = space_id;
         this.page_size = page_size;
         this.space_info = space_info;
     }
     nextPage() {
-        const requests = [
-            this.has_more.videos ? {
-                request: (builder) => {
-                    return space_videos_request(this.space_id, this.next_page, this.page_size.videos, undefined, undefined, builder);
-                },
-                process(response) { return JSON.parse(response.body); }
-            } : undefined,
-            this.has_more.posts ? {
-                request: (builder) => { return space_posts_request(this.space_id, this.posts_offset, builder); },
-                process(response) { return JSON.parse(response.body); }
-            } : undefined,
-            this.has_more.courses ? {
-                request: (builder) => { return space_courses_request(this.space_id, this.next_page, this.page_size.courses, builder); },
-                process(response) { return JSON.parse(response.body); }
-            } : undefined,
-            this.has_more.collections ? {
-                request: (builder) => { return space_collections_request(this.space_id, this.next_page, this.page_size.collections, builder); },
-                process(response) { return JSON.parse(response.body); }
-            } : undefined,
-            this.has_more.favorites ? {
-                request: (builder) => { return space_favorites_request(this.space_id, builder); },
-                process: (raw_response) => {
-                    const response = JSON.parse(raw_response.body);
-                    if (response.data === null || response.data.list === null) {
-                        return response;
-                    }
-                    response.data.list = response.data.list.slice(this.next_page * this.page_size.favorites, this.next_page * this.page_size.favorites + this.page_size.favorites);
-                    return response;
-                }
-            } : undefined
-        ];
-        const results = execute_requests(requests);
+        const maybe_space_videos_response = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, undefined, undefined).body);
         let space_search_response;
-        if (results[0] !== undefined && results[0].code === -352) {
+        if (maybe_space_videos_response.code === -352) {
             while (space_search_response === undefined) {
-                const response = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size.videos, undefined, undefined).body);
+                const response = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, undefined, undefined).body);
                 if (response.code === -352) {
                     refresh_space_video_search_cookies();
                     continue;
@@ -2680,28 +2637,190 @@ class SpaceContentsPager extends ContentPager {
             }
         }
         else {
-            space_search_response = results[0];
+            space_search_response = maybe_space_videos_response;
         }
-        const contents = [space_search_response, results[1], results[2], results[3], results[4]];
-        if (contents[0] !== undefined) {
-            this.has_more.videos = contents[0].data.page.count > this.next_page * this.page_size.videos;
+        this.results = format_space_videos(space_search_response, this.space_id, this.space_info);
+        this.hasMore = space_search_response.data.page.count > this.next_page * this.page_size;
+        this.next_page += 1;
+        return this;
+    }
+    hasMorePagers() {
+        return this.hasMore;
+    }
+}
+class SpacePostsContentPager extends ContentPager {
+    posts_offset;
+    space_info;
+    space_id;
+    constructor(space_id) {
+        let space_info = local_storage_cache.space_cache.get(space_id);
+        let space_posts_response;
+        if (space_info === undefined) {
+            const requests = [
+                {
+                    request(builder) { return space_posts_request(space_id, undefined, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return space_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }
+            ];
+            const results = execute_requests(requests);
+            const space = results[1];
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            };
+            local_storage_cache.space_cache.set(space_id, space_info);
+            space_posts_response = results[0];
         }
-        if (contents[1] !== undefined) {
-            this.has_more.posts = contents[1].data.has_more;
-            this.posts_offset = contents[1].data.offset;
+        else {
+            space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body);
         }
-        if (contents[2] !== undefined) {
-            this.has_more.courses = contents[2].data.page.next;
+        const has_more = space_posts_response.data.has_more;
+        super(format_space_posts(space_posts_response, space_id, space_info), has_more);
+        this.posts_offset = space_posts_response.data.offset;
+        this.space_id = space_id;
+        this.space_info = space_info;
+    }
+    nextPage() {
+        const space_posts_response = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body);
+        this.results = format_space_posts(space_posts_response, this.space_id, this.space_info);
+        this.hasMore = space_posts_response.data.has_more;
+        this.posts_offset = space_posts_response.data.offset;
+        return this;
+    }
+    hasMorePagers() {
+        return this.hasMore;
+    }
+}
+class SpaceCoursesContentPager extends PlaylistPager {
+    next_page;
+    page_size;
+    space_info;
+    space_id;
+    constructor(space_id, initial_page, page_size) {
+        let space_info = local_storage_cache.space_cache.get(space_id);
+        let space_courses_response;
+        if (space_info === undefined) {
+            const requests = [
+                {
+                    request(builder) { return space_courses_request(space_id, initial_page, page_size, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return space_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }
+            ];
+            const results = execute_requests(requests);
+            const space = results[1];
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            };
+            local_storage_cache.space_cache.set(space_id, space_info);
+            space_courses_response = results[0];
         }
-        if (contents[3] !== undefined) {
-            this.has_more.collections = contents[3].data.items_lists.page.total > this.next_page * this.page_size.collections;
+        else {
+            space_courses_response = JSON.parse(space_courses_request(space_id, initial_page, page_size).body);
         }
-        if (contents[4] !== undefined) {
-            this.has_more.favorites = contents[4].data ? contents[4].data.count > this.next_page * this.page_size.favorites : false;
+        const has_more = space_courses_response.data.page.next;
+        super(format_space_courses(space_courses_response, space_id, space_info), has_more);
+        this.next_page = initial_page + 1;
+        this.page_size = page_size;
+        this.space_id = space_id;
+        this.space_info = space_info;
+    }
+    nextPage() {
+        const space_courses_response = JSON.parse(space_courses_request(this.space_id, this.next_page, this.page_size).body);
+        this.results = format_space_courses(space_courses_response, this.space_id, this.space_info);
+        this.hasMore = space_courses_response.data.page.next;
+        this.next_page += 1;
+        return this;
+    }
+    hasMorePagers() {
+        return this.hasMore;
+    }
+}
+class SpaceCollectionsContentPager extends PlaylistPager {
+    next_page;
+    page_size;
+    space_info;
+    space_id;
+    constructor(space_id, initial_page, page_size) {
+        let space_info = local_storage_cache.space_cache.get(space_id);
+        let space_collections_response;
+        if (space_info === undefined) {
+            const requests = [
+                {
+                    request(builder) {
+                        return space_collections_request(space_id, initial_page, page_size, builder);
+                    },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return space_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }
+            ];
+            const results = execute_requests(requests);
+            const space = results[1];
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            };
+            local_storage_cache.space_cache.set(space_id, space_info);
+            space_collections_response = results[0];
         }
-        this.results = format_space_contents(this.space_id, this.space_info, contents[0], contents[1], contents[2], contents[3], contents[4]);
-        // this.results = format_space_contents(this.space_id, this.space_info, undefined, contents[1], undefined, undefined, undefined)
-        this.hasMore = this.has_more.videos || this.has_more.posts || this.has_more.courses || this.has_more.collections || this.has_more.favorites;
+        else {
+            space_collections_response = JSON.parse(space_collections_request(space_id, initial_page, page_size).body);
+        }
+        const has_more = space_collections_response.data.items_lists.page.total > initial_page * page_size;
+        super(format_space_collections(space_collections_response, space_id, space_info), has_more);
+        this.next_page = initial_page + 1;
+        this.page_size = page_size;
+        this.space_id = space_id;
+        this.space_info = space_info;
+    }
+    nextPage() {
+        const space_collections_response = JSON.parse(space_collections_request(this.space_id, this.next_page, this.page_size).body);
+        this.results = format_space_collections(space_collections_response, this.space_id, this.space_info);
+        this.hasMore = space_collections_response.data.items_lists.page.total > this.next_page * this.page_size;
         this.next_page += 1;
         return this;
     }
@@ -2721,6 +2840,35 @@ function format_space_results(space_search_results) {
             subscribers: result.fans,
             description: result.usign,
             url: `${SPACE_URL_PREFIX}${result.mid}`
+        });
+    });
+}
+function format_space_posts(space_posts_response, space_id, space_info) {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
+    const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
+    return space_posts_response.data.items.map((space_post) => {
+        const desc = space_post.modules.module_dynamic.desc;
+        const images = [];
+        const thumbnails = [];
+        const primary_content = desc?.rich_text_nodes.map((node) => { return format_text_node(node, images); }).join("");
+        const major = space_post.modules.module_dynamic.major;
+        const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
+        const topic = space_post.modules.module_dynamic.topic;
+        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
+        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
+        return new PlatformPostDetails({
+            thumbnails,
+            images,
+            description: content,
+            // as far as i can tell posts don't have names
+            name: MISSING_NAME,
+            url: `${POST_URL_PREFIX}${space_post.id_str}`,
+            id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
+            rating: new RatingLikes(space_post.modules.module_stat.like.count),
+            textType: Type.Text.HTML,
+            author,
+            content,
+            datetime: space_post.modules.module_author.pub_ts
         });
     });
 }
@@ -2773,8 +2921,7 @@ function format_post_search_result(response) {
         const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
         const author = new PlatformAuthorLink(author_id, card.desc.user_profile.info.uname, `${SPACE_URL_PREFIX}${space_id}`, card.desc.user_profile.info.face, local_storage_cache.space_cache.get(space_id)?.num_fans);
         return new PlatformPost({
-            // TODO currently there is a bug where this property is impossible to use
-            // thumbnails: new Thumbnails([]),
+            thumbnails: [new Thumbnails([])],
             images: [],
             description: post.item?.content ?? post.item?.description ?? "",
             // as far as i can tell posts don't have names

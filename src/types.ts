@@ -38,11 +38,23 @@ export type PlaylistType = "bangumi/play/ss"
     | "festival/"
     | "watchlater/"
 
-    export type Settings = unknown
+export type Settings = unknown
 
-export type BiliBiliSource = Required<Source<BiliBiliCommentContext, FilterGroupIDs>>
+export type BiliBiliSource = Required<Source<
+    BiliBiliCommentContext,
+    FilterGroupIDs,
+    ChannelTypeCapabilities,
+    SearchTypeCapabilities,
+    ChannelSearchTypeCapabilities
+>>
 
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
+
+export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES">
+
+export type ChannelSearchTypeCapabilities = Exclude<ChannelTypeCapabilities, "COURSES" | "COLLECTIONS" | "FAVORITES" | "LIVE">
+
+export type SearchTypeCapabilities = Exclude<FeedType, "POSTS" | "COURSES" | "COLLECTIONS" | "FAVORITES">
 
 export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
 
