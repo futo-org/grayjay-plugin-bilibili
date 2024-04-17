@@ -14,7 +14,7 @@
 - [ ]   Figure out captcha verification for space posts and space videos or at least proper rate limiting error messages
         The captcha only shows up for posts. for videos there is just a login prompt that shows up whenever taking an action
         However once the posts captcha is done the login prompts stop
-        Clear site data and go to https://space.bilibili.com/{space id}/dynamic and scroll down until the captcha shows up
+        Clear site data and go to `https://space.bilibili.com/<space id>/dynamic` and scroll down until the captcha shows up
 - [ ]   Write tests for regex matching and testing code
 - [ ]   Write tests for the all of the request functions to continually verify that they are retrieving expected data
 - [ ]   Write tests for all the utility functions
