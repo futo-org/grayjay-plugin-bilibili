@@ -78,11 +78,24 @@ const POST_URL_PREFIX = "https://t.bilibili.com/" as const
 const WATCH_LATER_URL = "https://www.bilibili.com/watchlater/#/list" as const
 const PREMIUM_CONTENT_MESSAGE = "本片是大会员专享内容" as const
 
-const GRAYJAY_USER_AGENT = "Grayjay" as const
-const CHROME_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" as const
+const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" as const
+const OS = "Linux x86_64" as const // others ["Windows", "MacIntel", "Android", "iOS", "Chromium OS", "Ubuntu", "Linux", "Fedora"]
+const WEBGL = "WebGL 1.0" as const
+const WEBGL_VENDOR = "Intel(R) HD Graphics 400, or similar" as const
+const WEBGL_RENDERER = "Intel" as const
+const post_body_for_ExClimbWuzhi = JSON.stringify({
+    payload: JSON.stringify({
+        "39c8": "333.999.fp.risk",
+        "3c43": {
+            "adca": OS,
+        }
+    })
+})
+
 const WATCH_LATER_ID = "WATCH_LATER"
 
 const local_http = http
+const local_utility = utility
 
 // TODO review hardcoded values
 const HARDCODED_THUMBNAIL_QUALITY = 1080 as const
@@ -224,9 +237,11 @@ function getChannelContents(
     filters: FilterQuery<FilterGroupIDs>
 ) {
     log(`BiliBili log: feed type ${type}`)
-    if(type === Type.Feed.Mixed){
+    if (type === Type.Feed.Mixed) {
         log("BiliBili log: incorrect feed type converting to VIDEOS")
         type = Type.Feed.Videos
+        // log("BiliBili log: incorrect feed type converting to POSTS")
+        // type = Type.Feed.Posts
     }
     if (type === null) {
         log("BiliBili log: missing feed type")
@@ -696,7 +711,7 @@ function getContentDetails(url: string) {
                     duration: HARDCODED_ZERO,
                     requestModifier: {
                         headers: {
-                            "User-Agent": GRAYJAY_USER_AGENT,
+                            "User-Agent": USER_AGENT,
                             Host: new URL(url_info.host).hostname
                         }
                     }
@@ -763,7 +778,7 @@ function getContentDetails(url: string) {
                         throw new UnavailableException(message)
                     }
                     // premium content
-                    if("durl" in episode_response.result.video_info){
+                    if ("durl" in episode_response.result.video_info) {
                         throw new UnavailableException(PREMIUM_CONTENT_MESSAGE)
                     }
 
@@ -820,10 +835,10 @@ function getContentDetails(url: string) {
                     const [episode_play_response, season_response] = execute_requests(requests)
 
                     // premium content
-                    if(episode_play_response.code === -403){
+                    if (episode_play_response.code === -403) {
                         throw new UnavailableException("Purchase Course")
                     }
-                    if("durl" in episode_play_response.data){
+                    if ("durl" in episode_play_response.data) {
                         throw new UnavailableException(PREMIUM_CONTENT_MESSAGE)
                     }
 
@@ -860,7 +875,6 @@ function getContentDetails(url: string) {
                             }
                         })
                     }
-
 
                     const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id)
                     const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id)
@@ -908,7 +922,7 @@ function getContentDetails(url: string) {
                     }
 
                     // premium content
-                    if("durl" in play_info.data){
+                    if ("durl" in play_info.data) {
                         throw new UnavailableException(PREMIUM_CONTENT_MESSAGE)
                     }
                     const { video_sources, audio_sources } = format_sources(play_info.data)
@@ -1066,8 +1080,10 @@ function searchChannelContents(space_url: string, query: string, type: ChannelSe
                 type = Type.Feed.Posts
                 break
             case undefined:
-                log("BiliBili log: missing feed type defaulting to VIDEOS")
-                type = Type.Feed.Videos
+                // log("BiliBili log: missing feed type defaulting to VIDEOS")
+                // type = Type.Feed.Videos
+                log("BiliBili log: missing feed type defaulting to POSTS")
+                type = Type.Feed.Posts
                 break
             default:
                 throw new ScriptException("unreachable")
@@ -1227,7 +1243,7 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
 // 
 source.getLiveChatWindow = getLiveChatWindow
 function getLiveChatWindow(url: string) {
-    log("BiliBili log: live chatting!!")
+    log("BiliBili log: live chatting")
     return {
         url,
         removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
@@ -1268,7 +1284,7 @@ function getUserPlaylists() {
     ]
     const [nav_response, watch_later_response] = execute_requests(requests)
     const favorites_response: SpaceFavoritesResponse = JSON.parse(space_favorites_request(nav_response.data.mid).body)
-    log(favorites_response)
+
     const playlists: string[] = favorites_response.data?.list?.map((list) => {
         return `${FAVORITES_URL_PREFIX}${list.id}`
     }) ?? []
@@ -1329,7 +1345,9 @@ if (IS_TESTING) {
     if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
     if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
     if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
-    log(assert_source)
+    if (IS_TESTING) {
+        log(assert_source)
+    }
 }
 //#endregion
 
@@ -2175,7 +2193,7 @@ function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP):
     const now = Date.now()
     const result = runner.GET(
         url,
-        { "User-Agent": GRAYJAY_USER_AGENT, Host: "api.bilibili.com" },
+        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
         false
     )
     if (builder === undefined) {
@@ -2268,7 +2286,7 @@ function format_sources(play_data: PlayDataDash) {
                 headers: {
                     "Referer": "https://www.bilibili.com",
                     "Host": video_url_hostname,
-                    "User-Agent": GRAYJAY_USER_AGENT
+                    "User-Agent": USER_AGENT
                 }
             }
         })
@@ -2288,7 +2306,7 @@ function format_sources(play_data: PlayDataDash) {
                 headers: {
                     "Referer": "https://www.bilibili.com",
                     "Host": audio_url_hostname,
-                    "User-Agent": GRAYJAY_USER_AGENT
+                    "User-Agent": USER_AGENT
                 }
             }
         })
@@ -2348,7 +2366,7 @@ function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP)
     const now = Date.now()
     const result = runner.GET(
         url,
-        { "User-Agent": GRAYJAY_USER_AGENT, Host: "api.bilibili.com" },
+        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
         false
     )
     if (builder === undefined) {
@@ -2521,9 +2539,9 @@ function format_space_courses(space_courses_response: SpaceCoursesResponse, spac
 // TODO if we can get cid caching working then use this api to load the cids for all videos and cache them
 // https://api.bilibili.com/x/v3/fav/resource/infos
 // it's used when viewing a favorites list
-function space_videos_request(space_id: number, page: number, page_size: number, query: string | undefined, order: Order | undefined, builder: BatchBuilder): BatchBuilder
-function space_videos_request(space_id: number, page: number, page_size: number, query: string | undefined, order: Order | undefined): BridgeHttpResponse
-function space_videos_request(space_id: number, page: number, page_size: number, query: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse {
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder: BatchBuilder): BatchBuilder
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined): BridgeHttpResponse
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse {
     const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
     let params: Params = {
         mid: space_id.toString(),
@@ -2549,27 +2567,23 @@ function space_videos_request(space_id: number, page: number, page_size: number,
             })(order)
         }
     }
-    if (query !== undefined) {
-        params = { ...params, query, }
+    if (keyword !== undefined) {
+        params = { ...params, keyword }
     }
     const url = create_signed_url(space_contents_search_prefix, params).toString()
-    const b_nut = local_storage_cache.space_video_search_cookies.b_nut
-    const buvid4 = local_storage_cache.space_video_search_cookies.buvid4
-    const buvid3 = local_storage_cache.space_video_search_cookies.buvid3
-    log(url)
-    log(`buvid4=${buvid4};`)
-    log(`b_nut=${b_nut};`)
+    const b_nut = local_storage_cache.b_nut
+    const buvid4 = local_storage_cache.buvid4
+    const buvid3 = local_storage_cache.buvid3
+
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     // use the authenticated client because BiliBili blocks logged out users
     const result = runner.GET(
         url,
         {
-            // "User-Agent": CHROME_USER_AGENT,
-            "User-Agent": GRAYJAY_USER_AGENT,
+            "User-Agent": USER_AGENT,
             Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
             Host: "api.bilibili.com",
-            // Referer: "https://space.bilibili.com"
         },
         true)
     if (builder === undefined) {
@@ -2589,12 +2603,6 @@ function space_posts_request(space_id: number, offset: number | undefined, build
         host_mid: space_id.toString()
     }
     const url = create_signed_url(space_post_feed_prefix, params).toString()
-    // const b_nut = local_storage_cache.b_nut
-    // const b_nut = create_b_nut()
-    log(url)
-    log(`buvid3=${local_storage_cache.buvid3};`)
-    log(`buvid4=${local_storage_cache.buvid4};`)
-    // log(`b_nut=${b_nut};`)
 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -2604,7 +2612,7 @@ function space_posts_request(space_id: number, offset: number | undefined, build
             Host: "api.bilibili.com",
             Cookie: `buvid3=${local_storage_cache.buvid3}`,
             Referer: "https://space.bilibili.com",
-            "User-Agent": GRAYJAY_USER_AGENT
+            "User-Agent": USER_AGENT
         },
         false)
     if (builder === undefined) {
@@ -2668,7 +2676,7 @@ function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP
     // use the authenticated client so logged in users can view their private favorites lists
     const result = runner.GET(
         create_url(favorites_prefix, params).toString(),
-        { "User-Agent": GRAYJAY_USER_AGENT },
+        { "User-Agent": USER_AGENT },
         true
     )
     if (builder === undefined) {
@@ -2851,7 +2859,7 @@ function search_request(query: string,
     const now = Date.now()
     const result = runner.GET(
         search_url,
-        { "User-Agent": GRAYJAY_USER_AGENT, Cookie: `buvid3=${buvid3}` },
+        { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` },
         false)
     if (builder === undefined) {
         log_network_call(now)
@@ -2896,7 +2904,7 @@ function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): Batc
         url.toString(),
         {
             Host: "api.bilibili.com",
-            "User-Agent": CHROME_USER_AGENT,
+            "User-Agent": USER_AGENT,
             Referer: "https://www.bilibili.com",
             Cookie: `buvid3=${buvid3}`
         },
@@ -2923,7 +2931,7 @@ function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     // use the authenticated client because login is required to view subtitles
-    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true)
+    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
     if (builder === undefined) {
         log_network_call(now)
     }
@@ -2942,7 +2950,7 @@ function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     // use the authenticated client to get higher resolution videos for logged in users
-    const result = runner.GET(url.toString(), { "User-Agent": GRAYJAY_USER_AGENT }, true)
+    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
     if (builder === undefined) {
         log_network_call(now)
     }
@@ -3046,7 +3054,7 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
         {
             Referer: "https://www.bilibili.com",
             Host: "api.bilibili.com",
-            "User-Agent": CHROME_USER_AGENT,
+            "User-Agent": USER_AGENT,
             Cookie: `buvid3=${local_storage_cache.buvid3}`
         },
         false)
@@ -3095,7 +3103,7 @@ class SpaceVideosContentPager extends VideoPager {
     private readonly space_id: number
     constructor(space_id: number, initial_page: number, page_size: number, order: Order) {
         let space_info = local_storage_cache.space_cache.get(space_id)
-        let space_videos_response: SpaceVideosSearchResponse | undefined
+        let space_videos_response: SpaceVideosSearchResponse
         if (space_info === undefined) {
             const requests: [
                 RequestMetadata<MaybeSpaceVideosSearchResponse>,
@@ -3138,22 +3146,10 @@ class SpaceVideosContentPager extends VideoPager {
             }
             local_storage_cache.space_cache.set(space_id, space_info)
             if (results[0].code === -352) {
-                while (space_videos_response === undefined) {
-                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
-                        space_id,
-                        initial_page,
-                        page_size,
-                        undefined,
-                        order).body)
-                    if (response.code === -352) {
-                        refresh_space_video_search_cookies()
-                        continue
-                    }
-                    space_videos_response = response
-                }
-            } else {
-                space_videos_response = results[0]
+                throw new ScriptException("rate limited")
             }
+            space_videos_response = results[0]
+
         } else {
             const maybe_space_videos_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
                 space_id,
@@ -3162,22 +3158,10 @@ class SpaceVideosContentPager extends VideoPager {
                 undefined,
                 undefined).body)
             if (maybe_space_videos_response.code === -352) {
-                while (space_videos_response === undefined) {
-                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
-                        space_id,
-                        initial_page,
-                        page_size,
-                        undefined,
-                        undefined).body)
-                    if (response.code === -352) {
-                        refresh_space_video_search_cookies()
-                        continue
-                    }
-                    space_videos_response = response
-                }
-            } else {
-                space_videos_response = maybe_space_videos_response
+                throw new ScriptException("rate limited")
             }
+            space_videos_response = maybe_space_videos_response
+
         }
 
         const has_more = space_videos_response.data.page.count > initial_page * page_size
@@ -3197,24 +3181,10 @@ class SpaceVideosContentPager extends VideoPager {
             this.page_size,
             undefined,
             undefined).body)
-        let space_search_response: SpaceVideosSearchResponse | undefined
         if (maybe_space_videos_response.code === -352) {
-            while (space_search_response === undefined) {
-                const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
-                    this.space_id,
-                    this.next_page,
-                    this.page_size,
-                    undefined,
-                    undefined).body)
-                if (response.code === -352) {
-                    refresh_space_video_search_cookies()
-                    continue
-                }
-                space_search_response = response
-            }
-        } else {
-            space_search_response = maybe_space_videos_response
+            throw new ScriptException("rate limited")
         }
+        const space_search_response: SpaceVideosSearchResponse = maybe_space_videos_response
 
         this.results = format_space_videos(space_search_response, this.space_id, this.space_info)
 
@@ -3640,25 +3610,10 @@ class ChannelVideoResultsPager extends ContentPager {
             }]
 
             const [space, fan_count_response, local_search_response] = execute_requests(requests)
-            let space_search_response
             if (local_search_response.code === -352) {
-                while (space_search_response === undefined) {
-                    const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
-                        space_id,
-                        initial_page,
-                        page_size,
-                        undefined,
-                        undefined).body)
-                    if (response.code === -352) {
-                        refresh_space_video_search_cookies()
-                        continue
-                    }
-                    space_search_response = response
-                }
-            } else {
-                space_search_response = local_search_response
+                throw new ScriptException("rate limited")
             }
-            search_response = space_search_response
+            search_response = local_search_response
             space_info = {
                 num_fans: fan_count_response.data.follower,
                 name: space.data.name,
@@ -3674,14 +3629,9 @@ class ChannelVideoResultsPager extends ContentPager {
             }
             local_storage_cache.space_cache.set(space_id, space_info)
         } else {
-            let local_search_response: SpaceVideosSearchResponse | undefined = undefined
-            while (local_search_response === undefined) {
-                const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
-                if (response.code !== -352) {
-                    local_search_response = response
-                } else {
-                    refresh_space_video_search_cookies()
-                }
+            const local_search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
+            if (local_search_response.code === -352) {
+                throw new ScriptException("rate limited")
             }
             search_response = local_search_response
         }
@@ -3696,18 +3646,12 @@ class ChannelVideoResultsPager extends ContentPager {
         this.space_info = space_info
     }
     override nextPage(): this {
-        let local_search_response: SpaceVideosSearchResponse | undefined = undefined
-        while (local_search_response === undefined) {
-            const response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
-            if (response.code !== -352) {
-                local_search_response = response
-            } else {
-                refresh_space_video_search_cookies()
-            }
+        const search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
+        if (search_response.code === -352) {
+            throw new ScriptException("rate lmited")
         }
-        const response = local_search_response
-        this.results = format_space_videos(response, this.space_id, this.space_info)
-        this.hasMore = response.data.page.count > this.next_page * this.page_size
+        this.results = format_space_videos(search_response, this.space_id, this.space_info)
+        this.hasMore = search_response.data.page.count > this.next_page * this.page_size
         this.next_page += 1
         return this
     }
@@ -3853,19 +3797,25 @@ function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): Bat
 
 //#endregion
 
-function refresh_space_video_search_cookies() {
-    log("BiliBili log: refreshing space videos cookies")
-    const b_nut = create_b_nut()
-    const finger_spi_response: FingerSpiResponse = JSON.parse(cookie_request().body)
-    const buvid3 = finger_spi_response.data.b_3
-    const buvid4 = finger_spi_response.data.b_4
-    activate_cookies(b_nut, buvid3, buvid4)
-    local_storage_cache.space_video_search_cookies.buvid3 = buvid3
-    local_storage_cache.space_video_search_cookies.buvid4 = buvid4
-    local_storage_cache.space_video_search_cookies.b_nut = b_nut
-}
-
 function init_local_storage() {
+    const vendor_and_renderer = WEBGL_VENDOR + WEBGL_RENDERER
+
+    let dm_cover_img_str = local_utility.toBase64(string_to_bytes(vendor_and_renderer))
+    // chop the end off
+    dm_cover_img_str = dm_cover_img_str.slice(0, dm_cover_img_str.length - 2)
+
+    let dm_img_str = local_utility.toBase64(string_to_bytes(WEBGL))
+    // chop the end off
+    dm_img_str = dm_img_str.slice(0, dm_img_str.length - 2)
+
+    const value_one = getRandomIntInclusive(100, 1000)
+    const winWidth = getRandomIntInclusive(50, 5000)
+    const winHeight = getRandomIntInclusive(50, 5000)
+    const value_two = getRandomIntInclusive(5, 500)
+    const wh = [2 * winWidth + 2 * winHeight + 3 * value_two, 4 * winWidth - winHeight + value_two, value_two]
+
+    const dm_img_inter = `{"ds":[],"wh":[${wh[0]},${wh[1]},${wh[2]}],"of":[${value_one},${value_one * 2},${value_one}]}`
+
     const b_nut = create_b_nut()
     const requests: [
         RequestMetadata<readonly number[]>,
@@ -3883,10 +3833,10 @@ function init_local_storage() {
     const [mixin_constant, { wbi_img_key, wbi_sub_key }, finger_spi_response] = execute_requests(requests)
     const buvid3 = finger_spi_response.data.b_3
     const buvid4 = finger_spi_response.data.b_4
+
+    // required to access space posts
     activate_cookies(b_nut, buvid3, buvid4)
 
-    const space_b_nut = b_nut
-    const space_cookies = { buvid3, buvid4 }
     // these caches don't work that well because they aren't shared between plugin instances
     // saveState is what we need
     local_storage_cache = {
@@ -3896,11 +3846,9 @@ function init_local_storage() {
         cid_cache: new Map(),
         space_cache: new Map(),
         mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
-        space_video_search_cookies: {
-            b_nut: space_b_nut,
-            buvid4: space_cookies.buvid4,
-            buvid3: space_cookies.buvid3
-        }
+        dm_cover_img_str,
+        dm_img_str,
+        dm_img_inter
     }
 }
 
@@ -3952,16 +3900,18 @@ function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHtt
     return result
 }
 
+// required to access space posts
 function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
     const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
+    const body = post_body_for_ExClimbWuzhi
     const now = Date.now()
     local_http.POST(cookie_activation_url,
-        post_body_for_ExClimbWuzhi,
+        body,
         {
             Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
-            "User-Agent": GRAYJAY_USER_AGENT,
+            "User-Agent": USER_AGENT,
             Host: "api.bilibili.com",
-            "Content-Length": post_body_for_ExClimbWuzhi.length.toString(),
+            "Content-Length": body.length.toString(),
             "Content-Type": "application/json"
         },
         false)
@@ -3978,6 +3928,20 @@ function assert_no_fall_through(value: never, exception_message?: string): Scrip
         return new ScriptException(exception_message)
     }
     return
+}
+
+function string_to_bytes(str: string): Uint8Array {
+    const result = []
+    for (let i = 0; i < str.length; i++) {
+        result.push(str.charCodeAt(i))
+    }
+    return new Uint8Array(result)
+}
+
+function getRandomIntInclusive(min: number, max: number) {
+    const minCeiled = Math.ceil(min)
+    const maxFloored = Math.floor(max)
+    return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled) // The maximum is inclusive and the minimum is inclusive
 }
 
 function parse_minutes_seconds(minutes_seconds: string): number {
@@ -4043,16 +4007,31 @@ function create_b_nut() {
     return Math.floor((new Date).getTime() / 1e3)
 }
 
-function create_signed_url(base_url: string, params: Params, wts?: number): URL {
-    const augmented_params: Params = {
+function create_signed_url(base_url: string, params: Params, special_params?: {
+    readonly wts: number,
+    readonly dm_img_list: string,
+    readonly dm_img_inter: string,
+    readonly dm_img_str: string,
+    readonly dm_cover_img_str: string
+}): URL {
+    const augmented_params: Params = special_params === undefined ? {
         ...params,
         // timestamp
-        wts: wts === undefined ? Math.round(Date.now() / 1e3).toString() : wts.toString(),
+        wts: Math.round(Date.now() / 1e3).toString(),
         // device fingerprint values
-        dm_cover_img_str: "QU5HTEUgKEludGVsLCBNZXNhIEludGVsKFIpIEhEIEdyYXBoaWNzIDUyMCAoU0tMIEdUMiksIE9wZW5HTCA0LjYpR29vZ2xlIEluYy4gKEludGVsKQ",
-        dm_img_inter: `{"ds":[{"t":0,"c":"","p":[246,82,82],"s":[56,5149,-1804]}],"wh":[4533,2116,69],"of":[461,922,461]}`,
-        dm_img_str: "V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ",
+        dm_img_inter: local_storage_cache.dm_img_inter,
+        dm_img_str: local_storage_cache.dm_img_str,
+        dm_cover_img_str: local_storage_cache.dm_cover_img_str,
         dm_img_list: "[]",
+    } : {
+        ...params,
+        // timestamp
+        wts: special_params.wts.toString(),
+        // device fingerprint values
+        dm_img_inter: special_params.dm_img_inter,
+        dm_img_str: special_params.dm_img_str,
+        dm_cover_img_str: special_params.dm_cover_img_str,
+        dm_img_list: special_params.dm_img_list,
     }
 
     const sorted_query_string = Object
@@ -4305,203 +4284,6 @@ function execute_requests<T, U, V, W, X, Y, Z>(
             throw assert_no_fall_through(requests, "unreachable")
     }
 }
-
-const post_body_for_ExClimbWuzhi = JSON.stringify({
-    payload: JSON.stringify({
-        "5062": 1712258314864,
-        "39c8": "333.999.fp.risk",
-        "920b": "0",
-        "df35": "8D8CB6D2-AF0C-53DF-A3FE-611AE8DCFBFC12914infoc",
-        "03bf": "https: //space.bilibili.com/438074196/dynamic",
-        "3c43": {
-            "2673": 0,
-            "5766": 24,
-            "6527": 0,
-            "7003": 1,
-            "807e": 1,
-            "b8ce": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-            "641c": 0,
-            "07a4": "en-US",
-            "1c57": 8,
-            "0bd0": 8,
-            "748e": [
-                2560,
-                1440
-            ],
-            "d61f": [
-                2560,
-                1386
-            ],
-            "fc9d": 300,
-            "6aa9": "America/Chicago",
-            "75b8": 1,
-            "3b21": 1,
-            "8a1c": 0,
-            "d52f": "not available",
-            "adca": "Linux x86_64",
-            "80c9": [
-                [
-                    "PDF Viewer",
-                    "Portable Document Format",
-                    [
-                        [
-                            "application/pdf",
-                            "pdf"
-                        ],
-                        [
-                            "text/pdf",
-                            "pdf"
-                        ]
-                    ]
-                ],
-                [
-                    "Chrome PDF Viewer",
-                    "Portable Document Format",
-                    [
-                        [
-                            "application/pdf",
-                            "pdf"
-                        ],
-                        [
-                            "text/pdf",
-                            "pdf"
-                        ]
-                    ]
-                ],
-                [
-                    "Chromium PDF Viewer",
-                    "Portable Document Format",
-                    [
-                        [
-                            "application/pdf",
-                            "pdf"
-                        ],
-                        [
-                            "text/pdf",
-                            "pdf"
-                        ]
-                    ]
-                ],
-                [
-                    "Microsoft Edge PDF Viewer",
-                    "Portable Document Format",
-                    [
-                        [
-                            "application/pdf",
-                            "pdf"
-                        ],
-                        [
-                            "text/pdf",
-                            "pdf"
-                        ]
-                    ]
-                ],
-                [
-                    "WebKit built-in PDF",
-                    "Portable Document Format",
-                    [
-                        [
-                            "application/pdf",
-                            "pdf"
-                        ],
-                        [
-                            "text/pdf",
-                            "pdf"
-                        ]
-                    ]
-                ]
-            ],
-            "13ab": "1eiwAAAAAElFTkSuQmCC",
-            "bfe9": "QDFMhGAYCVjdUkigL2Ffg/2CYKtfwp4HgAAAAASUVORK5CYII=",
-            "a3c1": [
-                "extensions:ANGLE_instanced_arrays;EXT_blend_minmax;EXT_clip_control;EXT_color_buffer_half_float;EXT_depth_clamp;EXT_disjoint_timer_query;EXT_float_blend;EXT_frag_depth;EXT_polygon_offset_clamp;EXT_shader_texture_lod;EXT_texture_compression_bptc;EXT_texture_compression_rgtc;EXT_texture_filter_anisotropic;EXT_sRGB;KHR_parallel_shader_compile;OES_element_index_uint;OES_fbo_render_mipmap;OES_standard_derivatives;OES_texture_float;OES_texture_float_linear;OES_texture_half_float;OES_texture_half_float_linear;OES_vertex_array_object;WEBGL_blend_func_extended;WEBGL_color_buffer_float;WEBGL_compressed_texture_s3tc;WEBGL_compressed_texture_s3tc_srgb;WEBGL_debug_renderer_info;WEBGL_debug_shaders;WEBGL_depth_texture;WEBGL_draw_buffers;WEBGL_lose_context;WEBGL_multi_draw;WEBGL_polygon_mode",
-                "webgl aliased line width range:[1, 2048]",
-                "webgl aliased point size range:[1, 2048]",
-                "webgl alpha bits:8",
-                "webgl antialiasing:yes",
-                "webgl blue bits:8",
-                "webgl depth bits:24",
-                "webgl green bits:8",
-                "webgl max anisotropy:16",
-                "webgl max combined texture image units:64",
-                "webgl max cube map texture size:16384",
-                "webgl max fragment uniform vectors:1024",
-                "webgl max render buffer size:16384",
-                "webgl max texture image units:32",
-                "webgl max texture size:16384",
-                "webgl max varying vectors:32",
-                "webgl max vertex attribs:16",
-                "webgl max vertex texture image units:32",
-                "webgl max vertex uniform vectors:1024",
-                "webgl max viewport dims:[16384, 16384]",
-                "webgl red bits:8",
-                "webgl renderer:WebKit WebGL",
-                "webgl shading language version:WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-                "webgl stencil bits:0",
-                "webgl vendor:WebKit",
-                "webgl version:WebGL 1.0 (OpenGL ES 2.0 Chromium)",
-                "webgl unmasked vendor:Google Inc. (AMD)",
-                "webgl unmasked renderer:ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)",
-                "webgl vertex shader high float precision:23",
-                "webgl vertex shader high float precision rangeMin:127",
-                "webgl vertex shader high float precision rangeMax:127",
-                "webgl vertex shader medium float precision:23",
-                "webgl vertex shader medium float precision rangeMin:127",
-                "webgl vertex shader medium float precision rangeMax:127",
-                "webgl vertex shader low float precision:23",
-                "webgl vertex shader low float precision rangeMin:127",
-                "webgl vertex shader low float precision rangeMax:127",
-                "webgl fragment shader high float precision:23",
-                "webgl fragment shader high float precision rangeMin:127",
-                "webgl fragment shader high float precision rangeMax:127",
-                "webgl fragment shader medium float precision:23",
-                "webgl fragment shader medium float precision rangeMin:127",
-                "webgl fragment shader medium float precision rangeMax:127",
-                "webgl fragment shader low float precision:23",
-                "webgl fragment shader low float precision rangeMin:127",
-                "webgl fragment shader low float precision rangeMax:127",
-                "webgl vertex shader high int precision:0",
-                "webgl vertex shader high int precision rangeMin:31",
-                "webgl vertex shader high int precision rangeMax:30",
-                "webgl vertex shader medium int precision:0",
-                "webgl vertex shader medium int precision rangeMin:31",
-                "webgl vertex shader medium int precision rangeMax:30",
-                "webgl vertex shader low int precision:0",
-                "webgl vertex shader low int precision rangeMin:31",
-                "webgl vertex shader low int precision rangeMax:30",
-                "webgl fragment shader high int precision:0",
-                "webgl fragment shader high int precision rangeMin:31",
-                "webgl fragment shader high int precision rangeMax:30",
-                "webgl fragment shader medium int precision:0",
-                "webgl fragment shader medium int precision rangeMin:31",
-                "webgl fragment shader medium int precision rangeMax:30",
-                "webgl fragment shader low int precision:0",
-                "webgl fragment shader low int precision rangeMin:31",
-                "webgl fragment shader low int precision rangeMax:30"
-            ],
-            "6bc5": "Google Inc. (AMD)~ANGLE (AMD, AMD Custom GPU 0405 (radeonsi vangogh LLVM 15.0.7), OpenGL 4.6)",
-            "ed31": 0,
-            "72bd": 1,
-            "097b": 0,
-            "52cd": [
-                10,
-                0,
-                0
-            ],
-            "a658": [
-                "Arial",
-                "Calibri",
-                "Cambria",
-                "Courier",
-                "Courier New",
-                "Helvetica",
-                "Times",
-                "Times New Roman"
-            ],
-            "d02f": "124.04347527516074"
-        }
-    })
-})
 
 function md5(input: string): string {
     return MD5.generate(input)

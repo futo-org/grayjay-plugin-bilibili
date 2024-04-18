@@ -1,4 +1,4 @@
-//#region Custom types
+//#region custom types
 export type BiliBiliCommentContext = {
     // the id of the content
     readonly oid: string
@@ -18,11 +18,11 @@ export type Params = {
 }
 
 export type IdObj = {
-    id: number,
-    type: "season"
+    readonly id: number,
+    readonly type: "season"
 } | {
-    id: number,
-    type: "episode"
+    readonly id: number,
+    readonly type: "episode"
 }
 
 export type OrderOptions = "click" | "pubdate" | "stow"
@@ -65,11 +65,9 @@ export type LocalCache = {
     readonly mixin_key: string
     readonly cid_cache: Map<string, number>
     readonly space_cache: Map<number, CoreSpaceInfo>
-    readonly space_video_search_cookies: {
-        buvid4: string
-        b_nut: number
-        buvid3: string
-    }
+    readonly dm_cover_img_str: string
+    readonly dm_img_str: string
+    readonly dm_img_inter: string
 }
 
 export type CoreSpaceInfo = {
