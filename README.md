@@ -23,7 +23,6 @@
 - [ ]   Write tests for all the utility functions
 - [ ]   Review TODOs in the code
 - [ ]   Review the hardcoded costants
-- [ ]   Generate the device specific constants
 - [ ]   We might need to create id prefixes there are a lot of number ids and the different types probably overlap
         I don't quite understand the usefulness of the ids though
 - [ ]   Add in function and property documentation
@@ -52,5 +51,3 @@
     -   when searching from the main home page search type in the search function call is always null regardless of what is set in getsearchcapabilities
     -   when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
     -   getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
-
-
