@@ -30,10 +30,9 @@
 - [ ]   Add a logging option that will log the urls, headers, and results of all network requests
 - [ ]   Implement live chat websocket protocol
 - [ ]   Fix the local caching to use saveState
-- [ ]   Don't set a thumbnail on PlatformPlaylistDetails objects
-- [ ]   Test post images and thumbnails
 - [ ]   Reduce the lines of code somehow
 - [ ]   Show a locked content object for inaccesible premium content
+- [ ]   Investigate and handle other url types (mobile video links?)
 ## Pending Fixed Grayjay Bug
 - [X]   Links in posts aren't clickable
 - [X]   When going back from a post detail opened on a channel page hangs the app

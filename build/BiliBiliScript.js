@@ -36,7 +36,6 @@ const local_utility = utility;
 const HARDCODED_THUMBNAIL_QUALITY = 1080;
 const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.config.id), "", "");
 const MISSING_NAME = "";
-const MISSING_THUMBNAIL = "";
 const HARDCODED_ZERO = 0;
 const MISSING_RATING = 0;
 // set missing constants
@@ -369,7 +368,6 @@ function getPlaylist(url) {
                 url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${collection_id}`,
                 contents,
                 videoCount: collection_response.data.meta.total,
-                thumbnail: collection_response.data.meta.cover
             });
         }
         case "bangumi/play/ss": {
@@ -430,8 +428,7 @@ function getPlaylist(url) {
                 author,
                 url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series_id}`,
                 contents: new SeriesContentsPager(space_id, author, series_id, series_response, initial_page, page_size),
-                videoCount: series_response.data.page.total,
-                thumbnail: MISSING_THUMBNAIL
+                videoCount: series_response.data.page.total
             });
         }
         case "cheese/play/ss": {
@@ -496,8 +493,6 @@ function getPlaylist(url) {
                 url: WATCH_LATER_URL,
                 contents: new VideoPager(videos, false),
                 videoCount: watch_later_response.data.count,
-                // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
-                thumbnail: first_video.pic
             });
         }
         default:
@@ -1477,7 +1472,6 @@ function format_favorites(response) {
         url: `${FAVORITES_URL_PREFIX}${favorites_id}`,
         contents: new FavoritesContentsPager(favorites_id, response, 1, 20),
         videoCount: response.data.info.media_count,
-        thumbnail: response.data.info.cover
     });
 }
 function load_favorites(favorites_id, page, page_size) {
@@ -1575,7 +1569,7 @@ function format_bangumi_search(shows, movies) {
             url: `${SEASON_URL_PREFIX}${item.season_id}`,
             videoCount: item.ep_size === 0 ? 1 : item.ep_size,
             thumbnail: item.cover,
-            datetime: item.pubtime
+            datetime: item.pubtime,
         });
     });
 }
@@ -1783,8 +1777,6 @@ function format_festival(festival_id, festival_response) {
         url: `${FESTIVAL_URL_PREFIX}${festival_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: festival_response.sectionEpisodes.length,
-        // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
-        thumbnail: festival_response.themeConfig.page_bg_img
     });
 }
 function user_subscriptions_request(mid, page, page_size, builder) {
@@ -1853,7 +1845,6 @@ function format_course(season_id, course_response) {
         url: `${COURSE_URL_PREFIX}${season_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: course_response.data.ep_count,
-        thumbnail: course_response.data.cover
     });
 }
 function course_play_request(episode_id, builder) {
@@ -1922,7 +1913,6 @@ function format_season(season_id, season_response) {
         url: `${SEASON_URL_PREFIX}${season_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: season_response.result.total,
-        thumbnail: season_response.result.cover
     });
 }
 function format_sources(play_data) {
@@ -2091,7 +2081,7 @@ function format_space_favorites(space_favorites_response, space_id, space_info) 
                 author,
                 url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
                 videoCount: favorite_list.media_count,
-                thumbnail: MISSING_THUMBNAIL
+                // thumbnail: TODO MISSING_THUMBNAIL
             });
         });
     }
@@ -3524,5 +3514,5 @@ let MD5;
     t += (e = "0" + (r >>> 8 * n & 255).toString(16)).substr(e.length - 2, 2); return t; } var d = { generate: e }; })(), MD5 = n; })();
 //#endregion
 // export statements are removed during build step
-// used to for unit testing in BiliBiliScript.test.ts
+// used for unit testing in BiliBiliScript.test.ts
 //# sourceMappingURL=http://localhost:8080/BiliBiliScript.js.map

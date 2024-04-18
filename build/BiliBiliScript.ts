@@ -101,7 +101,6 @@ const local_utility = utility
 const HARDCODED_THUMBNAIL_QUALITY = 1080 as const
 const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.config.id), "", "")
 const MISSING_NAME = "" as const
-const MISSING_THUMBNAIL = "" as const
 const HARDCODED_ZERO = 0 as const
 const MISSING_RATING = 0 as const
 
@@ -487,7 +486,6 @@ function getPlaylist(url: string) {
                 url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${collection_id}`,
                 contents,
                 videoCount: collection_response.data.meta.total,
-                thumbnail: collection_response.data.meta.cover
             })
         }
         case "bangumi/play/ss": {
@@ -561,8 +559,7 @@ function getPlaylist(url: string) {
                 author,
                 url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series_id}`,
                 contents: new SeriesContentsPager(space_id, author, series_id, series_response, initial_page, page_size),
-                videoCount: series_response.data.page.total,
-                thumbnail: MISSING_THUMBNAIL
+                videoCount: series_response.data.page.total
             })
         }
         case "cheese/play/ss": {
@@ -640,8 +637,6 @@ function getPlaylist(url: string) {
                 url: WATCH_LATER_URL,
                 contents: new VideoPager(videos, false),
                 videoCount: watch_later_response.data.count,
-                // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
-                thumbnail: first_video.pic
             })
         }
         default:
@@ -1729,7 +1724,6 @@ function format_favorites(response: FavoritesResponse) {
         url: `${FAVORITES_URL_PREFIX}${favorites_id}`,
         contents: new FavoritesContentsPager(favorites_id, response, 1, 20),
         videoCount: response.data.info.media_count,
-        thumbnail: response.data.info.cover
     })
 }
 
@@ -1840,7 +1834,7 @@ function format_bangumi_search(shows: SearchResultItem[] | null, movies: SearchR
             url: `${SEASON_URL_PREFIX}${item.season_id}`,
             videoCount: item.ep_size === 0 ? 1 : item.ep_size,
             thumbnail: item.cover,
-            datetime: item.pubtime
+            datetime: item.pubtime,
         })
     })
 }
@@ -2090,8 +2084,6 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
         url: `${FESTIVAL_URL_PREFIX}${festival_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: festival_response.sectionEpisodes.length,
-        // TODO only used when the playlist shows up in as a search result when you view a playlist the thumbnail is taken from the first video i think this is a bug
-        thumbnail: festival_response.themeConfig.page_bg_img
     })
 }
 
@@ -2176,7 +2168,6 @@ function format_course(season_id: number, course_response: CourseResponse): Plat
         url: `${COURSE_URL_PREFIX}${season_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: course_response.data.ep_count,
-        thumbnail: course_response.data.cover
     })
 }
 
@@ -2258,7 +2249,6 @@ function format_season(season_id: number, season_response: SeasonResponse): Plat
         url: `${SEASON_URL_PREFIX}${season_id}`,
         contents: new VideoPager(episodes, false),
         videoCount: season_response.result.total,
-        thumbnail: season_response.result.cover
     })
 }
 
@@ -2475,7 +2465,7 @@ function format_space_favorites(space_favorites_response: SpaceFavoritesResponse
                 author,
                 url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
                 videoCount: favorite_list.media_count,
-                thumbnail: MISSING_THUMBNAIL
+                // thumbnail: TODO MISSING_THUMBNAIL
             })
         })
     }
@@ -4296,7 +4286,7 @@ let MD5: { generate: any }; (() => { var r = { d: (n, t) => { for (var e in t) r
 //#endregion
 
 // export statements are removed during build step
-// used to for unit testing in BiliBiliScript.test.ts
+// used for unit testing in BiliBiliScript.test.ts
     interleave,
     getMixinKey,
     mixin_constant_request,
