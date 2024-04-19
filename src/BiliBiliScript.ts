@@ -1,4 +1,4 @@
-//#region Constants
+//#region constants
 import type {
     LocalCache,
     LiveSearchResponse,
@@ -124,8 +124,97 @@ Type.Order.Favorites = "最多收藏"
 let local_storage_cache: LocalCache
 //#endregion
 
-//#region Source Methods
+//#region source methods
 source.enable = enable
+source.disable = disable
+source.saveState = saveState
+source.getHome = getHome
+
+source.searchSuggestions = searchSuggestions
+source.getSearchCapabilities = getSearchCapabilities
+source.search = search
+
+source.searchChannels = searchChannels
+source.isChannelUrl = isChannelUrl
+source.getChannel = getChannel
+
+source.getChannelCapabilities = getChannelCapabilities
+source.getChannelContents = getChannelContents
+source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities
+source.searchChannelContents = searchChannelContents
+
+source.isContentDetailsUrl = isContentDetailsUrl
+source.getContentDetails = getContentDetails
+
+source.isPlaylistUrl = isPlaylistUrl
+source.searchPlaylists = searchPlaylists
+source.getPlaylist = getPlaylist
+
+source.getComments = getComments
+source.getSubComments = getSubComments
+source.getLiveChatWindow = getLiveChatWindow
+
+source.getUserSubscriptions = getUserSubscriptions
+source.getUserPlaylists = getUserPlaylists
+
+if (IS_TESTING) {
+    const assert_source: BiliBiliSource = {
+        enable,
+        disable,
+        saveState,
+        getHome,
+        searchSuggestions,
+        search,
+        getSearchCapabilities,
+        isContentDetailsUrl,
+        getContentDetails,
+        isChannelUrl,
+        getChannel,
+        getChannelContents,
+        getChannelCapabilities,
+        searchChannelContents,
+        getSearchChannelContentsCapabilities,
+        searchChannels,
+        getComments,
+        getSubComments,
+        isPlaylistUrl,
+        getPlaylist,
+        searchPlaylists,
+        getLiveChatWindow,
+        getUserPlaylists,
+        getUserSubscriptions
+    }
+    if (source.enable === undefined) { assert_never(source.enable) }
+    if (source.disable === undefined) { assert_never(source.disable) }
+    if (source.saveState === undefined) { assert_never(source.saveState) }
+    if (source.getHome === undefined) { assert_never(source.getHome) }
+    if (source.searchSuggestions === undefined) { assert_never(source.searchSuggestions) }
+    if (source.search === undefined) { assert_never(source.search) }
+    if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
+    if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
+    if (source.getContentDetails === undefined) { assert_never(source.getContentDetails) }
+    if (source.isChannelUrl === undefined) { assert_never(source.isChannelUrl) }
+    if (source.getChannel === undefined) { assert_never(source.getChannel) }
+    if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
+    if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
+    if (source.searchChannelContents === undefined) { assert_never(source.searchChannelContents) }
+    if (source.getSearchChannelContentsCapabilities === undefined) { assert_never(source.getSearchChannelContentsCapabilities) }
+    if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
+    if (source.getComments === undefined) { assert_never(source.getComments) }
+    if (source.getSubComments === undefined) { assert_never(source.getSubComments) }
+    if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
+    if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
+    if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
+    if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
+    if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
+    if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
+    if (IS_TESTING) {
+        log(assert_source)
+    }
+}
+//#endregion
+
+//#region enable
 function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
     if (IS_TESTING) {
         log("IS_TESTING true")
@@ -139,27 +228,729 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
 
     init_local_storage()
 }
-source.disable = disable
+function init_local_storage() {
+    const vendor_and_renderer = WEBGL_VENDOR + WEBGL_RENDERER
+
+    let dm_cover_img_str = local_utility.toBase64(string_to_bytes(vendor_and_renderer))
+    // chop the end off
+    dm_cover_img_str = dm_cover_img_str.slice(0, dm_cover_img_str.length - 2)
+
+    let dm_img_str = local_utility.toBase64(string_to_bytes(WEBGL))
+    // chop the end off
+    dm_img_str = dm_img_str.slice(0, dm_img_str.length - 2)
+
+    const value_one = get_random_int_inclusive(100, 1000)
+    const winWidth = get_random_int_inclusive(50, 5000)
+    const winHeight = get_random_int_inclusive(50, 5000)
+    const value_two = get_random_int_inclusive(5, 500)
+    const wh = [2 * winWidth + 2 * winHeight + 3 * value_two, 4 * winWidth - winHeight + value_two, value_two]
+
+    const dm_img_inter = `{"ds":[],"wh":[${wh[0]},${wh[1]},${wh[2]}],"of":[${value_one},${value_one * 2},${value_one}]}`
+
+    const b_nut = create_b_nut()
+    const requests: [
+        RequestMetadata<readonly number[]>,
+        RequestMetadata<Wbi>,
+        RequestMetadata<FingerSpiResponse>] = [{
+            request: mixin_constant_request,
+            process: process_mixin_constant
+        }, {
+            request(builder) { return nav_request(false, builder) },
+            process: process_wbi_keys
+        }, {
+            request: cookie_request,
+            process(response) { return JSON.parse(response.body) }
+        }]
+    const [mixin_constant, { wbi_img_key, wbi_sub_key }, finger_spi_response] = execute_requests(requests)
+    const buvid3 = finger_spi_response.data.b_3
+    const buvid4 = finger_spi_response.data.b_4
+
+    // required to access space posts
+    activate_cookies(b_nut, buvid3, buvid4)
+
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        buvid3,
+        buvid4,
+        b_nut,
+        cid_cache: new Map(),
+        space_cache: new Map(),
+        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
+        dm_cover_img_str,
+        dm_img_str,
+        dm_img_inter
+    }
+}
+function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
+function nav_request(useAuthClient: boolean): BridgeHttpResponse
+function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const url = "https://api.bilibili.com/x/web-interface/nav"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, useAuthClient)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function mixin_constant_request(builder: BatchBuilder): BatchBuilder
+function mixin_constant_request(): BridgeHttpResponse
+function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const url = "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
+
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function process_mixin_constant(html: BridgeHttpResponse): readonly number[] {
+    const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/
+    const mixin_constant_json = html.body.match(mixin_constant_regex)?.[1]
+    if (mixin_constant_json === undefined) {
+        throw new ScriptException("failed to acquire mixin_constant")
+    }
+    const mixin_constant: readonly number[] = JSON.parse(mixin_constant_json)
+    return mixin_constant
+}
+function process_wbi_keys(raw_response: BridgeHttpResponse): Wbi {
+    const response: NavResponse = JSON.parse(raw_response.body)
+
+    return {
+        wbi_img_key: response.data.wbi_img.img_url.slice(29, 61),
+        wbi_sub_key: response.data.wbi_img.sub_url.slice(29, 61)
+    }
+}
+// TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
+// this will make things simpler
+function cookie_request(builder: BatchBuilder): BatchBuilder
+function cookie_request(): BridgeHttpResponse
+function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const finger_spi_url = "https://api.bilibili.com/x/frontend/finger/spi"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(finger_spi_url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+/**
+ * Activates cookies to be usable to load channel posts
+ * @param b_nut 
+ * @param buvid3 
+ * @param buvid4 
+ */
+function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
+    const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
+    const body = post_body_for_ExClimbWuzhi
+    const now = Date.now()
+    local_http.POST(cookie_activation_url,
+        body,
+        {
+            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
+            "User-Agent": USER_AGENT,
+            Host: "api.bilibili.com",
+            "Content-Length": body.length.toString(),
+            "Content-Type": "application/json"
+        },
+        false)
+    log_network_call(now)
+}
+/**
+ * https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js
+ * @param e 
+ * @param encryption_info 
+ * @returns 
+ */
+function getMixinKey(e: string, encryption_info: readonly number[]) {
+    return encryption_info.filter((value) => {
+        return e[value] !== undefined
+    }).map((value) => {
+        return e[value]
+    }).join("").slice(0, 32)
+}
+function create_b_nut() {
+    return Math.floor((new Date).getTime() / 1e3)
+}
+//#endregion
+
 function disable() {
     log("BiliBili log: disabling")
 }
-source.saveState = saveState
+
 function saveState() { return "" }
-source.getHome = getHome
+
+//#region home
 function getHome() {
     return new HomePager(0, 12)
 }
-source.searchSuggestions = searchSuggestions
+class HomePager extends VideoPager {
+    private next_page: number
+    private readonly page_size: number
+    constructor(initial_page: number, page_size: number) {
+        super(format_home(get_home(initial_page, page_size)), true)
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+    }
+    override nextPage(this: HomePager): HomePager {
+        this.results = format_home(get_home(this.next_page, this.page_size))
+        this.hasMore = true
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: HomePager): boolean {
+        return true
+    }
+}
+/**
+ * 
+ * @param page The page to load (starts at 0)
+ * @param page_size 
+ * @returns 
+ */
+function get_home(page: number, page_size: number): HomeFeedResponse {
+    const home_api_url = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd"
+    const fresh_type = "4"
+    const feed_version = "V_WATCHLATER_PIP_WINDOW3"
+    const params: Params = {
+        fresh_idx: page.toString(),
+        ps: page_size.toString(),
+        fresh_type,
+        feed_version,
+        fresh_idx_1h: page.toString(),
+        brush: page.toString(),
+    }
+
+    const url = create_url(home_api_url, params).toString()
+    const now = Date.now()
+    // use auth client so that logged in users get a personalized home feed
+    const home_json = local_http.GET(
+        url,
+        { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}` },
+        true).body
+
+    log_network_call(now)
+    const home_response: HomeFeedResponse = JSON.parse(home_json)
+    return home_response
+}
+function format_home(home: HomeFeedResponse): PlatformVideo[] {
+    return home.data.item.flatMap((item): PlatformVideo[] => {
+        switch (item.goto) {
+            case "ad":
+                return []
+            case "av": {
+                // update cid cache
+                local_storage_cache.cid_cache.set(item.bvid, item.cid)
+
+                const fan_count = local_storage_cache.space_cache.get(item.owner.mid)?.num_fans
+                const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id)
+                const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), plugin.config.id)
+                return [new PlatformVideo({
+                    id: video_id,
+                    name: item.title,
+                    url: item.uri,
+                    thumbnails: new Thumbnails([new Thumbnail(item.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author: new PlatformAuthorLink(
+                        author_id,
+                        item.owner.name,
+                        `${SPACE_URL_PREFIX}${item.owner.mid}`,
+                        item.owner.face, fan_count),
+                    duration: item.duration,
+                    viewCount: item.stat.view,
+                    isLive: false,
+                    shareUrl: item.uri,
+                    uploadDate: item.pubdate
+                })]
+            }
+            case "live": {
+                const fan_count = local_storage_cache.space_cache.get(item.owner.mid)?.num_fans
+                const room_id = new PlatformID(PLATFORM, item.id.toString(), plugin.config.id)
+                const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), plugin.config.id)
+                return [new PlatformVideo({
+                    id: room_id,
+                    name: item.title,
+                    url: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
+                    thumbnails: new Thumbnails([new Thumbnail(item.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author: new PlatformAuthorLink(
+                        author_id,
+                        item.owner.name,
+                        `${SPACE_URL_PREFIX}${item.owner.mid}`,
+                        item.owner.face, fan_count),
+                    viewCount: item.room_info.watched_show.num,
+                    isLive: true,
+                    shareUrl: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
+                    // TODO load from cache uploadDate:
+                })]
+            }
+            default:
+                throw assert_no_fall_through(item, `unhandled type on home page item ${item}`)
+        }
+    })
+}
+//#endregion
+
+//#region search
 function searchSuggestions(query: string) {
     return get_suggestions(query)
 }
-source.searchChannels = searchChannels
+function get_suggestions(query: string): string[] {
+    const suggestions_url = "https://s.search.bilibili.com/main/suggest"
+    const params: Params = {
+        func: "suggest",
+        suggest_type: "accurate",
+        sub_type: "tag",
+        term: query
+    }
+
+    const url = create_url(suggestions_url, params).toString()
+    const now = Date.now()
+    const suggestions_json = local_http.GET(
+        url,
+        {},
+        false).body
+    log_network_call(now)
+    const suggestions_response: SuggestionsResponse = JSON.parse(suggestions_json)
+    return suggestions_response.result.tag.map((entry) => entry.term)
+}
+function getSearchCapabilities() {
+    return new ResultCapabilities<FilterGroupIDs, SearchTypeCapabilities>(
+        [Type.Feed.Videos, Type.Feed.Live, Type.Feed.Movies, Type.Feed.Shows],
+        [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
+        // TODO implement category filtering
+        [new FilterGroup(
+            "期间", // Duration
+            [
+                new FilterCapability("全部时长", "0", "全部时长"), // full duration
+                new FilterCapability("10分钟以下", "1", "10分钟以下"), // Under 10 minutes
+                new FilterCapability("10-30分钟", "2", "10-30分钟"), // 10-30 minutes
+                new FilterCapability("30-60分钟", "3", "30-60分钟"), // 30-60 minutes
+                new FilterCapability("60分钟以上", "4", "60分钟以上"), // More than 60 minutes
+            ],
+            false,
+            "DURATION_FILTER"
+        ),
+        new FilterGroup(
+            "Additional Content",
+            [
+                new FilterCapability("Live Rooms", "LIVE", "Live Rooms"),
+                new FilterCapability("Videos", "VIDEOS", "Videos"),
+                new FilterCapability("Shows", "SHOWS", "Shows"),
+                new FilterCapability("Movies", "MOVIES", "Movies")
+            ],
+            false,
+            "ADDITIONAL_CONTENT"
+        )]
+    )
+}
+function search(query: string, type: SearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
+    if (type === null) {
+        if (filters === null) {
+            return new ContentPager([], false)
+        }
+        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
+            case "VIDEOS":
+                type = Type.Feed.Videos
+                break
+            case "LIVE":
+                type = Type.Feed.Live
+                break
+            case "MOVIES":
+                type = Type.Feed.Movies
+                break
+            case "SHOWS":
+                type = Type.Feed.Shows
+                break
+            case undefined:
+                type = Type.Feed.Videos
+                log("BiliBili log: missing feed type defaulting to VIDEOS")
+                break
+            default:
+                throw new ScriptException("unreachable")
+        }
+    }
+
+    const query_type = ((type) => {
+        switch (type) {
+            case "LIVE":
+                return "live"
+            case "SHOWS":
+                return "media_bangumi"
+            case "MOVIES":
+                return "media_ft"
+            case "VIDEOS":
+                return "video"
+            default:
+                throw new ScriptException(`unhandled feed type ${type}`)
+        }
+    })(type)
+
+    const query_order: OrderOptions | undefined = ((order) => {
+        switch (order) {
+            case null:
+                return undefined
+            case Type.Order.Chronological:
+                return "pubdate"
+            case Type.Order.Views:
+                return "click"
+            case Type.Order.Favorites:
+                return "stow"
+            default:
+                throw new ScriptException(`unhandled feed order ${order}`)
+        }
+    })(order)
+
+    const duration = ((filters) => {
+        const filter = filters["DURATION_FILTER"]
+        if (filter === undefined) {
+            return undefined
+        }
+        const value = filter[0]
+        if (value === undefined) {
+            return undefined
+        }
+        switch (value) {
+            case "0":
+                return undefined
+            case "1":
+                return 1
+            case "2":
+                return 2
+            case "3":
+                return 3
+            case "4":
+                return 4
+            default:
+                throw new ScriptException(`unhandled feed filter ${filters}`)
+        }
+    })(filters)
+
+    return new SearchPager(query, 1, 42, query_type, query_order, duration)
+}
+class SearchPager extends VideoPager {
+    private next_page: number
+    private readonly page_size: number
+    private readonly query: string
+    private readonly type: "live" | "video" | "media_bangumi" | "media_ft"
+    private readonly order?: OrderOptions
+    private readonly duration?: 1 | 2 | 3 | 4
+    /**
+     * Whole site search pager supporting many different content types
+     * @param query 
+     * @param initial_page 
+     * @param page_size 
+     * @param type 
+     * @param order 
+     * @param duration 
+     */
+    constructor(
+        query: string,
+        initial_page: number,
+        page_size: number,
+        type: "live" | "video" | "media_bangumi" | "media_ft",
+        order?: OrderOptions,
+        duration?: 1 | 2 | 3 | 4,
+    ) {
+        const raw_response = search_request(query, initial_page, page_size, type, order, duration)
+        const { search_results, more } = extract_search_results(raw_response, type, initial_page, page_size)
+        if (search_results === null) {
+            super([], false)
+        } else {
+            super(format_search_results(search_results), more)
+        }
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.query = query
+        if (order !== undefined) {
+            this.order = order
+        }
+        if (duration !== undefined) {
+            this.duration = duration
+        }
+        this.type = type
+    }
+    override nextPage(this: SearchPager): SearchPager {
+        const raw_response = search_request(this.query, this.next_page, this.page_size, this.type, this.order, this.duration)
+        const { search_results, more } = extract_search_results(raw_response, this.type, this.next_page, this.page_size)
+        if (search_results === null) {
+            this.results = []
+            this.hasMore = false
+        } else {
+            this.results = format_search_results(search_results)
+            this.hasMore = more
+        }
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: SearchPager): boolean {
+        return this.hasMore
+    }
+}
+function search_request(
+    query: string,
+    page: number,
+    page_size: number,
+    type: SearchResultQueryType,
+    order: undefined | OrderOptions,
+    duration: undefined | 1 | 2 | 3 | 4,
+    builder: BatchBuilder
+): BatchBuilder
+function search_request(query: string,
+    page: number,
+    page_size: number,
+    type: SearchResultQueryType,
+    order: undefined | OrderOptions,
+    duration: undefined | 1 | 2 | 3 | 4
+): BridgeHttpResponse
+function search_request(query: string,
+    page: number,
+    page_size: number,
+    type: SearchResultQueryType,
+    order: undefined | OrderOptions,
+    duration: undefined | 1 | 2 | 3 | 4,
+    builder?: BatchBuilder
+): BatchBuilder | BridgeHttpResponse {
+    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type"
+    let params: Params = {
+        search_type: type,
+        page: page.toString(),
+        page_size: page_size.toString(),
+        keyword: query,
+    }
+    if (order !== undefined) {
+        params = { ...params, order }
+    }
+    if (duration !== undefined) {
+        params = { ...params, duration: duration.toString() }
+    }
+    const search_url = create_signed_url(search_prefix, params).toString()
+    const buvid3 = local_storage_cache.buvid3
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        search_url,
+        { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` },
+        false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+/**
+ * 
+ * @param raw_response 
+ * @param type 
+ * @param page 
+ * @param page_size 
+ * @returns SearchResultItems and whether there are more results
+ */
+function extract_search_results(
+    raw_response: BridgeHttpResponse,
+    type: SearchResultQueryType,
+    page: number,
+    page_size: number,
+): { search_results: SearchResultItem[] | null, more: boolean } {
+    if (type === "live") {
+        const results: LiveSearchResponse = JSON.parse(raw_response.body)
+        return {
+            search_results: results.data.result === undefined ? null : results.data.result.live_room,
+            more: results.data.pageinfo.live_room.total > page * page_size
+        }
+    }
+
+    const results: SearchResponse = JSON.parse(raw_response.body)
+    return {
+        search_results: results.data.result === undefined ? null : results.data.result,
+        more: results.data.numResults > page * page_size
+    }
+}
+function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
+    return results.map((item) => {
+        switch (item.type) {
+            case "video": {
+                const url = `${VIDEO_URL_PREFIX}${item.bvid}`
+                const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id)
+                const author_id = new PlatformID(PLATFORM, item.mid.toString(), plugin.config.id)
+
+                const duration = parse_minutes_seconds(item.duration)
+                return new PlatformVideo({
+                    id: video_id,
+                    name: item.title,
+                    url: url,
+                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author: new PlatformAuthorLink(
+                        author_id,
+                        item.author,
+                        `${SPACE_URL_PREFIX}${item.mid}`,
+                        item.upic,
+                        local_storage_cache.space_cache.get(item.mid)?.num_fans),
+                    duration,
+                    viewCount: item.play,
+                    isLive: false,
+                    shareUrl: url,
+                    uploadDate: item.pubdate
+                })
+            }
+            case "live_room": {
+                const url = `${LIVE_ROOM_URL_PREFIX}${item.roomid}`
+                const video_id = new PlatformID(PLATFORM, item.roomid.toString(), plugin.config.id)
+                const author_id = new PlatformID(PLATFORM, item.uid.toString(), plugin.config.id)
+                return new PlatformVideo({
+                    id: video_id,
+                    name: item.title,
+                    url: url,
+                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author: new PlatformAuthorLink(
+                        author_id,
+                        item.uname,
+                        `${SPACE_URL_PREFIX}${item.uid}`,
+                        `https:${item.uface}`,
+                        local_storage_cache.space_cache.get(item.uid)?.num_fans),
+                    viewCount: item.watched_show.num,
+                    isLive: true,
+                    shareUrl: url,
+                    // TODO assumes China timezone
+                    uploadDate: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
+                })
+            }
+            // TODO once the main search results support playlists courses and shows should return playlists
+            case "ketang": {
+                const season_id = item.id
+                const course_response: CourseResponse = JSON.parse(course_request({ type: "season", id: season_id }).body)
+                const season = format_course(season_id, course_response)
+                const episode = season.contents.results[0]
+                if (episode === undefined) {
+                    throw new ScriptException("missing episodes")
+                }
+                return episode
+            }
+            case "media_bangumi": {
+                const first_episode = item.eps[0]
+                if (first_episode === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
+                const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
+                return new PlatformVideo({
+                    id: video_id,
+                    name: item.title,
+                    url: url,
+                    // TODO figure out if we should include both thumbnails
+                    thumbnails: new Thumbnails([
+                        new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY),
+                        new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)
+                    ]),
+                    author: EMPTY_AUTHOR,
+                    viewCount: HARDCODED_ZERO,
+                    isLive: false,
+                    shareUrl: url,
+                    // TODO assumes China timezone
+                    uploadDate: item.pubtime
+                })
+            }
+            case "media_ft": {
+                let first_episode
+                if (item.eps === null) {
+                    if (item.ep_size !== 0) {
+                        throw new ScriptException("unreachable")
+                    }
+                    const url = item.url
+                    const { content_id } = parse_content_details_url(url)
+
+                    first_episode = {
+                        cover: undefined,
+                        id: parseInt(content_id)
+                    }
+                } else {
+                    first_episode = item.eps[0]
+                }
+                if (first_episode === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
+                const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
+                const thumbnails = [new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)]
+                if (first_episode.cover !== undefined) {
+                    thumbnails.push(new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY))
+                }
+                return new PlatformVideo({
+                    id: video_id,
+                    name: item.title,
+                    url: url,
+                    // TODO figure out if we should include both thumbnails
+                    thumbnails: new Thumbnails(thumbnails),
+                    author: EMPTY_AUTHOR,
+                    viewCount: HARDCODED_ZERO,
+                    isLive: false,
+                    shareUrl: url,
+                    // TODO assumes China timezone
+                    uploadDate: item.pubtime
+                })
+            }
+            case "bili_user":
+                throw new ScriptException("unreachable")
+            default:
+                throw assert_no_fall_through(item, "unreachable")
+        }
+    })
+}
+//#endregion
+
+//#region channel
 function searchChannels(query: string) {
     return new SpacePager(query, 1, 36)
 }
+class SpacePager extends ChannelPager {
+    private readonly query: string
+    private next_page: number
+    private readonly page_size: number
+    constructor(query: string, initial_page: number, page_size: number) {
+        const raw_response = search_request(query, initial_page, page_size, "bili_user", undefined, undefined)
+        const { search_results, more } = extract_search_results(raw_response, "bili_user", initial_page, page_size)
+        if (search_results === null) {
+            super([], false)
+        } else {
+            super(format_space_results(search_results), more)
+        }
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.query = query
+    }
+    override nextPage(this: SpacePager): SpacePager {
+        const raw_response = search_request(this.query, this.next_page, this.page_size, "bili_user", undefined, undefined)
+        const { search_results, more } = extract_search_results(raw_response, "bili_user", this.next_page, this.page_size)
+        if (search_results === null) {
+            throw new ScriptException("unreachable")
+        }
+        this.hasMore = more
+        this.results = format_space_results(search_results)
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: SpacePager): boolean {
+        return this.hasMore
+    }
+}
+function format_space_results(space_search_results: SearchResultItem[]): PlatformChannel[] {
+    return space_search_results.map((result) => {
+        if (result.type !== "bili_user") {
+            throw new ScriptException("unreachable")
+        }
+        return new PlatformChannel({
+            id: new PlatformID(PLATFORM, result.mid.toString(), plugin.config.id),
+            name: result.uname,
+            thumbnail: `https:${result.upic}`,
+            subscribers: result.fans,
+            description: result.usign,
+            url: `${SPACE_URL_PREFIX}${result.mid}`
+        })
+    })
+}
 // example of handled urls
 // https://space.bilibili.com/491461718
-source.isChannelUrl = isChannelUrl
 function isChannelUrl(url: string) {
     // Some playlist urls are also Space urls
     // for example
@@ -169,7 +960,6 @@ function isChannelUrl(url: string) {
     }
     return SPACE_URL_REGEX.test(url)
 }
-source.getChannel = getChannel
 function getChannel(url: string) {
     const space_id = parse_space_url(url)
 
@@ -211,7 +1001,62 @@ function getChannel(url: string) {
         url: `${SPACE_URL_PREFIX}${space_id}`,
     })
 }
-source.getChannelCapabilities = getChannelCapabilities
+function parse_space_url(url: string) {
+    const match_results = url.match(SPACE_URL_REGEX)
+    if (match_results === null) {
+        throw new ScriptException(`malformed space url: ${url}`)
+    }
+    const maybe_space_id = match_results[1]
+    if (maybe_space_id === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const space_id = parseInt(maybe_space_id)
+    return space_id
+}
+function fan_count_request(space_id: number, builder: BatchBuilder): BatchBuilder
+function fan_count_request(space_id: number): BridgeHttpResponse
+function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const space_stat_url_prefix = "https://api.bilibili.com/x/relation/stat"
+    const url = create_url(
+        space_stat_url_prefix,
+        {
+            vmid: space_id.toString()
+        }).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function space_request(space_id: number, builder: BatchBuilder): BatchBuilder
+function space_request(space_id: number): BridgeHttpResponse
+function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const space_stat_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info"
+    const params: Params = {
+        mid: space_id.toString(),
+    }
+    const url = create_signed_url(space_stat_url_prefix, params).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        url,
+        {
+            Referer: "https://www.bilibili.com",
+            Host: "api.bilibili.com",
+            "User-Agent": USER_AGENT,
+            Cookie: `buvid3=${local_storage_cache.buvid3}`
+        },
+        false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+//#endregion
+
+//#region channel contents
 function getChannelCapabilities() {
     return new ResultCapabilities<FilterGroupIDs, ChannelTypeCapabilities>([
         Type.Feed.Collections,
@@ -226,7 +1071,6 @@ function getChannelCapabilities() {
         Type.Order.Views
     ], [])
 }
-source.getChannelContents = getChannelContents
 function getChannelContents(
     url: string,
     type: ChannelTypeCapabilities | null,
@@ -258,6 +1102,10 @@ function getChannelContents(
             return new SpaceCollectionsContentPager(space_id, 1, 20)
         case Type.Feed.Courses:
             return new SpaceCoursesContentPager(space_id, 1, 15)
+        case Type.Feed.Videos:
+            return new SpaceVideosContentPager(space_id, 1, 25, order === null ? Type.Order.Chronological : order)
+        case Type.Feed.Posts:
+            return new SpacePostsContentPager(space_id)
         case Type.Feed.Favorites: {
             let space_info = local_storage_cache.space_cache.get(space_id)
             let space_favorites_response: SpaceFavoritesResponse
@@ -358,14 +1206,831 @@ function getChannelContents(
                 : []
             return new VideoPager(live_room, false)
         }
-        case Type.Feed.Posts:
-            return new SpacePostsContentPager(space_id)
-        case Type.Feed.Videos:
-            return new SpaceVideosContentPager(space_id, 1, 25, order === null ? Type.Order.Chronological : order)
         default:
             throw assert_no_fall_through(type, "unreachable")
     }
 }
+class SpaceCollectionsContentPager extends PlaylistPager {
+    private next_page: number
+    private readonly page_size: number
+    private readonly space_info: CoreSpaceInfo
+    private readonly space_id: number
+    constructor(space_id: number, initial_page: number, page_size: number,) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let space_collections_response: SpaceCollectionsResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpaceCollectionsResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [
+                    {
+                        request(builder) {
+                            return space_collections_request(space_id, initial_page, page_size, builder)
+                        },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return space_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }
+                ]
+            const results = execute_requests(requests)
+            const space = results[1]
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            space_collections_response = results[0]
+        } else {
+            space_collections_response = JSON.parse(space_collections_request(space_id, initial_page, page_size).body)
+        }
+
+        const has_more = space_collections_response.data.items_lists.page.total > initial_page * page_size
+        super(
+            format_space_collections(space_collections_response, space_id, space_info),
+            has_more
+        )
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.space_id = space_id
+        this.space_info = space_info
+    }
+    override nextPage(this: SpaceCollectionsContentPager): SpaceCollectionsContentPager {
+        const space_collections_response: SpaceCollectionsResponse = JSON.parse(space_collections_request(this.space_id, this.next_page, this.page_size).body)
+
+        this.results = format_space_collections(space_collections_response, this.space_id, this.space_info)
+
+        this.hasMore = space_collections_response.data.items_lists.page.total > this.next_page * this.page_size
+        this.next_page += 1
+
+        return this
+    }
+    override hasMorePagers(this: SpaceCollectionsContentPager): boolean {
+        return this.hasMore
+    }
+}
+function space_collections_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function space_collections_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
+function space_collections_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_series_list"
+    const params: Params = {
+        mid: space_id.toString(),
+        page_num: page.toString(),
+        page_size: page_size.toString()
+    }
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        create_signed_url(collection_prefix, params).toString(),
+        { Cookie: `buvid3=${local_storage_cache.buvid3}` },
+        false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_space_collections(space_collections_response: SpaceCollectionsResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    return space_collections_response.data.items_lists.seasons_list.map((season) => {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
+            name: season.meta.name,
+            author,
+            url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${season.meta.season_id}`,
+            videoCount: season.meta.total,
+            thumbnail: season.meta.cover
+        })
+    }).concat(
+        space_collections_response.data.items_lists.series_list.map((series) => {
+            return new PlatformPlaylist({
+                id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
+                name: series.meta.name,
+                author,
+                url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series.meta.series_id}`,
+                videoCount: series.meta.total,
+                thumbnail: series.meta.cover
+            })
+        }))
+}
+class SpaceCoursesContentPager extends PlaylistPager {
+    private next_page: number
+    private readonly page_size: number
+    private readonly space_info: CoreSpaceInfo
+    private readonly space_id: number
+    constructor(space_id: number, initial_page: number, page_size: number,) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let space_courses_response: SpaceCoursesResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpaceCoursesResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [
+                    {
+                        request(builder) { return space_courses_request(space_id, initial_page, page_size, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return space_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }
+                ]
+            const results = execute_requests(requests)
+            const space = results[1]
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            space_courses_response = results[0]
+        } else {
+            space_courses_response = JSON.parse(space_courses_request(space_id, initial_page, page_size).body)
+        }
+
+        const has_more = space_courses_response.data.page.next
+        super(
+            format_space_courses(space_courses_response, space_id, space_info),
+            has_more
+        )
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.space_id = space_id
+        this.space_info = space_info
+    }
+    override nextPage(this: SpaceCoursesContentPager): SpaceCoursesContentPager {
+        const space_courses_response: SpaceCoursesResponse = JSON.parse(space_courses_request(this.space_id, this.next_page, this.page_size).body)
+
+        this.results = format_space_courses(space_courses_response, this.space_id, this.space_info)
+
+        this.hasMore = space_courses_response.data.page.next
+        this.next_page += 1
+
+        return this
+    }
+    override hasMorePagers(this: SpaceCoursesContentPager): boolean {
+        return this.hasMore
+    }
+}
+function space_courses_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function space_courses_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
+function space_courses_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const course_prefix = "https://api.bilibili.com/pugv/app/web/season/page"
+    const params: Params = {
+        mid: space_id.toString(),
+        pn: page.toString(),
+        ps: page_size.toString()
+    }
+    const url = create_url(course_prefix, params).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_space_courses(space_courses_response: SpaceCoursesResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    return space_courses_response.data.items.map((course) => {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
+            name: course.title,
+            author,
+            url: `${COURSE_URL_PREFIX}${course.season_id}`,
+            videoCount: course.ep_count,
+            thumbnail: course.cover
+        })
+    })
+}
+class SpaceVideosContentPager extends VideoPager {
+    private readonly page_size: number
+    private next_page: number
+    private readonly space_info: CoreSpaceInfo
+    private readonly space_id: number
+    constructor(space_id: number, initial_page: number, page_size: number, order: Order) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let space_videos_response: SpaceVideosSearchResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<MaybeSpaceVideosSearchResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [{
+                request(builder) {
+                    return space_videos_request(
+                        space_id,
+                        initial_page,
+                        page_size,
+                        undefined,
+                        order,
+                        builder)
+                },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) { return space_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) { return fan_count_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }]
+            const results = execute_requests(requests)
+            const space = results[1]
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            if (results[0].code === -352) {
+                throw new ScriptException("rate limited")
+            }
+            space_videos_response = results[0]
+
+        } else {
+            const maybe_space_videos_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+                space_id,
+                initial_page,
+                page_size,
+                undefined,
+                undefined).body)
+            if (maybe_space_videos_response.code === -352) {
+                throw new ScriptException("rate limited")
+            }
+            space_videos_response = maybe_space_videos_response
+
+        }
+
+        const has_more = space_videos_response.data.page.count > initial_page * page_size
+        super(
+            format_space_videos(space_videos_response, space_id, space_info),
+            has_more
+        )
+        this.next_page = 2
+        this.space_id = space_id
+        this.page_size = page_size
+        this.space_info = space_info
+    }
+    override nextPage(this: SpaceVideosContentPager): SpaceVideosContentPager {
+        const maybe_space_videos_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+            this.space_id,
+            this.next_page,
+            this.page_size,
+            undefined,
+            undefined).body)
+        if (maybe_space_videos_response.code === -352) {
+            throw new ScriptException("rate limited")
+        }
+        const space_search_response: SpaceVideosSearchResponse = maybe_space_videos_response
+
+        this.results = format_space_videos(space_search_response, this.space_id, this.space_info)
+
+        this.hasMore = space_search_response.data.page.count > this.next_page * this.page_size
+        this.next_page += 1
+
+        return this
+    }
+    override hasMorePagers(this: SpaceVideosContentPager): boolean {
+        return this.hasMore
+    }
+}
+// TODO if we can get cid caching working then use this api to load the cids for all videos and cache them
+// https://api.bilibili.com/x/v3/fav/resource/infos
+// it's used when viewing a favorites list
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder: BatchBuilder): BatchBuilder
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined): BridgeHttpResponse
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse {
+    const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
+    let params: Params = {
+        mid: space_id.toString(),
+        pn: page.toString(),
+        ps: page_size.toString()
+    }
+    if (order !== undefined) {
+        params = {
+            ...params,
+            order: ((order): OrderOptions => {
+                switch (order) {
+                    case Type.Order.Chronological:
+                        return "pubdate"
+                    case Type.Order.Favorites:
+                        return "stow"
+                    case Type.Order.Views:
+                        return "click"
+                    case "CHRONOLOGICAL":
+                        return "pubdate"
+                    default:
+                        throw new ScriptException(`unhandled ordering ${order}`)
+                }
+            })(order)
+        }
+    }
+    if (keyword !== undefined) {
+        params = { ...params, keyword }
+    }
+    const url = create_signed_url(space_contents_search_prefix, params).toString()
+    const b_nut = local_storage_cache.b_nut
+    const buvid4 = local_storage_cache.buvid4
+    const buvid3 = local_storage_cache.buvid3
+
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client because BiliBili blocks logged out users
+    const result = runner.GET(
+        url,
+        {
+            "User-Agent": USER_AGENT,
+            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
+            Host: "api.bilibili.com",
+        },
+        true)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+
+    return result
+}
+function format_space_videos(space_videos_response: SpaceVideosSearchResponse, space_id: number, space_info: CoreSpaceInfo): PlatformVideo[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    return space_videos_response.data.list.vlist.map((space_video) => {
+        const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`
+        const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id)
+
+        const duration = parse_minutes_seconds(space_video.length)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: space_video.title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(space_video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+            author,
+            duration,
+            viewCount: space_video.play === "--" ? 0 : space_video.play,
+            isLive: false,
+            shareUrl: url,
+            uploadDate: space_video.created
+        })
+    })
+}
+class SpacePostsContentPager extends ContentPager {
+    private posts_offset: number
+    private readonly space_info: CoreSpaceInfo
+    private readonly space_id: number
+    constructor(space_id: number) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let space_posts_response: SpacePostsResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpacePostsResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [
+                    {
+                        request(builder) { return space_posts_request(space_id, undefined, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return space_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }
+                ]
+            const results = execute_requests(requests)
+            const space = results[1]
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            space_posts_response = results[0]
+        } else {
+            space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body)
+        }
+
+        const has_more = space_posts_response.data.has_more
+        super(
+            format_space_posts(space_posts_response, space_id, space_info),
+            has_more
+        )
+        this.posts_offset = space_posts_response.data.offset
+        this.space_id = space_id
+        this.space_info = space_info
+    }
+    override nextPage(this: SpacePostsContentPager): SpacePostsContentPager {
+        const space_posts_response: SpacePostsResponse = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body)
+
+        this.results = format_space_posts(space_posts_response, this.space_id, this.space_info)
+
+        this.hasMore = space_posts_response.data.has_more
+        this.posts_offset = space_posts_response.data.offset
+
+        return this
+    }
+    override hasMorePagers(this: SpacePostsContentPager): boolean {
+        return this.hasMore
+    }
+}
+function space_posts_request(space_id: number, offset: number | undefined, builder: BatchBuilder): BatchBuilder
+function space_posts_request(space_id: number, offset: number | undefined): BridgeHttpResponse
+function space_posts_request(space_id: number, offset: number | undefined, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const space_post_feed_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
+    const params: Params = offset ? {
+        host_mid: space_id.toString(),
+        offset: offset.toString()
+    } : {
+        host_mid: space_id.toString()
+    }
+    const url = create_signed_url(space_post_feed_prefix, params).toString()
+
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(
+        url,
+        {
+            Host: "api.bilibili.com",
+            Cookie: `buvid3=${local_storage_cache.buvid3}`,
+            Referer: "https://space.bilibili.com",
+            "User-Agent": USER_AGENT
+        },
+        false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_space_posts(space_posts_response: SpacePostsResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPost[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    return space_posts_response.data.items.map((space_post) => {
+        const desc = space_post.modules.module_dynamic.desc
+        const images: string[] = []
+        const thumbnails: Thumbnails[] = []
+
+        const primary_content = desc?.rich_text_nodes.map(
+            (node) => { return format_text_node(node, images, thumbnails) }
+        ).join("")
+
+        const major = space_post.modules.module_dynamic.major
+        const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
+
+        const topic = space_post.modules.module_dynamic.topic
+        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
+
+        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
+
+        return new PlatformPostDetails({
+            thumbnails,
+            images,
+            description: content,
+            // as far as i can tell posts don't have names
+            name: MISSING_NAME,
+            url: `${POST_URL_PREFIX}${space_post.id_str}`,
+            id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
+            rating: new RatingLikes(space_post.modules.module_stat.like.count),
+            textType: Type.Text.HTML,
+            author,
+            content,
+            datetime: space_post.modules.module_author.pub_ts
+        })
+    })
+}
+// note there is another section on the page https://space.bilibili.com/<space_id>/favlist
+// that has the users collected playlists. those are playlists created by others that the user has saved
+// we won't load these into the feed because they aren't their playlists
+function space_favorites_request(space_id: number, builder: BatchBuilder): BatchBuilder
+function space_favorites_request(space_id: number): BridgeHttpResponse
+function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const favorites_prefix = "https://api.bilibili.com/x/v3/fav/folder/created/list-all"
+    const params: Params = {
+        up_mid: space_id.toString()
+    }
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client so logged in users can view their private favorites lists
+    const result = runner.GET(
+        create_url(favorites_prefix, params).toString(),
+        { "User-Agent": USER_AGENT },
+        true
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_space_favorites(space_favorites_response: SpaceFavoritesResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
+        return space_favorites_response.data.list.map((favorite_list) => {
+            return new PlatformPlaylist({
+                id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
+                name: favorite_list.title,
+                author,
+                url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
+                videoCount: favorite_list.media_count,
+                // thumbnail: TODO MISSING_THUMBNAIL
+            })
+        })
+    }
+    return []
+}
+// TODO the order and filtering only applies to videos not posts but there is not a way of specifying that
+function getSearchChannelContentsCapabilities() {
+    // TODO there are filter options but they only show up after a search has been returned
+    return new ResultCapabilities<FilterGroupIDs, ChannelSearchTypeCapabilities>(
+        [Type.Feed.Videos, Type.Feed.Posts],
+        [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
+        [new FilterGroup(
+            "Additional Content",
+            [
+                new FilterCapability("Videos", "VIDEOS", "Videos"),
+                new FilterCapability("Posts", "POSTS", "Posts")
+            ],
+            false,
+            "ADDITIONAL_CONTENT"
+        )]
+    )
+}
+function searchChannelContents(space_url: string, query: string, type: ChannelSearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
+    if (type === null) {
+        if (filters === null) {
+            return new ContentPager([], false)
+        }
+        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
+            case "VIDEOS":
+                type = Type.Feed.Videos
+                break
+            case "POSTS":
+                type = Type.Feed.Posts
+                break
+            case undefined:
+                // log("BiliBili log: missing feed type defaulting to VIDEOS")
+                // type = Type.Feed.Videos
+                log("BiliBili log: missing feed type defaulting to POSTS")
+                type = Type.Feed.Posts
+                break
+            default:
+                throw new ScriptException("unreachable")
+        }
+    }
+    if (order !== null && type !== Type.Feed.Videos) {
+        log("BiliBili log: order only applies to videos")
+    }
+    if (order === null) {
+        order = Type.Order.Chronological
+    }
+    const space_id = parse_space_url(space_url)
+
+    const page_size = 30 as const
+    const initial_page = 1 as const
+
+    order = order === null ? Type.Order.Chronological : order
+
+    switch (type) {
+        case Type.Feed.Posts:
+            return new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
+        case Type.Feed.Videos:
+            return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
+        default:
+            throw new ScriptException(`unhandled feed type ${type}`)
+    }
+}
+class ChannelPostsResultsPager extends ContentPager {
+    private next_page: number
+    private readonly page_size: number
+    private readonly space_id: number
+    private readonly query: string
+    constructor(query: string, space_id: number, initial_page: number, page_size: number) {
+        const response = search_space_posts(query, space_id, initial_page, page_size)
+        const more = response.data.total > initial_page * page_size
+        super(format_post_search_result(response), more)
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.space_id = space_id
+        this.query = query
+    }
+    override nextPage(this: ChannelPostsResultsPager): ChannelPostsResultsPager {
+        const response = search_space_posts(this.query, this.space_id, this.next_page, this.page_size)
+        this.results = format_post_search_result(response)
+        this.hasMore = response.data.total > this.next_page * this.page_size
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: ChannelPostsResultsPager): boolean {
+        return this.hasMore
+    }
+}
+function search_space_posts(query: string, space_id: number, page: number, page_size: number): SpacePostsSearchResponse {
+    const space_contents_search_prefix = "https://api.bilibili.com/x/space/dynamic/search"
+    const params: Params = {
+        mid: space_id.toString(),
+        keyword: query,
+        pn: page.toString(),
+        ps: page_size.toString(),
+    }
+    const url = create_url(space_contents_search_prefix, params).toString()
+
+    const now = Date.now()
+    const json = local_http.GET(
+        url,
+        {},
+        false).body
+    log_network_call(now)
+
+    const search_response: SpacePostsSearchResponse = JSON.parse(json)
+    return search_response
+}
+// TODO the post search results are really hard to parse. might be best to just load whole posts
+// directly
+function format_post_search_result(response: SpacePostsSearchResponse): PlatformPost[] {
+    const space_posts_response = response
+    if (space_posts_response.data.cards === null) {
+        return []
+    }
+    return space_posts_response.data.cards.map((card) => {
+        const post: Card = JSON.parse(card.card)
+        const space_id = card.desc.user_profile.info.uid
+        const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+        const author = new PlatformAuthorLink(
+            author_id,
+            card.desc.user_profile.info.uname,
+            `${SPACE_URL_PREFIX}${space_id}`,
+            card.desc.user_profile.info.face,
+            local_storage_cache.space_cache.get(space_id)?.num_fans
+        )
+        return new PlatformPost({
+            thumbnails: [new Thumbnails([])],
+            images: [],
+            description: post.item?.content ?? post.item?.description ?? "",
+            // as far as i can tell posts don't have names
+            name: MISSING_NAME,
+            url: `${POST_URL_PREFIX}${card.desc.dynamic_id_str}`,
+            id: new PlatformID(PLATFORM, card.desc.dynamic_id_str, plugin.config.id),
+            author,
+            datetime: card.desc.timestamp
+        })
+    })
+}
+class ChannelVideoResultsPager extends ContentPager {
+    private next_page: number
+    private page_size: number
+    private readonly space_id: number
+    private readonly query: string
+    private readonly order: Order
+    private readonly space_info: CoreSpaceInfo
+    constructor(query: string, space_id: number, initial_page: number, page_size: number, order: Order) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let search_response: SpaceVideosSearchResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>,
+                RequestMetadata<MaybeSpaceVideosSearchResponse>
+            ] = [{
+                request(builder) { return space_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) { return fan_count_request(space_id, builder) },
+                process(response) { return JSON.parse(response.body) }
+            }, {
+                request(builder) {
+                    return space_videos_request(space_id, initial_page, page_size, query, order, builder)
+                },
+                process(response) { return JSON.parse(response.body) }
+            }]
+
+            const [space, fan_count_response, local_search_response] = execute_requests(requests)
+            if (local_search_response.code === -352) {
+                throw new ScriptException("rate limited")
+            }
+            search_response = local_search_response
+            space_info = {
+                num_fans: fan_count_response.data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+        } else {
+            const local_search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
+            if (local_search_response.code === -352) {
+                throw new ScriptException("rate limited")
+            }
+            search_response = local_search_response
+        }
+
+        const more = search_response.data.page.count > initial_page * page_size
+        super(format_space_videos(search_response, space_id, space_info), more)
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.space_id = space_id
+        this.query = query
+        this.order = order
+        this.space_info = space_info
+    }
+    override nextPage(this: ChannelVideoResultsPager): ChannelVideoResultsPager {
+        const search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
+        if (search_response.code === -352) {
+            throw new ScriptException("rate lmited")
+        }
+        this.results = format_space_videos(search_response, this.space_id, this.space_info)
+        this.hasMore = search_response.data.page.count > this.next_page * this.page_size
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: ChannelVideoResultsPager): boolean {
+        return this.hasMore
+    }
+}
+//#endregion
+
+//#region content
 // examples of handled urls
 // https://www.bilibili.com/bangumi/play/ep510760
 // https://live.bilibili.com/26386397
@@ -373,275 +2038,30 @@ function getChannelContents(
 // https://www.bilibili.com/opus/916396341363474468
 // https://t.bilibili.com/915034213991841801
 // https://www.bilibili.com/cheese/play/ep1027
-source.isContentDetailsUrl = isContentDetailsUrl
 function isContentDetailsUrl(url: string) {
     return CONTENT_DETAIL_URL_REGEX.test(url)
 }
-// examples of handled urls
-// https://www.bilibili.com/bangumi/play/ss2843
-// https://www.bilibili.com/cheese/play/ss74
-// https://space.bilibili.com/323588182/channel/collectiondetail?sid=2050037
-// https://space.bilibili.com/323588182/channel/seriesdetail?sid=3810720
-// https://space.bilibili.com/491461718/favlist?fid=3153093518
-// https://www.bilibili.com/medialist/detail/ml3153093518
-// https://www.bilibili.com/festival/2022bnj
-// https://www.bilibili.com/watchlater/#/list or https://www.bilibili.com/watchlater/?spm_id_from=333.999.0.0#/list
-source.isPlaylistUrl = isPlaylistUrl
-function isPlaylistUrl(url: string) {
-    return PLAYLIST_URL_REGEX.test(url)
-}
-source.searchPlaylists = searchPlaylists
-function searchPlaylists(query: string) {
-    return new BangumiPager(query, 1, 12)
-}
-source.getPlaylist = getPlaylist
-function getPlaylist(url: string) {
-    const regex_match_result = url.match(PLAYLIST_URL_REGEX)
+function parse_content_details_url(url: string) {
+    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
     if (regex_match_result === null) {
-        throw new ScriptException(`malformed space url: ${url}`)
+        throw new ScriptException(`malformed content url: ${url}`)
     }
-    const maybe_playlist_type: PlaylistType | undefined = regex_match_result[3] as PlaylistType | undefined
-    if (maybe_playlist_type === undefined) {
+    const maybe_subdomain: "live" | "t" | "www" | undefined = regex_match_result[1] as "live" | "t" | "www" | undefined
+    if (maybe_subdomain === undefined) {
         throw new ScriptException("unreachable regex error")
     }
-    const playlist_type = maybe_playlist_type
-    const maybe_playlist_id: string | undefined = regex_match_result[4]
-    if (maybe_playlist_id === undefined) {
+    const subdomain = maybe_subdomain
+    const maybe_content_type: ContentType | undefined = regex_match_result[2] as ContentType | undefined
+    if (maybe_content_type === undefined) {
         throw new ScriptException("unreachable regex error")
     }
-    switch (playlist_type) {
-        case "/channel/collectiondetail?sid=": {
-            const maybe_space_id: string | undefined = regex_match_result[2]
-            if (maybe_space_id === undefined) {
-                throw new ScriptException("unreachable regex error")
-            }
-            const space_id = parseInt(maybe_space_id)
-            const collection_id = parseInt(maybe_playlist_id)
-
-            const page_size = 30
-            const initial_page = 1
-
-            let collection_response: CollectionResponse
-            let space_info = local_storage_cache.space_cache.get(space_id)
-            if (space_info === undefined) {
-                const requests: [
-                    RequestMetadata<SpaceResponse>,
-                    RequestMetadata<{ data: { follower: number } }>,
-                    RequestMetadata<CollectionResponse>
-                ] = [{
-                    request(builder) { return space_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return fan_count_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return collection_request(space_id, collection_id, initial_page, page_size, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }]
-                const results = execute_requests(requests)
-                const [space, fan_info] = [results[0], results[1]]
-                collection_response = results[2]
-                space_info =
-                    space_info = {
-                        num_fans: fan_info.data.follower,
-                        name: space.data.name,
-                        face: space.data.face,
-                        live_room: space.data.live_room === null ? null : {
-                            title: space.data.live_room.title,
-                            roomid: space.data.live_room.roomid,
-                            live_status: space.data.live_room.liveStatus === 1,
-                            cover: space.data.live_room.cover, watched_show: {
-                                num: space.data.live_room.watched_show.num
-                            }
-                        }
-                    }
-                local_storage_cache.space_cache.set(space_id, space_info)
-            } else {
-                const raw_response = collection_request(space_id, collection_id, initial_page, page_size)
-                collection_response = JSON.parse(raw_response.body)
-            }
-
-            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-            const author = new PlatformAuthorLink(
-                author_id,
-                space_info.name,
-                `${SPACE_URL_PREFIX}${space_id}`,
-                space_info.face, space_info.num_fans
-            )
-            const contents = new CollectionContentsPager(
-                space_id,
-                author,
-                collection_id,
-                collection_response,
-                initial_page,
-                page_size
-            )
-
-            return new PlatformPlaylistDetails({
-                id: new PlatformID(PLATFORM, collection_id.toString(), plugin.config.id),
-                name: collection_response.data.meta.name,
-                author,
-                url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${collection_id}`,
-                contents,
-                videoCount: collection_response.data.meta.total,
-            })
-        }
-        case "bangumi/play/ss": {
-            const season_id = parseInt(maybe_playlist_id)
-            const season_response: SeasonResponse = JSON.parse(season_request({ id: season_id, type: "season" }).body)
-            return format_season(season_id, season_response)
-        }
-        case "/channel/seriesdetail?sid=": {
-            const maybe_space_id: string | undefined = regex_match_result[2]
-            if (maybe_space_id === undefined) {
-                throw new ScriptException("unreachable regex error")
-            }
-            const space_id = parseInt(maybe_space_id)
-            const series_id = parseInt(maybe_playlist_id)
-
-            const initial_page = 1
-            const page_size = 30
-
-            let series_response: SeriesResponse
-
-            let space_info = local_storage_cache.space_cache.get(space_id)
-            if (space_info === undefined) {
-                const requests: [
-                    RequestMetadata<SpaceResponse>,
-                    RequestMetadata<{ data: { follower: number } }>,
-                    RequestMetadata<SeriesResponse>
-                ] = [{
-                    request(builder) { return space_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return fan_count_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return series_request(space_id, series_id, initial_page, page_size, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }]
-                const results = execute_requests(requests)
-                const [space, fan_info] = [results[0], results[1]]
-                series_response = results[2]
-                space_info =
-                    space_info = {
-                        num_fans: fan_info.data.follower,
-                        name: space.data.name,
-                        face: space.data.face,
-                        live_room: space.data.live_room === null ? null : {
-                            title: space.data.live_room.title,
-                            roomid: space.data.live_room.roomid,
-                            live_status: space.data.live_room.liveStatus === 1,
-                            cover: space.data.live_room.cover, watched_show: {
-                                num: space.data.live_room.watched_show.num
-                            }
-                        }
-                    }
-                local_storage_cache.space_cache.set(space_id, space_info)
-            } else {
-                const raw_response = series_request(space_id, series_id, initial_page, page_size)
-                series_response = JSON.parse(raw_response.body)
-            }
-
-            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-            const author = new PlatformAuthorLink(
-                author_id,
-                space_info.name,
-                `${SPACE_URL_PREFIX}${space_id}`,
-                space_info.face,
-                space_info.num_fans)
-
-            return new PlatformPlaylistDetails({
-                id: new PlatformID(PLATFORM, series_id.toString(), plugin.config.id),
-                name: MISSING_NAME,
-                author,
-                url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series_id}`,
-                contents: new SeriesContentsPager(space_id, author, series_id, series_response, initial_page, page_size),
-                videoCount: series_response.data.page.total
-            })
-        }
-        case "cheese/play/ss": {
-            const season_id = parseInt(maybe_playlist_id)
-            const course_response: CourseResponse = JSON.parse(course_request({ type: "season", id: season_id }).body)
-            return format_course(season_id, course_response)
-        }
-        case "medialist/detail/ml": {
-            const favorites_id = parseInt(maybe_playlist_id)
-            return format_favorites(load_favorites(favorites_id, 1, 20))
-        }
-        case "/favlist?fid=": {
-            const favorites_id = parseInt(maybe_playlist_id)
-            return format_favorites(load_favorites(favorites_id, 1, 20))
-        }
-        case "festival/": {
-            const festival_id = maybe_playlist_id
-            return format_festival(festival_id, festival_parse(festival_request(festival_id)))
-        }
-        case "watchlater/": {
-            if (!bridge.isLoggedIn()) {
-                throw new LoginRequiredException("Login to view watch later")
-            }
-            const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
-                {
-                    request(builder) { return nav_request(true, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return watch_later_request(true, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }
-            ]
-            const [nav_response, watch_later_response] = execute_requests(requests)
-            const videos = watch_later_response.data.list.map((video) => {
-                const url = `${VIDEO_URL_PREFIX}${video.bvid}`
-
-                // update cid cache
-                local_storage_cache.cid_cache.set(video.bvid, video.cid)
-
-                const video_id = new PlatformID(PLATFORM, video.bvid.toString(), plugin.config.id)
-                const author = new PlatformAuthorLink(
-                    new PlatformID(PLATFORM, video.owner.mid.toString(), plugin.config.id),
-                    video.owner.name,
-                    `${SPACE_URL_PREFIX}${video.owner.mid}`,
-                    video.owner.face,
-                    local_storage_cache.space_cache.get(video.owner.mid)?.num_fans)
-                return new PlatformVideo({
-                    id: video_id,
-                    name: video.title,
-                    url: url,
-                    thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author,
-                    duration: video.duration,
-                    viewCount: video.stat.view,
-                    isLive: false,
-                    shareUrl: url,
-                    uploadDate: video.pubdate
-                })
-            })
-            const first_video = watch_later_response.data.list[0]
-            if (first_video === undefined) {
-                throw new ScriptException("unreachable")
-            }
-
-            const author = new PlatformAuthorLink(
-                new PlatformID(PLATFORM, nav_response.data.mid.toString(), plugin.config.id),
-                nav_response.data.uname,
-                `${SPACE_URL_PREFIX}${nav_response.data.mid}`,
-                nav_response.data.face,
-                local_storage_cache.space_cache.get(nav_response.data.mid)?.num_fans)
-            return new PlatformPlaylistDetails({
-                id: new PlatformID(PLATFORM, WATCH_LATER_ID, plugin.config.id),
-                name: "稍后再看", // Watch Later
-                author,
-                url: WATCH_LATER_URL,
-                contents: new VideoPager(videos, false),
-                videoCount: watch_later_response.data.count,
-            })
-        }
-        default:
-            throw assert_no_fall_through(playlist_type, "unreachable")
+    const content_type = maybe_content_type
+    const maybe_content_id: string | undefined = regex_match_result[3]
+    if (maybe_content_id === undefined) {
+        throw new ScriptException("unreachable regex error")
     }
+    return { subdomain, content_type, content_id: maybe_content_id }
 }
-source.getContentDetails = getContentDetails
 function getContentDetails(url: string) {
     const { subdomain, content_type, content_id } = parse_content_details_url(url)
 
@@ -981,432 +2401,30 @@ function getContentDetails(url: string) {
             throw assert_no_fall_through(subdomain, "unreachable")
     }
 }
-// TODO when we load comments we actually download all the replies.
-// we should cache them so that when getSubComments is called we don't have to make any networks requests
-source.getComments = getComments
-function getComments(url: string): CommentPager<BiliBiliCommentContext> {
-    const { subdomain, content_type, content_id } = parse_content_details_url(url)
-    if (subdomain === "live") {
-        return new CommentPager([], false)
+function livestream_request(room_id: number, builder: BatchBuilder): BatchBuilder
+function livestream_request(room_id: number): BridgeHttpResponse
+function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(`${LIVE_ROOM_URL_PREFIX}${room_id}`, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
     }
-    const [oid, type, context_url] = ((): [number, 1 | 33, string] => {
-        switch (subdomain) {
-            case "t": {
-                const post_id = content_id
-                const post_response = download_post(post_id)
-                return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
-            }
-            case "www":
-                switch (content_type) {
-                    case "bangumi/play/ep": {
-                        const episode_id = parseInt(content_id)
-                        const season_response: SeasonResponse = JSON.parse(season_request({ id: episode_id, type: "episode" }).body)
-                        const episode_info = season_response.result.episodes.find((episode) => episode.ep_id === episode_id)
-                        if (episode_info === undefined) {
-                            throw new ScriptException("season missing episode")
-                        }
-                        return [episode_info.aid, 1, `${EPISODE_URL_PREFIX}${episode_id}`]
-                    }
-                    case "cheese/play/ep": {
-                        const episode_id = parseInt(content_id)
-                        return [episode_id, 33, `${COURSE_EPISODE_URL_PREFIX}${episode_id}`]
-                    }
-                    case "opus/": {
-                        const post_id = content_id
-                        const post_response = download_post(post_id)
-                        return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
-                    }
-                    case "video/": {
-                        const video_id = content_id
-                        const video_info: VideoDetailResponse = JSON.parse(video_detail_request(video_id).body)
-                        return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`]
-                    }
-                    default:
-                        throw assert_no_fall_through(content_type, "unreachable")
-                }
-            default:
-                throw assert_no_fall_through(subdomain, "unreachable")
-        }
-    })()
-
-    const pager = new BiliBiliCommentPager(context_url, oid, type, 1)
-    return pager
+    return result
 }
-source.getSubComments = getSubComments
-function getSubComments(parent_comment: PlatformComment<BiliBiliCommentContext>): CommentPager<BiliBiliCommentContext> {
-    const oid = parseInt(parent_comment.context.oid)
-    const rpid = parseInt(parent_comment.context.rpid)
-    const type = parent_comment.context.type
-    return new SubCommentPager(rpid, oid, type, parent_comment.contextUrl, 1, 20)
-}
-// TODO the order and filtering only applies to videos not posts but there is not a way of specifying that
-source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities
-function getSearchChannelContentsCapabilities() {
-    // TODO there are filter options but they only show up after a search has been returned
-    return new ResultCapabilities<FilterGroupIDs, ChannelSearchTypeCapabilities>(
-        [Type.Feed.Videos, Type.Feed.Posts],
-        [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
-        [new FilterGroup(
-            "Additional Content",
-            [
-                new FilterCapability("Videos", "VIDEOS", "Videos"),
-                new FilterCapability("Posts", "POSTS", "Posts")
-            ],
-            false,
-            "ADDITIONAL_CONTENT"
-        )]
-    )
-}
-source.searchChannelContents = searchChannelContents
-function searchChannelContents(space_url: string, query: string, type: ChannelSearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
-    if (type === null) {
-        if (filters === null) {
-            return new ContentPager([], false)
-        }
-        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-            case "VIDEOS":
-                type = Type.Feed.Videos
-                break
-            case "POSTS":
-                type = Type.Feed.Posts
-                break
-            case undefined:
-                // log("BiliBili log: missing feed type defaulting to VIDEOS")
-                // type = Type.Feed.Videos
-                log("BiliBili log: missing feed type defaulting to POSTS")
-                type = Type.Feed.Posts
-                break
-            default:
-                throw new ScriptException("unreachable")
-        }
-    }
-    if (order !== null && type !== Type.Feed.Videos) {
-        log("BiliBili log: order only applies to videos")
-    }
-    if (order === null) {
-        order = Type.Order.Chronological
-    }
-    const space_id = parse_space_url(space_url)
-
-    const page_size = 30 as const
-    const initial_page = 1 as const
-
-    order = order === null ? Type.Order.Chronological : order
-
-    switch (type) {
-        case Type.Feed.Posts:
-            return new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
-        case Type.Feed.Videos:
-            return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
-        default:
-            throw new ScriptException(`unhandled feed type ${type}`)
-    }
-}
-source.getSearchCapabilities = getSearchCapabilities
-function getSearchCapabilities() {
-    return new ResultCapabilities<FilterGroupIDs, SearchTypeCapabilities>(
-        [Type.Feed.Videos, Type.Feed.Live, Type.Feed.Movies, Type.Feed.Shows],
-        [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
-        // TODO implement category filtering
-        [new FilterGroup(
-            "期间", // Duration
-            [
-                new FilterCapability("全部时长", "0", "全部时长"), // full duration
-                new FilterCapability("10分钟以下", "1", "10分钟以下"), // Under 10 minutes
-                new FilterCapability("10-30分钟", "2", "10-30分钟"), // 10-30 minutes
-                new FilterCapability("30-60分钟", "3", "30-60分钟"), // 30-60 minutes
-                new FilterCapability("60分钟以上", "4", "60分钟以上"), // More than 60 minutes
-            ],
-            false,
-            "DURATION_FILTER"
-        ),
-        new FilterGroup(
-            "Additional Content",
-            [
-                new FilterCapability("Live Rooms", "LIVE", "Live Rooms"),
-                new FilterCapability("Videos", "VIDEOS", "Videos"),
-                new FilterCapability("Shows", "SHOWS", "Shows"),
-                new FilterCapability("Movies", "MOVIES", "Movies")
-            ],
-            false,
-            "ADDITIONAL_CONTENT"
-        )]
-    )
-}
-source.search = search
-function search(query: string, type: SearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
-    if (type === null) {
-        if (filters === null) {
-            return new ContentPager([], false)
-        }
-        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-            case "VIDEOS":
-                type = Type.Feed.Videos
-                break
-            case "LIVE":
-                type = Type.Feed.Live
-                break
-            case "MOVIES":
-                type = Type.Feed.Movies
-                break
-            case "SHOWS":
-                type = Type.Feed.Shows
-                break
-            case undefined:
-                type = Type.Feed.Videos
-                log("BiliBili log: missing feed type defaulting to VIDEOS")
-                break
-            default:
-                throw new ScriptException("unreachable")
-        }
-    }
-
-    const query_type = ((type) => {
-        switch (type) {
-            case "LIVE":
-                return "live"
-            case "SHOWS":
-                return "media_bangumi"
-            case "MOVIES":
-                return "media_ft"
-            case "VIDEOS":
-                return "video"
-            default:
-                throw new ScriptException(`unhandled feed type ${type}`)
-        }
-    })(type)
-
-    const query_order: OrderOptions | undefined = ((order) => {
-        switch (order) {
-            case null:
-                return undefined
-            case Type.Order.Chronological:
-                return "pubdate"
-            case Type.Order.Views:
-                return "click"
-            case Type.Order.Favorites:
-                return "stow"
-            default:
-                throw new ScriptException(`unhandled feed order ${order}`)
-        }
-    })(order)
-
-    const duration = ((filters) => {
-        const filter = filters["DURATION_FILTER"]
-        if (filter === undefined) {
-            return undefined
-        }
-        const value = filter[0]
-        if (value === undefined) {
-            return undefined
-        }
-        switch (value) {
-            case "0":
-                return undefined
-            case "1":
-                return 1
-            case "2":
-                return 2
-            case "3":
-                return 3
-            case "4":
-                return 4
-            default:
-                throw new ScriptException(`unhandled feed filter ${filters}`)
-        }
-    })(filters)
-
-    return new SearchPager(query, 1, 42, query_type, query_order, duration)
-}
-
-source.getLiveChatWindow = getLiveChatWindow
-/**
- * this doesn't really work. we probably need to use getLiveEvents instead
- * the elements don't get removed for some reason
- * and there is weird height code such that even if we were able to delete the elements the comments
- * likely wouldn't fill the whole screen
- * we should load the chat history from
- * (mobile browser)
- * https://api.live.bilibili.com/AppRoom/msg?room_id=26386397
- * or
- * (desktop browser)
- * https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=26386397
- * or figure out how to use the websockets to load chat in realtime
- * https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
- * wss://hw-sg-live-comet-02.chat.bilibili.com/sub
- * @param url 
- * @returns 
- */
-function getLiveChatWindow(url: string) {
-    log("BiliBili log: live chatting")
-    return {
-        url,
-        removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
-    }
-}
-source.getUserSubscriptions = getUserSubscriptions
-function getUserSubscriptions() {
-    if (!bridge.isLoggedIn()) {
+function livestream_process(raw_live_response: BridgeHttpResponse): LiveResponse {
+    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=(.*?)<\/script>/
+    const match_result = raw_live_response.body.match(live_regex)
+    if (match_result === null) {
         throw new ScriptException("unreachable")
     }
-    const nav_response: LoggedInNavResponse = JSON.parse(nav_request(true).body)
-    const subscriptions: string[] = []
-    let total = Number.MAX_SAFE_INTEGER
-    let page = 1
-    const page_size = 20
-    while (total > page * page_size) {
-        const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body)
-        total = subscriptions_response.data.total
-        subscriptions.push(...subscriptions_response.data.list.map((subscription) => `${SPACE_URL_PREFIX}${subscription.mid}`))
-        page += 1
-    }
-
-    return subscriptions
-}
-source.getUserPlaylists = getUserPlaylists
-function getUserPlaylists() {
-    if (!bridge.isLoggedIn()) {
+    const json = match_result[1]
+    if (json === undefined) {
         throw new ScriptException("unreachable")
     }
-    const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
-        {
-            request(builder) { return nav_request(true, builder) },
-            process(response) { return JSON.parse(response.body) }
-        }, {
-            request(builder) { return watch_later_request(true, builder) },
-            process(response) { return JSON.parse(response.body) }
-        }
-    ]
-    const [nav_response, watch_later_response] = execute_requests(requests)
-    const favorites_response: SpaceFavoritesResponse = JSON.parse(space_favorites_request(nav_response.data.mid).body)
-
-    const playlists: string[] = favorites_response.data?.list?.map((list) => {
-        return `${FAVORITES_URL_PREFIX}${list.id}`
-    }) ?? []
-    if (watch_later_response.data.count > 0) {
-        playlists.push(WATCH_LATER_URL)
-    }
-    return playlists
+    const response: LiveResponse = JSON.parse(json)
+    return response
 }
-
-if (IS_TESTING) {
-    const assert_source: BiliBiliSource = {
-        enable,
-        disable,
-        saveState,
-        getHome,
-        searchSuggestions,
-        search,
-        getSearchCapabilities,
-        isContentDetailsUrl,
-        getContentDetails,
-        isChannelUrl,
-        getChannel,
-        getChannelContents,
-        getChannelCapabilities,
-        searchChannelContents,
-        getSearchChannelContentsCapabilities,
-        searchChannels,
-        getComments,
-        getSubComments,
-        isPlaylistUrl,
-        getPlaylist,
-        searchPlaylists,
-        getLiveChatWindow,
-        getUserPlaylists,
-        getUserSubscriptions
-    }
-    if (source.enable === undefined) { assert_never(source.enable) }
-    if (source.disable === undefined) { assert_never(source.disable) }
-    if (source.saveState === undefined) { assert_never(source.saveState) }
-    if (source.getHome === undefined) { assert_never(source.getHome) }
-    if (source.searchSuggestions === undefined) { assert_never(source.searchSuggestions) }
-    if (source.search === undefined) { assert_never(source.search) }
-    if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
-    if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
-    if (source.getContentDetails === undefined) { assert_never(source.getContentDetails) }
-    if (source.isChannelUrl === undefined) { assert_never(source.isChannelUrl) }
-    if (source.getChannel === undefined) { assert_never(source.getChannel) }
-    if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
-    if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
-    if (source.searchChannelContents === undefined) { assert_never(source.searchChannelContents) }
-    if (source.getSearchChannelContentsCapabilities === undefined) { assert_never(source.getSearchChannelContentsCapabilities) }
-    if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
-    if (source.getComments === undefined) { assert_never(source.getComments) }
-    if (source.getSubComments === undefined) { assert_never(source.getSubComments) }
-    if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
-    if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
-    if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
-    if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
-    if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
-    if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
-    if (IS_TESTING) {
-        log(assert_source)
-    }
-}
-//#endregion
-
-//#region Core logic
-class SearchPager extends VideoPager {
-    private next_page: number
-    private readonly page_size: number
-    private readonly query: string
-    private readonly type: "live" | "video" | "media_bangumi" | "media_ft"
-    private readonly order?: OrderOptions
-    private readonly duration?: 1 | 2 | 3 | 4
-    /**
-     * Whole site search pager supporting many different content types
-     * @param query 
-     * @param initial_page 
-     * @param page_size 
-     * @param type 
-     * @param order 
-     * @param duration 
-     */
-    constructor(
-        query: string,
-        initial_page: number,
-        page_size: number,
-        type: "live" | "video" | "media_bangumi" | "media_ft",
-        order?: OrderOptions,
-        duration?: 1 | 2 | 3 | 4,
-    ) {
-        const raw_response = search_request(query, initial_page, page_size, type, order, duration)
-        const { search_results, more } = extract_search_results(raw_response, type, initial_page, page_size)
-        if (search_results === null) {
-            super([], false)
-        } else {
-            super(format_search_results(search_results), more)
-        }
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.query = query
-        if (order !== undefined) {
-            this.order = order
-        }
-        if (duration !== undefined) {
-            this.duration = duration
-        }
-        this.type = type
-    }
-    override nextPage(): this {
-        const raw_response = search_request(this.query, this.next_page, this.page_size, this.type, this.order, this.duration)
-        const { search_results, more } = extract_search_results(raw_response, this.type, this.next_page, this.page_size)
-        if (search_results === null) {
-            this.results = []
-            this.hasMore = false
-        } else {
-            this.results = format_search_results(search_results)
-            this.hasMore = more
-        }
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
 /**
  * Downloads and formats a post
  * @param post_id 
@@ -1451,153 +2469,18 @@ function get_post(post_id: string) {
         datetime: space_post.modules.module_author.pub_ts
     })
 }
-
-/**
- * Converts raw comment data into a Grayjay PlatformComments
- * @param comments_response 
- * @param context_url 
- * @param oid 
- * @param type 
- * @param include_pinned_comment 
- * @returns 
- */
-function format_comments(
-    comments_response: CommentResponse,
-    context_url: string,
-    oid: number,
-    type: 1 | 33,
-    include_pinned_comment: boolean
-): PlatformComment<BiliBiliCommentContext>[] {
-    const replies = comments_response.data.replies
-    if (include_pinned_comment && comments_response.data.top.upper !== null) {
-        replies.unshift(comments_response.data.top.upper)
+function download_post(post_id: string): PostResponse {
+    const single_post_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/detail"
+    const params: Params = {
+        id: post_id
     }
-    const comments = replies.map((data) => {
-        const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id)
-        return new PlatformComment<BiliBiliCommentContext>({
-            author: new PlatformAuthorLink(
-                author_id,
-                data.member.uname,
-                `${SPACE_URL_PREFIX}${data.member.mid}`,
-                data.member.avatar,
-                local_storage_cache.space_cache.get(data.member.mid)?.num_fans),
-            message: data.content.message,
-            rating: new RatingLikes(data.like),
-            replyCount: data.rcount,
-            date: data.ctime,
-            contextUrl: context_url,
-            context: {
-                oid: oid.toString(), rpid: data.rpid.toString(), type: ((type): "1" | "33" => {
-                    switch (type) {
-                        case 1:
-                            return "1"
-                        case 33:
-                            return "33"
-                        default:
-                            throw assert_no_fall_through(type, "unreachable")
-                    }
-                })(type)
-            }
-        })
-    })
-    return comments
+    const url = create_signed_url(single_post_prefix, params).toString()
+    const now = Date.now()
+    const json = local_http.GET(url, { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false).body
+    log_network_call(now)
+    const post_response: PostResponse = JSON.parse(json)
+    return post_response
 }
-
-/**
- * Converts raw subcomment data into a Grayjay PlatformComments
- * @param comment_data 
- * @param type 
- * @param oid 
- * @param context_url 
- * @returns 
- */
-function format_replies(
-    comment_data: SubCommentsResponse,
-    type: "1" | "33",
-    oid: number,
-    context_url: string
-): PlatformComment<BiliBiliCommentContext>[] {
-    const comments = comment_data.data.replies.map((comment) => {
-        if (comment.replies.length !== 0) {
-            // these could be supported but as far as we understand they do not exist on BiliBili
-            throw new ScriptException("unsupported sub sub comments")
-        }
-        const author_id = new PlatformID(PLATFORM, comment.member.mid.toString(), plugin.config.id)
-        return new PlatformComment<BiliBiliCommentContext>({
-            author: new PlatformAuthorLink(
-                author_id,
-                comment.member.uname,
-                `${SPACE_URL_PREFIX}${comment.member.mid}`,
-                comment.member.avatar,
-                local_storage_cache.space_cache.get(comment.member.mid)?.num_fans),
-            message: comment.content.message,
-            rating: new RatingLikes(comment.like),
-            // as far as we know BiliBili doesn't support subsubcomments
-            replyCount: 0,
-            date: comment.ctime,
-            contextUrl: context_url,
-            context: { oid: oid.toString(), rpid: comment.rpid.toString(), type }
-        })
-    })
-    return comments
-}
-
-class SubCommentPager extends CommentPager<BiliBiliCommentContext> {
-    private readonly type: "1" | "33"
-    private readonly oid: number
-    private readonly root: number
-    private readonly context_url: string
-    private next_page: number
-    private readonly page_size: number
-    constructor(root: number, oid: number, type: "1" | "33", context_url: string, initial_page: number, page_size: number) {
-        const replies_response = get_replies(oid, root, type, initial_page, page_size)
-        const more = replies_response.data.page.count > initial_page * page_size
-        super(format_replies(replies_response, type, oid, context_url), more)
-        this.next_page = initial_page + 1
-        this.oid = oid
-        this.type = type
-        this.root = root
-        this.context_url = context_url
-        this.page_size = page_size
-    }
-    override nextPage(): this {
-        const replies_response = get_replies(this.oid, this.root, this.type, this.next_page, this.page_size)
-        this.hasMore = replies_response.data.page.count > this.next_page * this.page_size
-        this.results = format_replies(replies_response, this.type, this.oid, this.context_url)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-class BiliBiliCommentPager extends CommentPager<BiliBiliCommentContext> {
-    private readonly type: 1 | 33
-    private readonly oid: number
-    private readonly context_url: string
-    private next_page: number
-    constructor(context_url: string, oid: number, type: 1 | 33, initial_page: number) {
-        const comments_response = get_comments(oid, type, initial_page)
-        const more = !comments_response.data.cursor.is_end
-        super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more)
-        this.next_page = initial_page + 1
-        this.oid = oid
-        this.type = type
-        this.context_url = context_url
-    }
-    override nextPage(): this {
-        const comment_response = get_comments(this.oid, this.type, this.next_page)
-        this.hasMore = !comment_response.data.cursor.is_end
-        this.results = format_comments(comment_response, this.context_url, this.oid, this.type, this.next_page === 1)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
 /**
  * Formats a text node of a post into HTML
  * @param node 
@@ -1647,802 +2530,6 @@ function format_text_node(node: TextNode, images: string[], thumbnails: Thumbnai
             throw assert_no_fall_through(node, `unhandled type on node ${node}`)
     }
 }
-
-// type is 33 for courses and 1 for everything else
-// oid for episodes and videos is the aid
-// oid for courses is the episode id
-// oid for posts is the comment_id_str under basic
-/**
- * 
- * @param oid The root context for the comments (the aid for bangumi and videos, the episode id for courses, and basic->comment_id_str for posts
- * @param root_rpid The parent comment id
- * @param type The type of base content to retrieve replies about (33 for courses and 1 for everything else)
- * @param page 
- * @param page_size 
- * @returns 
- */
-function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: number, page_size: number) {
-    const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply"
-    const params: Params = {
-        type: type,
-        pn: page.toString(),
-        ps: page_size.toString(),
-        oid: oid.toString(),
-        root: root_rpid.toString()
-    }
-
-    const url = create_signed_url(thread_prefix, params).toString()
-    const now = Date.now()
-    const json = local_http.GET(url, {}, false).body
-    log_network_call(now)
-
-    const results: SubCommentsResponse = JSON.parse(json)
-    return results
-}
-
-
-function get_comments(oid: number, type: 1 | 33, page: number): CommentResponse {
-    const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main"
-    const params: Params = {
-        type: type.toString(),
-        mode: "3",
-        pagination_str: JSON.stringify({
-            offset: JSON.stringify({
-                type: 1,
-                direction: 1,
-                data: {
-                    pn: page
-                }
-            })
-        }),
-        oid: oid.toString()
-    }
-    const comment_url = create_signed_url(comments_preix, params).toString()
-
-    const now = Date.now()
-    const json = local_http.GET(comment_url, {}, false).body
-    log_network_call(now)
-
-    const results: CommentResponse = JSON.parse(json)
-    return results
-}
-
-class FavoritesContentsPager extends VideoPager {
-    private readonly favorites_id: number
-    private next_page: number
-    private readonly page_size: number
-    constructor(favorites_id: number, favorites_response: FavoritesResponse, initial_page: number, page_size: number) {
-        const more = favorites_response.data.has_more
-        super(format_favorites_videos(favorites_response), more)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.favorites_id = favorites_id
-    }
-    override nextPage(): this {
-        const favorites_response = load_favorites(this.favorites_id, this.next_page, this.page_size)
-        this.hasMore = favorites_response.data.has_more
-        this.results = format_favorites_videos(favorites_response)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-function format_favorites_videos(favorites_response: FavoritesResponse): PlatformVideo[] {
-    const videos = favorites_response.data.medias.map((video) => {
-        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
-        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: video.title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(video.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-            author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, video.upper.mid.toString(), plugin.config.id),
-                video.upper.name,
-                `${SPACE_URL_PREFIX}${video.upper.mid}`,
-                video.upper.face,
-                local_storage_cache.space_cache.get(video.upper.mid)?.num_fans),
-            duration: video.duration,
-            viewCount: video.cnt_info.play,
-            isLive: false,
-            shareUrl: url,
-            uploadDate: video.pubtime
-        })
-    })
-    return videos
-}
-
-function format_favorites(response: FavoritesResponse) {
-    const favorites_id = response.data.info.id
-    return new PlatformPlaylistDetails({
-        id: new PlatformID(PLATFORM, favorites_id.toString(), plugin.config.id),
-        name: response.data.info.title,
-        author: new PlatformAuthorLink(
-            new PlatformID(PLATFORM, response.data.info.upper.mid.toString(), plugin.config.id),
-            response.data.info.upper.name,
-            `${SPACE_URL_PREFIX}${response.data.info.upper.mid}`,
-            response.data.info.upper.face,
-            local_storage_cache.space_cache.get(response.data.info.upper.mid)?.num_fans),
-        url: `${FAVORITES_URL_PREFIX}${favorites_id}`,
-        contents: new FavoritesContentsPager(favorites_id, response, 1, 20),
-        videoCount: response.data.info.media_count,
-    })
-}
-
-function load_favorites(favorites_id: number, page: number, page_size: number): FavoritesResponse {
-    const series_prefix = "https://api.bilibili.com/x/v3/fav/resource/list"
-    const params: Params = {
-        media_id: favorites_id.toString(),
-        pn: page.toString(),
-        ps: page_size.toString()
-    }
-    const url = create_url(series_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
-    const now = Date.now()
-    // use the authenticated client so logged in users can view their private favorites lists
-    const json = local_http.GET(
-        url.toString(),
-        { Cookie: `buvid3=${buvid3}` },
-        true
-    ).body
-    log_network_call(now)
-    const results: FavoritesResponse = JSON.parse(json)
-    return results
-}
-
-function livestream_request(room_id: number, builder: BatchBuilder): BatchBuilder
-function livestream_request(room_id: number): BridgeHttpResponse
-function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(`${LIVE_ROOM_URL_PREFIX}${room_id}`, {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-function livestream_process(raw_live_response: BridgeHttpResponse): LiveResponse {
-    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=(.*?)<\/script>/
-    const match_result = raw_live_response.body.match(live_regex)
-    if (match_result === null) {
-        throw new ScriptException("unreachable")
-    }
-    const json = match_result[1]
-    if (json === undefined) {
-        throw new ScriptException("unreachable")
-    }
-    const response: LiveResponse = JSON.parse(json)
-    return response
-}
-
-function parse_space_url(url: string) {
-    const match_results = url.match(SPACE_URL_REGEX)
-    if (match_results === null) {
-        throw new ScriptException(`malformed space url: ${url}`)
-    }
-    const maybe_space_id = match_results[1]
-    if (maybe_space_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const space_id = parseInt(maybe_space_id)
-    return space_id
-}
-
-function parse_content_details_url(url: string) {
-    const regex_match_result = url.match(CONTENT_DETAIL_URL_REGEX)
-    if (regex_match_result === null) {
-        throw new ScriptException(`malformed content url: ${url}`)
-    }
-    const maybe_subdomain: "live" | "t" | "www" | undefined = regex_match_result[1] as "live" | "t" | "www" | undefined
-    if (maybe_subdomain === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const subdomain = maybe_subdomain
-    const maybe_content_type: ContentType | undefined = regex_match_result[2] as ContentType | undefined
-    if (maybe_content_type === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    const content_type = maybe_content_type
-    const maybe_content_id: string | undefined = regex_match_result[3]
-    if (maybe_content_id === undefined) {
-        throw new ScriptException("unreachable regex error")
-    }
-    return { subdomain, content_type, content_id: maybe_content_id }
-}
-
-function download_post(post_id: string): PostResponse {
-    const single_post_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/detail"
-    const params: Params = {
-        id: post_id
-    }
-    const url = create_signed_url(single_post_prefix, params).toString()
-    const now = Date.now()
-    const json = local_http.GET(url, { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false).body
-    log_network_call(now)
-    const post_response: PostResponse = JSON.parse(json)
-    return post_response
-}
-
-function format_bangumi_search(shows: SearchResultItem[] | null, movies: SearchResultItem[] | null): PlatformPlaylist[] {
-    return interleave(shows ?? [], movies ?? []).map((item) => {
-        if (item.type === "ketang" || item.type === "video" || item.type === "live_room" || item.type === "bili_user") {
-            throw new ScriptException("unreachable")
-        }
-
-        return new PlatformPlaylist({
-            id: new PlatformID(PLATFORM, item.season_id.toString(), plugin.config.id),
-            name: item.title,
-            author: EMPTY_AUTHOR,
-            url: `${SEASON_URL_PREFIX}${item.season_id}`,
-            videoCount: item.ep_size === 0 ? 1 : item.ep_size,
-            thumbnail: item.cover,
-            datetime: item.pubtime,
-        })
-    })
-}
-
-class BangumiPager extends PlaylistPager {
-    private readonly query: string
-    private next_page: number
-    private readonly page_size: number
-    constructor(query: string, initial_page: number, page_size: number) {
-        const requests: [
-            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>,
-            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>
-        ] = [{
-            request(builder) { return search_request(query, initial_page, page_size, "media_bangumi", undefined, undefined, builder) },
-            process(response) { return extract_search_results(response, "media_bangumi", initial_page, page_size) }
-        },
-        {
-            request(builder) { return search_request(query, initial_page, page_size, "media_ft", undefined, undefined, builder) },
-            process(response) { return extract_search_results(response, "media_ft", initial_page, page_size) }
-        },]
-        const results = execute_requests(requests)
-        const shows = results[0].search_results
-        const movies = results[1].search_results
-        if (movies === null && shows === null) {
-            super([], false)
-        } else {
-            super(format_bangumi_search(shows, movies), results[0].more || results[1].more)
-        }
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.query = query
-    }
-    override nextPage(): this {
-        const requests: [
-            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>,
-            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>
-        ] = [{
-            request: (builder) => { return search_request(this.query, this.next_page, this.page_size, "media_bangumi", undefined, undefined, builder) },
-            process: (response) => { return extract_search_results(response, "media_bangumi", this.next_page, this.page_size) }
-        },
-        {
-            request: (builder) => { return search_request(this.query, this.next_page, this.page_size, "media_ft", undefined, undefined, builder) },
-            process: (response) => { return extract_search_results(response, "media_ft", this.next_page, this.page_size) }
-        },]
-        const results = execute_requests(requests)
-        const shows = results[0].search_results
-        const movies = results[1].search_results
-        this.hasMore = results[0].more || results[1].more
-        this.results = format_bangumi_search(shows, movies)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-class SeriesContentsPager extends VideoPager {
-    private readonly space_id: number
-    private readonly author: PlatformAuthorLink
-    private readonly series_id: number
-    private next_page: number
-    private readonly page_size: number
-    constructor(
-        space_id: number,
-        author: PlatformAuthorLink,
-        series_id: number,
-        initial_series_response: SeriesResponse,
-        initial_page: number,
-        page_size: number
-    ) {
-        const more = initial_series_response.data.page.total > initial_page * page_size
-        super(format_series(author, initial_series_response), more)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.author = author
-        this.series_id = series_id
-        this.space_id = space_id
-    }
-    override nextPage(): this {
-        const raw_response = series_request(this.space_id, this.series_id, this.next_page, this.page_size)
-        const series_response: SeriesResponse = JSON.parse(raw_response.body)
-        this.hasMore = series_response.data.page.total > this.next_page * this.page_size
-        this.results = format_series(this.author, series_response)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-function format_series(author: PlatformAuthorLink, series_response: SeriesResponse): PlatformVideo[] {
-    const videos = series_response.data.archives.map((video) => {
-        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
-        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: video.title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-            author,
-            duration: video.duration,
-            viewCount: video.stat.view,
-            isLive: false,
-            shareUrl: url,
-            uploadDate: video.pubdate
-        })
-    })
-    return videos
-}
-
-function series_request(space_id: number, series_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function series_request(space_id: number, series_id: number, page: number, page_size: number): BridgeHttpResponse
-function series_request(space_id: number, series_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const series_prefix = "https://api.bilibili.com/x/series/archives"
-    const params: Params = {
-        mid: space_id.toString(),
-        series_id: series_id.toString(),
-        page_num: page.toString(),
-        page_size: page_size.toString()
-    }
-    const playlist_url = create_url(series_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
-    const now = Date.now()
-    const runner = builder === undefined ? local_http : builder
-    const result = runner.GET(
-        playlist_url.toString(),
-        { Cookie: `buvid3=${buvid3}` },
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-class CollectionContentsPager extends VideoPager {
-    private readonly space_id: number
-    private readonly author: PlatformAuthorLink
-    private readonly collection_id: number
-    private next_page: number
-    private readonly page_size: number
-    constructor(space_id: number, author: PlatformAuthorLink, collection_id: number, collection_response: CollectionResponse, initial_page: number, page_size: number) {
-        const more = collection_response.data.meta.total > initial_page * page_size
-        super(format_collection(author, collection_response), more)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.author = author
-        this.collection_id = collection_id
-        this.space_id = space_id
-    }
-    override nextPage(): this {
-        const raw_response = collection_request(this.space_id, this.collection_id, this.next_page, this.page_size)
-        const collection_response: CollectionResponse = JSON.parse(raw_response.body)
-        this.hasMore = collection_response.data.meta.total > this.next_page * this.page_size
-        this.results = format_collection(this.author, collection_response)
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-function format_collection(author: PlatformAuthorLink, collection_response: CollectionResponse): PlatformVideo[] {
-    const videos = collection_response.data.archives.map((video) => {
-        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
-        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: video.title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-            author,
-            duration: video.duration,
-            viewCount: video.stat.view,
-            isLive: false,
-            shareUrl: url,
-            uploadDate: video.pubdate
-        })
-    })
-    return videos
-}
-
-function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function collection_request(space_id: number, collection_id: number, page: number, page_size: number): BridgeHttpResponse
-function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
-    const params: Params = {
-        mid: space_id.toString(),
-        season_id: collection_id.toString(),
-        page_num: page.toString(),
-        page_size: page_size.toString()
-    }
-    const playlist_url = create_url(collection_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
-
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        playlist_url.toString(),
-        { Cookie: `buvid3=${buvid3}` },
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function format_festival(festival_id: string, festival_response: FestivalResponse): PlatformPlaylistDetails {
-    const episodes = festival_response.sectionEpisodes.map((episode) => {
-        const url = `${VIDEO_URL_PREFIX}${episode.bvid}`
-        const video_id = new PlatformID(PLATFORM, episode.bvid, plugin.config.id)
-
-        // cache cids
-        local_storage_cache.cid_cache.set(episode.bvid, episode.cid)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: episode.title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-            author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, episode.author.mid.toString(), plugin.config.id),
-                episode.author.name,
-                `${SPACE_URL_PREFIX}${episode.author.mid}`,
-                episode.author.face,
-                local_storage_cache.space_cache.get(episode.author.mid)?.num_fans),
-            // TODO potentially load this some other way
-            // duration: episode.duration / 1000,
-            // TODO load this some other way
-            viewCount: 0,
-            isLive: false,
-            shareUrl: url,
-            // TODO load this some other way
-            // uploadDate: episode.release_date
-        })
-    })
-    return new PlatformPlaylistDetails({
-        id: new PlatformID(PLATFORM, festival_id.toString(), plugin.config.id),
-        name: festival_response.title,
-        author: EMPTY_AUTHOR,
-        url: `${FESTIVAL_URL_PREFIX}${festival_id}`,
-        contents: new VideoPager(episodes, false),
-        videoCount: festival_response.sectionEpisodes.length,
-    })
-}
-
-function user_subscriptions_request(mid: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function user_subscriptions_request(mid: number, page: number, page_size: number): BridgeHttpResponse
-function user_subscriptions_request(mid: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const following_url = "https://api.bilibili.com/x/relation/followings"
-    const params: Params = {
-        vmid: mid.toString(),
-        pn: page.toString(),
-        ps: page_size.toString()
-    }
-    const runner = builder === undefined ? local_http : builder
-    const url = create_url(following_url, params).toString()
-    const now = Date.now()
-    // use the authenticated client so logged in users can view their subscriptions even if they are private
-    const result = runner.GET(url, {}, true)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-
-}
-
-function festival_request(festival_id: string, builder: BatchBuilder): BatchBuilder
-function festival_request(festival_id: string): BridgeHttpResponse
-function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const festival_url = `${FESTIVAL_URL_PREFIX}${festival_id}`
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(festival_url.toString(), {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
-    const festival_html_regex = /<script>window\.__INITIAL_STATE__=(.*?);\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
-    const match_result = festival_html.body.match(festival_html_regex)
-    if (match_result === null) {
-        throw new ScriptException("unreachable")
-    }
-    const json = match_result[1]
-    if (json === undefined) {
-        throw new ScriptException("unreachable")
-    }
-    const results: FestivalResponse = JSON.parse(json)
-    return results
-}
-
-function format_course(season_id: number, course_response: CourseResponse): PlatformPlaylistDetails {
-    const author = new PlatformAuthorLink(
-        new PlatformID(PLATFORM, course_response.data.up_info.mid.toString(), plugin.config.id),
-        course_response.data.up_info.uname,
-        `${SPACE_URL_PREFIX}${course_response.data.up_info.mid}`,
-        course_response.data.up_info.avatar,
-        course_response.data.up_info.follower)
-
-    const episodes = course_response.data.episodes.map((episode) => {
-        const url = `${COURSE_EPISODE_URL_PREFIX}${episode.id}`
-        const video_id = new PlatformID(PLATFORM, episode.id.toString(), plugin.config.id)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: episode.title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-            author,
-            // TODO missing duration
-            // duration:
-            viewCount: episode.play,
-            isLive: false,
-            shareUrl: url,
-            uploadDate: episode.release_date
-        })
-    })
-    return new PlatformPlaylistDetails({
-        id: new PlatformID(PLATFORM, season_id.toString(), plugin.config.id),
-        name: course_response.data.title,
-        author,
-        url: `${COURSE_URL_PREFIX}${season_id}`,
-        contents: new VideoPager(episodes, false),
-        videoCount: course_response.data.ep_count,
-    })
-}
-
-function course_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function course_play_request(episode_id: number): BridgeHttpResponse
-function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const play_url_prefix = "https://api.bilibili.com/pugv/player/web/playurl"
-    const params: Params = {
-        fnval: "4048",
-        ep_id: episode_id.toString()
-    }
-    const url = create_url(play_url_prefix, params).toString()
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        url,
-        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function course_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
-function course_request(id_obj: IdObj): BridgeHttpResponse
-function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const season_prefix = "https://api.bilibili.com/pugv/view/web/season"
-    const params: Params = ((id_obj: IdObj): Params => {
-        switch (id_obj.type) {
-            case "season":
-                return {
-                    season_id: id_obj.id.toString()
-                }
-            case "episode":
-                return {
-                    ep_id: id_obj.id.toString()
-                }
-            default:
-                throw assert_no_fall_through(id_obj, "unreachable")
-        }
-    })(id_obj)
-    const season_url = create_url(season_prefix, params)
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(season_url.toString(), {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function format_season(season_id: number, season_response: SeasonResponse): PlatformPlaylistDetails {
-    const episodes = season_response.result.episodes.map((episode) => {
-        const url = `${EPISODE_URL_PREFIX}${episode.ep_id}`
-        const video_id = new PlatformID(PLATFORM, episode.ep_id.toString(), plugin.config.id)
-
-        // update cid cache
-        local_storage_cache.cid_cache.set(episode.bvid, episode.cid)
-
-        return new PlatformVideo({
-            id: video_id,
-            name: episode.long_title,
-            url: url,
-            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-            author: EMPTY_AUTHOR,
-            duration: episode.duration / 1000,
-            viewCount: season_response.result.stat.views,
-            isLive: false,
-            shareUrl: url,
-            uploadDate: episode.pub_time
-        })
-    })
-    return new PlatformPlaylistDetails({
-        id: new PlatformID(PLATFORM, season_id.toString(), plugin.config.id),
-        name: season_response.result.title,
-        author: EMPTY_AUTHOR,
-        url: `${SEASON_URL_PREFIX}${season_id}`,
-        contents: new VideoPager(episodes, false),
-        videoCount: season_response.result.total,
-    })
-}
-
-function format_sources(play_data: PlayDataDash) {
-    const video_sources: VideoUrlSource[] = play_data.dash.video.map((video) => {
-        const name = play_data.accept_description[
-            play_data.accept_quality.findIndex((value) => {
-                return value === video.id
-            })
-        ]
-        if (name === undefined) {
-            throw new ScriptException("can't load content details")
-        }
-        const video_url_hostname = new URL(video.base_url).hostname
-        return new VideoUrlSource({
-            width: video.width,
-            height: video.height,
-            container: video.mime_type,
-            codec: video.codecs,
-            name: name,
-            bitrate: video.bandwidth,
-            duration: play_data.dash.duration,
-            url: video.base_url,
-            requestModifier: {
-                headers: {
-                    "Referer": "https://www.bilibili.com",
-                    "Host": video_url_hostname,
-                    "User-Agent": USER_AGENT
-                }
-            }
-        })
-    })
-
-    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map((audio) => {
-        const audio_url_hostname = new URL(audio.base_url).hostname
-        return new AudioUrlSource({
-            container: audio.mime_type,
-            codecs: audio.codecs,
-            name: `${audio.codecs} at ${audio.bandwidth}`,
-            bitrate: audio.bandwidth,
-            duration: play_data.dash.duration,
-            url: audio.base_url,
-            language: Language.UNKNOWN,
-            requestModifier: {
-                headers: {
-                    "Referer": "https://www.bilibili.com",
-                    "Host": audio_url_hostname,
-                    "User-Agent": USER_AGENT
-                }
-            }
-        })
-    })
-    return { audio_sources, video_sources }
-}
-
-function watch_later_request(logged_in: true, builder: BatchBuilder): BatchBuilder
-function watch_later_request(logged_in: true): BridgeHttpResponse
-function watch_later_request(logged_in: true, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const watch_later_url = "https://api.bilibili.com/x/v2/history/toview/web"
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    // use the authenticated client because watch later is only available when logged in
-    const result = runner.GET(
-        watch_later_url,
-        {},
-        logged_in
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function episode_info_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function episode_info_request(episode_id: number): BridgeHttpResponse
-function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const episode_info_prefix = "https://api.bilibili.com/pgc/season/episode/web/info"
-    const info_params: Params = {
-        ep_id: episode_id.toString()
-    }
-    const runner = builder === undefined ? local_http : builder
-    const url = create_url(episode_info_prefix, info_params).toString()
-    const now = Date.now()
-    const result = runner.GET(
-        url,
-        {},
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function episode_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function episode_play_request(episode_id: number): BridgeHttpResponse
-function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const play_url_prefix = "https://api.bilibili.com/pgc/player/web/v2/playurl"
-    const params: Params = {
-        fnval: "4048",
-        ep_id: episode_id.toString()
-    }
-    const runner = builder === undefined ? local_http : builder
-    const url = create_url(play_url_prefix, params).toString()
-    const now = Date.now()
-    const result = runner.GET(
-        url,
-        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function season_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
-function season_request(id_obj: IdObj): BridgeHttpResponse
-function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const season_prefix = "https://api.bilibili.com/pgc/view/web/season"
-    const params: Params = ((id_obj: IdObj): Params => {
-        switch (id_obj.type) {
-            case "season":
-                return {
-                    season_id: id_obj.id.toString()
-                }
-            case "episode":
-                return {
-                    ep_id: id_obj.id.toString()
-                }
-            default:
-                throw assert_no_fall_through(id_obj, "unreachable")
-        }
-    })(id_obj)
-    const season_url = create_url(season_prefix, params)
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        season_url.toString(),
-        {},
-        false
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
 function format_major(major: Major, thumbnails: Thumbnails[], images: string[]): string | undefined {
     switch (major.type) {
         case "MAJOR_TYPE_ARCHIVE":
@@ -2492,464 +2579,20 @@ function format_major(major: Major, thumbnails: Thumbnails[], images: string[]):
             throw assert_no_fall_through(major, `unhandled type on major ${major}`)
     }
 }
-
-function format_space_favorites(space_favorites_response: SpaceFavoritesResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
-    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-    const author = new PlatformAuthorLink(
-        author_id,
-        space_info.name,
-        `${SPACE_URL_PREFIX}${space_id}`,
-        space_info.face,
-        space_info.num_fans
-    )
-
-    if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
-        return space_favorites_response.data.list.map((favorite_list) => {
-            return new PlatformPlaylist({
-                id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
-                name: favorite_list.title,
-                author,
-                url: `${FAVORITES_URL_PREFIX}${favorite_list.id}`,
-                videoCount: favorite_list.media_count,
-                // thumbnail: TODO MISSING_THUMBNAIL
-            })
-        })
+function episode_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
+function episode_play_request(episode_id: number): BridgeHttpResponse
+function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const play_url_prefix = "https://api.bilibili.com/pgc/player/web/v2/playurl"
+    const params: Params = {
+        fnval: "4048",
+        ep_id: episode_id.toString()
     }
-    return []
-}
-
-function format_space_collections(space_collections_response: SpaceCollectionsResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
-    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-    const author = new PlatformAuthorLink(
-        author_id,
-        space_info.name,
-        `${SPACE_URL_PREFIX}${space_id}`,
-        space_info.face,
-        space_info.num_fans
-    )
-
-    return space_collections_response.data.items_lists.seasons_list.map((season) => {
-        return new PlatformPlaylist({
-            id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
-            name: season.meta.name,
-            author,
-            url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${season.meta.season_id}`,
-            videoCount: season.meta.total,
-            thumbnail: season.meta.cover
-        })
-    }).concat(
-        space_collections_response.data.items_lists.series_list.map((series) => {
-            return new PlatformPlaylist({
-                id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
-                name: series.meta.name,
-                author,
-                url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series.meta.series_id}`,
-                videoCount: series.meta.total,
-                thumbnail: series.meta.cover
-            })
-        }))
-}
-
-function format_space_courses(space_courses_response: SpaceCoursesResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
-    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-    const author = new PlatformAuthorLink(
-        author_id,
-        space_info.name,
-        `${SPACE_URL_PREFIX}${space_id}`,
-        space_info.face,
-        space_info.num_fans
-    )
-
-    return space_courses_response.data.items.map((course) => {
-        return new PlatformPlaylist({
-            id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
-            name: course.title,
-            author,
-            url: `${COURSE_URL_PREFIX}${course.season_id}`,
-            videoCount: course.ep_count,
-            thumbnail: course.cover
-        })
-    })
-}
-
-// TODO if we can get cid caching working then use this api to load the cids for all videos and cache them
-// https://api.bilibili.com/x/v3/fav/resource/infos
-// it's used when viewing a favorites list
-function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder: BatchBuilder): BatchBuilder
-function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined): BridgeHttpResponse
-function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse {
-    const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
-    let params: Params = {
-        mid: space_id.toString(),
-        pn: page.toString(),
-        ps: page_size.toString()
-    }
-    if (order !== undefined) {
-        params = {
-            ...params,
-            order: ((order): OrderOptions => {
-                switch (order) {
-                    case Type.Order.Chronological:
-                        return "pubdate"
-                    case Type.Order.Favorites:
-                        return "stow"
-                    case Type.Order.Views:
-                        return "click"
-                    case "CHRONOLOGICAL":
-                        return "pubdate"
-                    default:
-                        throw new ScriptException(`unhandled ordering ${order}`)
-                }
-            })(order)
-        }
-    }
-    if (keyword !== undefined) {
-        params = { ...params, keyword }
-    }
-    const url = create_signed_url(space_contents_search_prefix, params).toString()
-    const b_nut = local_storage_cache.b_nut
-    const buvid4 = local_storage_cache.buvid4
-    const buvid3 = local_storage_cache.buvid3
-
     const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    // use the authenticated client because BiliBili blocks logged out users
-    const result = runner.GET(
-        url,
-        {
-            "User-Agent": USER_AGENT,
-            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
-            Host: "api.bilibili.com",
-        },
-        true)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-
-    return result
-}
-function space_posts_request(space_id: number, offset: number | undefined, builder: BatchBuilder): BatchBuilder
-function space_posts_request(space_id: number, offset: number | undefined): BridgeHttpResponse
-function space_posts_request(space_id: number, offset: number | undefined, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const space_post_feed_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
-    const params: Params = offset ? {
-        host_mid: space_id.toString(),
-        offset: offset.toString()
-    } : {
-        host_mid: space_id.toString()
-    }
-    const url = create_signed_url(space_post_feed_prefix, params).toString()
-
-    const runner = builder === undefined ? local_http : builder
+    const url = create_url(play_url_prefix, params).toString()
     const now = Date.now()
     const result = runner.GET(
         url,
-        {
-            Host: "api.bilibili.com",
-            Cookie: `buvid3=${local_storage_cache.buvid3}`,
-            Referer: "https://space.bilibili.com",
-            "User-Agent": USER_AGENT
-        },
-        false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-function space_courses_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_courses_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
-function space_courses_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const course_prefix = "https://api.bilibili.com/pugv/app/web/season/page"
-    const params: Params = {
-        mid: space_id.toString(),
-        pn: page.toString(),
-        ps: page_size.toString()
-    }
-    const url = create_url(course_prefix, params).toString()
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(url, {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function space_collections_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_collections_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
-function space_collections_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_series_list"
-    const params: Params = {
-        mid: space_id.toString(),
-        page_num: page.toString(),
-        page_size: page_size.toString()
-    }
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        create_signed_url(collection_prefix, params).toString(),
-        { Cookie: `buvid3=${local_storage_cache.buvid3}` },
-        false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-// note there is another section on the page https://space.bilibili.com/<space_id>/favlist
-// that has the users collected playlists. those are playlists created by others that the user has saved
-// we won't load these into the feed because they aren't their playlists
-function space_favorites_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_favorites_request(space_id: number): BridgeHttpResponse
-function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const favorites_prefix = "https://api.bilibili.com/x/v3/fav/folder/created/list-all"
-    const params: Params = {
-        up_mid: space_id.toString()
-    }
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    // use the authenticated client so logged in users can view their private favorites lists
-    const result = runner.GET(
-        create_url(favorites_prefix, params).toString(),
-        { "User-Agent": USER_AGENT },
-        true
-    )
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
-    return results.map((item) => {
-        switch (item.type) {
-            case "video": {
-                const url = `${VIDEO_URL_PREFIX}${item.bvid}`
-                const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, item.mid.toString(), plugin.config.id)
-
-                const duration = parse_minutes_seconds(item.duration)
-                return new PlatformVideo({
-                    id: video_id,
-                    name: item.title,
-                    url: url,
-                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author: new PlatformAuthorLink(
-                        author_id,
-                        item.author,
-                        `${SPACE_URL_PREFIX}${item.mid}`,
-                        item.upic,
-                        local_storage_cache.space_cache.get(item.mid)?.num_fans),
-                    duration,
-                    viewCount: item.play,
-                    isLive: false,
-                    shareUrl: url,
-                    uploadDate: item.pubdate
-                })
-            }
-            case "live_room": {
-                const url = `${LIVE_ROOM_URL_PREFIX}${item.roomid}`
-                const video_id = new PlatformID(PLATFORM, item.roomid.toString(), plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, item.uid.toString(), plugin.config.id)
-                return new PlatformVideo({
-                    id: video_id,
-                    name: item.title,
-                    url: url,
-                    thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author: new PlatformAuthorLink(
-                        author_id,
-                        item.uname,
-                        `${SPACE_URL_PREFIX}${item.uid}`,
-                        `https:${item.uface}`,
-                        local_storage_cache.space_cache.get(item.uid)?.num_fans),
-                    viewCount: item.watched_show.num,
-                    isLive: true,
-                    shareUrl: url,
-                    // TODO assumes China timezone
-                    uploadDate: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
-                })
-            }
-            // TODO once the main search results support playlists courses and shows should return playlists
-            case "ketang": {
-                const season_id = item.id
-                const course_response: CourseResponse = JSON.parse(course_request({ type: "season", id: season_id }).body)
-                const season = format_course(season_id, course_response)
-                const episode = season.contents.results[0]
-                if (episode === undefined) {
-                    throw new ScriptException("missing episodes")
-                }
-                return episode
-            }
-            case "media_bangumi": {
-                const first_episode = item.eps[0]
-                if (first_episode === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
-                const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
-                return new PlatformVideo({
-                    id: video_id,
-                    name: item.title,
-                    url: url,
-                    // TODO figure out if we should include both thumbnails
-                    thumbnails: new Thumbnails([
-                        new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY),
-                        new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)
-                    ]),
-                    author: EMPTY_AUTHOR,
-                    viewCount: HARDCODED_ZERO,
-                    isLive: false,
-                    shareUrl: url,
-                    // TODO assumes China timezone
-                    uploadDate: item.pubtime
-                })
-            }
-            case "media_ft": {
-                let first_episode
-                if (item.eps === null) {
-                    if (item.ep_size !== 0) {
-                        throw new ScriptException("unreachable")
-                    }
-                    const url = item.url
-                    const { content_id } = parse_content_details_url(url)
-
-                    first_episode = {
-                        cover: undefined,
-                        id: parseInt(content_id)
-                    }
-                } else {
-                    first_episode = item.eps[0]
-                }
-                if (first_episode === undefined) {
-                    throw new ScriptException("unreachable")
-                }
-                const url = `${EPISODE_URL_PREFIX}${first_episode.id}`
-                const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id)
-                const thumbnails = [new Thumbnail(item.cover, HARDCODED_THUMBNAIL_QUALITY)]
-                if (first_episode.cover !== undefined) {
-                    thumbnails.push(new Thumbnail(first_episode.cover, HARDCODED_THUMBNAIL_QUALITY))
-                }
-                return new PlatformVideo({
-                    id: video_id,
-                    name: item.title,
-                    url: url,
-                    // TODO figure out if we should include both thumbnails
-                    thumbnails: new Thumbnails(thumbnails),
-                    author: EMPTY_AUTHOR,
-                    viewCount: HARDCODED_ZERO,
-                    isLive: false,
-                    shareUrl: url,
-                    // TODO assumes China timezone
-                    uploadDate: item.pubtime
-                })
-            }
-            case "bili_user":
-                throw new ScriptException("unreachable")
-            default:
-                throw assert_no_fall_through(item, "unreachable")
-        }
-    })
-}
-
-function search_request(
-    query: string,
-    page: number,
-    page_size: number,
-    type: SearchResultQueryType,
-    order: undefined | OrderOptions,
-    duration: undefined | 1 | 2 | 3 | 4,
-    builder: BatchBuilder
-): BatchBuilder
-function search_request(query: string,
-    page: number,
-    page_size: number,
-    type: SearchResultQueryType,
-    order: undefined | OrderOptions,
-    duration: undefined | 1 | 2 | 3 | 4
-): BridgeHttpResponse
-function search_request(query: string,
-    page: number,
-    page_size: number,
-    type: SearchResultQueryType,
-    order: undefined | OrderOptions,
-    duration: undefined | 1 | 2 | 3 | 4,
-    builder?: BatchBuilder
-): BatchBuilder | BridgeHttpResponse {
-    const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type"
-    let params: Params = {
-        search_type: type,
-        page: page.toString(),
-        page_size: page_size.toString(),
-        keyword: query,
-    }
-    if (order !== undefined) {
-        params = { ...params, order }
-    }
-    if (duration !== undefined) {
-        params = { ...params, duration: duration.toString() }
-    }
-    const search_url = create_signed_url(search_prefix, params).toString()
-    const buvid3 = local_storage_cache.buvid3
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        search_url,
-        { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` },
-        false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-/**
- * 
- * @param raw_response 
- * @param type 
- * @param page 
- * @param page_size 
- * @returns SearchResultItems and whether there are more results
- */
-function extract_search_results(
-    raw_response: BridgeHttpResponse,
-    type: SearchResultQueryType,
-    page: number,
-    page_size: number,
-): { search_results: SearchResultItem[] | null, more: boolean } {
-    if (type === "live") {
-        const results: LiveSearchResponse = JSON.parse(raw_response.body)
-        return {
-            search_results: results.data.result === undefined ? null : results.data.result.live_room,
-            more: results.data.pageinfo.live_room.total > page * page_size
-        }
-    }
-
-    const results: SearchResponse = JSON.parse(raw_response.body)
-    return {
-        search_results: results.data.result === undefined ? null : results.data.result,
-        more: results.data.numResults > page * page_size
-    }
-}
-
-function video_detail_request(bvid: string, builder: BatchBuilder): BatchBuilder
-function video_detail_request(bvid: string): BridgeHttpResponse
-function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail"
-    const params: Params = {
-        bvid
-    }
-    const url = create_signed_url(detail_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(
-        url.toString(),
-        {
-            Host: "api.bilibili.com",
-            "User-Agent": USER_AGENT,
-            Referer: "https://www.bilibili.com",
-            Cookie: `buvid3=${buvid3}`
-        },
+        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
         false
     )
     if (builder === undefined) {
@@ -2957,49 +2600,105 @@ function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): Batc
     }
     return result
 }
-
-function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder: BatchBuilder): BatchBuilder
-function subtitles_request(id: { bvid: string } | { aid: number }, cid: number): BridgeHttpResponse
-function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const subtitles_prefix = "https://api.bilibili.com/x/player/wbi/v2"
-    const params: Params = "bvid" in id ? {
-        bvid: id.bvid,
-        cid: cid.toString(),
-    } : {
-        aid: id.aid.toString(),
-        cid: cid.toString(),
-    }
-    const url = create_signed_url(subtitles_prefix, params)
+function season_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
+function season_request(id_obj: IdObj): BridgeHttpResponse
+function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const season_prefix = "https://api.bilibili.com/pgc/view/web/season"
+    const params: Params = ((id_obj: IdObj): Params => {
+        switch (id_obj.type) {
+            case "season":
+                return {
+                    season_id: id_obj.id.toString()
+                }
+            case "episode":
+                return {
+                    ep_id: id_obj.id.toString()
+                }
+            default:
+                throw assert_no_fall_through(id_obj, "unreachable")
+        }
+    })(id_obj)
+    const season_url = create_url(season_prefix, params)
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
-    // use the authenticated client because login is required to view subtitles
-    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
+    const result = runner.GET(
+        season_url.toString(),
+        {},
+        false
+    )
     if (builder === undefined) {
         log_network_call(now)
     }
     return result
 }
-function video_play_request(bvid: string, cid: number, builder: BatchBuilder): BatchBuilder
-function video_play_request(bvid: string, cid: number): BridgeHttpResponse
-function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const play_prefix = "https://api.bilibili.com/x/player/wbi/playurl"
+function episode_info_request(episode_id: number, builder: BatchBuilder): BatchBuilder
+function episode_info_request(episode_id: number): BridgeHttpResponse
+function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const episode_info_prefix = "https://api.bilibili.com/pgc/season/episode/web/info"
+    const info_params: Params = {
+        ep_id: episode_id.toString()
+    }
+    const runner = builder === undefined ? local_http : builder
+    const url = create_url(episode_info_prefix, info_params).toString()
+    const now = Date.now()
+    const result = runner.GET(
+        url,
+        {},
+        false
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function course_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
+function course_play_request(episode_id: number): BridgeHttpResponse
+function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const play_url_prefix = "https://api.bilibili.com/pugv/player/web/playurl"
     const params: Params = {
-        bvid,
         fnval: "4048",
-        cid: cid.toString(),
+        ep_id: episode_id.toString()
     }
-    const url = create_signed_url(play_prefix, params)
+    const url = create_url(play_url_prefix, params).toString()
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
-    // use the authenticated client to get higher resolution videos for logged in users
-    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
+    const result = runner.GET(
+        url,
+        { "User-Agent": USER_AGENT, Host: "api.bilibili.com" },
+        false
+    )
     if (builder === undefined) {
         log_network_call(now)
     }
-
     return result
 }
-
+function course_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
+function course_request(id_obj: IdObj): BridgeHttpResponse
+function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const season_prefix = "https://api.bilibili.com/pugv/view/web/season"
+    const params: Params = ((id_obj: IdObj): Params => {
+        switch (id_obj.type) {
+            case "season":
+                return {
+                    season_id: id_obj.id.toString()
+                }
+            case "episode":
+                return {
+                    ep_id: id_obj.id.toString()
+                }
+            default:
+                throw assert_no_fall_through(id_obj, "unreachable")
+        }
+    })(id_obj)
+    const season_url = create_url(season_prefix, params)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(season_url.toString(), {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
 function load_video_details(video_id: string): [VideoDetailResponse, VideoPlayResponse]
 function load_video_details(video_id: string, is_logged_in: true): [VideoDetailResponse, VideoPlayResponse, SubtitlesMetadataResponse]
 function load_video_details(video_id: string, is_logged_in: boolean = false): [VideoDetailResponse, VideoPlayResponse] | [VideoDetailResponse, VideoPlayResponse, SubtitlesMetadataResponse] {
@@ -3063,778 +2762,830 @@ function load_video_details(video_id: string, is_logged_in: boolean = false): [V
         return execute_requests(requests)
     }
 }
-
-function fan_count_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function fan_count_request(space_id: number): BridgeHttpResponse
-function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const space_stat_url_prefix = "https://api.bilibili.com/x/relation/stat"
-    const url = create_url(
-        space_stat_url_prefix,
-        {
-            vmid: space_id.toString()
-        }).toString()
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(url, {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-function space_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_request(space_id: number): BridgeHttpResponse
-function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const space_stat_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info"
+function video_detail_request(bvid: string, builder: BatchBuilder): BatchBuilder
+function video_detail_request(bvid: string): BridgeHttpResponse
+function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail"
     const params: Params = {
-        mid: space_id.toString(),
+        bvid
     }
-    const url = create_signed_url(space_stat_url_prefix, params).toString()
+    const url = create_signed_url(detail_prefix, params)
+    const buvid3 = local_storage_cache.buvid3
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     const result = runner.GET(
-        url,
+        url.toString(),
         {
-            Referer: "https://www.bilibili.com",
             Host: "api.bilibili.com",
             "User-Agent": USER_AGENT,
-            Cookie: `buvid3=${local_storage_cache.buvid3}`
+            Referer: "https://www.bilibili.com",
+            Cookie: `buvid3=${buvid3}`
         },
-        false)
+        false
+    )
     if (builder === undefined) {
         log_network_call(now)
     }
     return result
 }
+function video_play_request(bvid: string, cid: number, builder: BatchBuilder): BatchBuilder
+function video_play_request(bvid: string, cid: number): BridgeHttpResponse
+function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const play_prefix = "https://api.bilibili.com/x/player/wbi/playurl"
+    const params: Params = {
+        bvid,
+        fnval: "4048",
+        cid: cid.toString(),
+    }
+    const url = create_signed_url(play_prefix, params)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client to get higher resolution videos for logged in users
+    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
 
-class SpacePager extends ChannelPager {
+    return result
+}
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder: BatchBuilder): BatchBuilder
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number): BridgeHttpResponse
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const subtitles_prefix = "https://api.bilibili.com/x/player/wbi/v2"
+    const params: Params = "bvid" in id ? {
+        bvid: id.bvid,
+        cid: cid.toString(),
+    } : {
+        aid: id.aid.toString(),
+        cid: cid.toString(),
+    }
+    const url = create_signed_url(subtitles_prefix, params)
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client because login is required to view subtitles
+    const result = runner.GET(url.toString(), { "User-Agent": USER_AGENT }, true)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_sources(play_data: PlayDataDash) {
+    const video_sources: VideoUrlSource[] = play_data.dash.video.map((video) => {
+        const name = play_data.accept_description[
+            play_data.accept_quality.findIndex((value) => {
+                return value === video.id
+            })
+        ]
+        if (name === undefined) {
+            throw new ScriptException("can't load content details")
+        }
+        const video_url_hostname = new URL(video.base_url).hostname
+        return new VideoUrlSource({
+            width: video.width,
+            height: video.height,
+            container: video.mime_type,
+            codec: video.codecs,
+            name: name,
+            bitrate: video.bandwidth,
+            duration: play_data.dash.duration,
+            url: video.base_url,
+            requestModifier: {
+                headers: {
+                    "Referer": "https://www.bilibili.com",
+                    "Host": video_url_hostname,
+                    "User-Agent": USER_AGENT
+                }
+            }
+        })
+    })
+
+    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map((audio) => {
+        const audio_url_hostname = new URL(audio.base_url).hostname
+        return new AudioUrlSource({
+            container: audio.mime_type,
+            codecs: audio.codecs,
+            name: `${audio.codecs} at ${audio.bandwidth}`,
+            bitrate: audio.bandwidth,
+            duration: play_data.dash.duration,
+            url: audio.base_url,
+            language: Language.UNKNOWN,
+            requestModifier: {
+                headers: {
+                    "Referer": "https://www.bilibili.com",
+                    "Host": audio_url_hostname,
+                    "User-Agent": USER_AGENT
+                }
+            }
+        })
+    })
+    return { audio_sources, video_sources }
+}
+//#endregion
+
+//#region playlists
+// examples of handled urls
+// https://www.bilibili.com/bangumi/play/ss2843
+// https://www.bilibili.com/cheese/play/ss74
+// https://space.bilibili.com/323588182/channel/collectiondetail?sid=2050037
+// https://space.bilibili.com/323588182/channel/seriesdetail?sid=3810720
+// https://space.bilibili.com/491461718/favlist?fid=3153093518
+// https://www.bilibili.com/medialist/detail/ml3153093518
+// https://www.bilibili.com/festival/2022bnj
+// https://www.bilibili.com/watchlater/#/list or https://www.bilibili.com/watchlater/?spm_id_from=333.999.0.0#/list
+function isPlaylistUrl(url: string) {
+    return PLAYLIST_URL_REGEX.test(url)
+}
+function searchPlaylists(query: string) {
+    return new BangumiPager(query, 1, 12)
+}
+class BangumiPager extends PlaylistPager {
     private readonly query: string
     private next_page: number
     private readonly page_size: number
     constructor(query: string, initial_page: number, page_size: number) {
-        const raw_response = search_request(query, initial_page, page_size, "bili_user", undefined, undefined)
-        const { search_results, more } = extract_search_results(raw_response, "bili_user", initial_page, page_size)
-        if (search_results === null) {
+        const requests: [
+            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>,
+            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>
+        ] = [{
+            request(builder) { return search_request(query, initial_page, page_size, "media_bangumi", undefined, undefined, builder) },
+            process(response) { return extract_search_results(response, "media_bangumi", initial_page, page_size) }
+        },
+        {
+            request(builder) { return search_request(query, initial_page, page_size, "media_ft", undefined, undefined, builder) },
+            process(response) { return extract_search_results(response, "media_ft", initial_page, page_size) }
+        },]
+        const results = execute_requests(requests)
+        const shows = results[0].search_results
+        const movies = results[1].search_results
+        if (movies === null && shows === null) {
             super([], false)
         } else {
-            super(format_space_results(search_results), more)
+            super(format_bangumi_search(shows, movies), results[0].more || results[1].more)
         }
         this.next_page = initial_page + 1
         this.page_size = page_size
         this.query = query
     }
-    override nextPage(): this {
-        const raw_response = search_request(this.query, this.next_page, this.page_size, "bili_user", undefined, undefined)
-        const { search_results, more } = extract_search_results(raw_response, "bili_user", this.next_page, this.page_size)
-        if (search_results === null) {
-            throw new ScriptException("unreachable")
-        }
-        this.hasMore = more
-        this.results = format_space_results(search_results)
+    override nextPage(this: BangumiPager): BangumiPager {
+        const requests: [
+            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>,
+            RequestMetadata<{ search_results: SearchResultItem[] | null, more: boolean }>
+        ] = [{
+            request: (builder) => { return search_request(this.query, this.next_page, this.page_size, "media_bangumi", undefined, undefined, builder) },
+            process: (response) => { return extract_search_results(response, "media_bangumi", this.next_page, this.page_size) }
+        },
+        {
+            request: (builder) => { return search_request(this.query, this.next_page, this.page_size, "media_ft", undefined, undefined, builder) },
+            process: (response) => { return extract_search_results(response, "media_ft", this.next_page, this.page_size) }
+        },]
+        const results = execute_requests(requests)
+        const shows = results[0].search_results
+        const movies = results[1].search_results
+        this.hasMore = results[0].more || results[1].more
+        this.results = format_bangumi_search(shows, movies)
         this.next_page += 1
         return this
     }
-    override hasMorePagers(): boolean {
+    override hasMorePagers(this: BangumiPager): boolean {
         return this.hasMore
     }
 }
+function format_bangumi_search(shows: SearchResultItem[] | null, movies: SearchResultItem[] | null): PlatformPlaylist[] {
+    return interleave(shows ?? [], movies ?? []).map((item) => {
+        if (item.type === "ketang" || item.type === "video" || item.type === "live_room" || item.type === "bili_user") {
+            throw new ScriptException("unreachable")
+        }
 
-class SpaceVideosContentPager extends VideoPager {
-    private readonly page_size: number
-    private next_page: number
-    private readonly space_info: CoreSpaceInfo
-    private readonly space_id: number
-    constructor(space_id: number, initial_page: number, page_size: number, order: Order) {
-        let space_info = local_storage_cache.space_cache.get(space_id)
-        let space_videos_response: SpaceVideosSearchResponse
-        if (space_info === undefined) {
-            const requests: [
-                RequestMetadata<MaybeSpaceVideosSearchResponse>,
-                RequestMetadata<SpaceResponse>,
-                RequestMetadata<{ data: { follower: number } }>
-            ] = [
-                    {
-                        request(builder) {
-                            return space_videos_request(
-                                space_id,
-                                initial_page,
-                                page_size,
-                                undefined,
-                                order,
-                                builder)
-                        },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return space_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return fan_count_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }
-                ]
-            const results = execute_requests(requests)
-            const space = results[1]
-            space_info = {
-                num_fans: results[2].data.follower,
-                name: space.data.name,
-                face: space.data.face,
-                live_room: space.data.live_room === null ? null : {
-                    title: space.data.live_room.title,
-                    roomid: space.data.live_room.roomid,
-                    live_status: space.data.live_room.liveStatus === 1,
-                    cover: space.data.live_room.cover, watched_show: {
-                        num: space.data.live_room.watched_show.num
-                    }
-                }
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, item.season_id.toString(), plugin.config.id),
+            name: item.title,
+            author: EMPTY_AUTHOR,
+            url: `${SEASON_URL_PREFIX}${item.season_id}`,
+            videoCount: item.ep_size === 0 ? 1 : item.ep_size,
+            thumbnail: item.cover,
+            datetime: item.pubtime,
+        })
+    })
+}
+function getPlaylist(url: string) {
+    const regex_match_result = url.match(PLAYLIST_URL_REGEX)
+    if (regex_match_result === null) {
+        throw new ScriptException(`malformed space url: ${url}`)
+    }
+    const maybe_playlist_type: PlaylistType | undefined = regex_match_result[3] as PlaylistType | undefined
+    if (maybe_playlist_type === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    const playlist_type = maybe_playlist_type
+    const maybe_playlist_id: string | undefined = regex_match_result[4]
+    if (maybe_playlist_id === undefined) {
+        throw new ScriptException("unreachable regex error")
+    }
+    switch (playlist_type) {
+        case "/channel/collectiondetail?sid=": {
+            const maybe_space_id: string | undefined = regex_match_result[2]
+            if (maybe_space_id === undefined) {
+                throw new ScriptException("unreachable regex error")
             }
-            local_storage_cache.space_cache.set(space_id, space_info)
-            if (results[0].code === -352) {
-                throw new ScriptException("rate limited")
-            }
-            space_videos_response = results[0]
+            const space_id = parseInt(maybe_space_id)
+            const collection_id = parseInt(maybe_playlist_id)
 
-        } else {
-            const maybe_space_videos_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
+            const page_size = 30
+            const initial_page = 1
+
+            let collection_response: CollectionResponse
+            let space_info = local_storage_cache.space_cache.get(space_id)
+            if (space_info === undefined) {
+                const requests: [
+                    RequestMetadata<SpaceResponse>,
+                    RequestMetadata<{ data: { follower: number } }>,
+                    RequestMetadata<CollectionResponse>
+                ] = [{
+                    request(builder) { return space_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return collection_request(space_id, collection_id, initial_page, page_size, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }]
+                const results = execute_requests(requests)
+                const [space, fan_info] = [results[0], results[1]]
+                collection_response = results[2]
+                space_info =
+                    space_info = {
+                        num_fans: fan_info.data.follower,
+                        name: space.data.name,
+                        face: space.data.face,
+                        live_room: space.data.live_room === null ? null : {
+                            title: space.data.live_room.title,
+                            roomid: space.data.live_room.roomid,
+                            live_status: space.data.live_room.liveStatus === 1,
+                            cover: space.data.live_room.cover, watched_show: {
+                                num: space.data.live_room.watched_show.num
+                            }
+                        }
+                    }
+                local_storage_cache.space_cache.set(space_id, space_info)
+            } else {
+                const raw_response = collection_request(space_id, collection_id, initial_page, page_size)
+                collection_response = JSON.parse(raw_response.body)
+            }
+
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+            const author = new PlatformAuthorLink(
+                author_id,
+                space_info.name,
+                `${SPACE_URL_PREFIX}${space_id}`,
+                space_info.face, space_info.num_fans
+            )
+            const contents = new CollectionContentsPager(
                 space_id,
+                author,
+                collection_id,
+                collection_response,
                 initial_page,
-                page_size,
-                undefined,
-                undefined).body)
-            if (maybe_space_videos_response.code === -352) {
-                throw new ScriptException("rate limited")
+                page_size
+            )
+
+            return new PlatformPlaylistDetails({
+                id: new PlatformID(PLATFORM, collection_id.toString(), plugin.config.id),
+                name: collection_response.data.meta.name,
+                author,
+                url: `${SPACE_URL_PREFIX}${space_id}${COLLECTION_URL_PREFIX}${collection_id}`,
+                contents,
+                videoCount: collection_response.data.meta.total,
+            })
+        }
+        case "bangumi/play/ss": {
+            const season_id = parseInt(maybe_playlist_id)
+            const season_response: SeasonResponse = JSON.parse(season_request({ id: season_id, type: "season" }).body)
+            return format_season(season_id, season_response)
+        }
+        case "/channel/seriesdetail?sid=": {
+            const maybe_space_id: string | undefined = regex_match_result[2]
+            if (maybe_space_id === undefined) {
+                throw new ScriptException("unreachable regex error")
             }
-            space_videos_response = maybe_space_videos_response
+            const space_id = parseInt(maybe_space_id)
+            const series_id = parseInt(maybe_playlist_id)
 
-        }
+            const initial_page = 1
+            const page_size = 30
 
-        const has_more = space_videos_response.data.page.count > initial_page * page_size
-        super(
-            format_space_videos(space_videos_response, space_id, space_info),
-            has_more
-        )
-        this.next_page = 2
-        this.space_id = space_id
-        this.page_size = page_size
-        this.space_info = space_info
-    }
-    override nextPage(): this {
-        const maybe_space_videos_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(
-            this.space_id,
-            this.next_page,
-            this.page_size,
-            undefined,
-            undefined).body)
-        if (maybe_space_videos_response.code === -352) {
-            throw new ScriptException("rate limited")
-        }
-        const space_search_response: SpaceVideosSearchResponse = maybe_space_videos_response
+            let series_response: SeriesResponse
 
-        this.results = format_space_videos(space_search_response, this.space_id, this.space_info)
-
-        this.hasMore = space_search_response.data.page.count > this.next_page * this.page_size
-        this.next_page += 1
-
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-class SpacePostsContentPager extends ContentPager {
-    private posts_offset: number
-    private readonly space_info: CoreSpaceInfo
-    private readonly space_id: number
-    constructor(space_id: number) {
-        let space_info = local_storage_cache.space_cache.get(space_id)
-        let space_posts_response: SpacePostsResponse
-        if (space_info === undefined) {
-            const requests: [
-                RequestMetadata<SpacePostsResponse>,
-                RequestMetadata<SpaceResponse>,
-                RequestMetadata<{ data: { follower: number } }>
-            ] = [
-                    {
-                        request(builder) { return space_posts_request(space_id, undefined, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return space_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return fan_count_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
+            let space_info = local_storage_cache.space_cache.get(space_id)
+            if (space_info === undefined) {
+                const requests: [
+                    RequestMetadata<SpaceResponse>,
+                    RequestMetadata<{ data: { follower: number } }>,
+                    RequestMetadata<SeriesResponse>
+                ] = [{
+                    request(builder) { return space_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return series_request(space_id, series_id, initial_page, page_size, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }]
+                const results = execute_requests(requests)
+                const [space, fan_info] = [results[0], results[1]]
+                series_response = results[2]
+                space_info =
+                    space_info = {
+                        num_fans: fan_info.data.follower,
+                        name: space.data.name,
+                        face: space.data.face,
+                        live_room: space.data.live_room === null ? null : {
+                            title: space.data.live_room.title,
+                            roomid: space.data.live_room.roomid,
+                            live_status: space.data.live_room.liveStatus === 1,
+                            cover: space.data.live_room.cover, watched_show: {
+                                num: space.data.live_room.watched_show.num
+                            }
+                        }
                     }
-                ]
-            const results = execute_requests(requests)
-            const space = results[1]
-            space_info = {
-                num_fans: results[2].data.follower,
-                name: space.data.name,
-                face: space.data.face,
-                live_room: space.data.live_room === null ? null : {
-                    title: space.data.live_room.title,
-                    roomid: space.data.live_room.roomid,
-                    live_status: space.data.live_room.liveStatus === 1,
-                    cover: space.data.live_room.cover, watched_show: {
-                        num: space.data.live_room.watched_show.num
-                    }
+                local_storage_cache.space_cache.set(space_id, space_info)
+            } else {
+                const raw_response = series_request(space_id, series_id, initial_page, page_size)
+                series_response = JSON.parse(raw_response.body)
+            }
+
+            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+            const author = new PlatformAuthorLink(
+                author_id,
+                space_info.name,
+                `${SPACE_URL_PREFIX}${space_id}`,
+                space_info.face,
+                space_info.num_fans)
+
+            return new PlatformPlaylistDetails({
+                id: new PlatformID(PLATFORM, series_id.toString(), plugin.config.id),
+                name: MISSING_NAME,
+                author,
+                url: `${SPACE_URL_PREFIX}${space_id}${SERIES_URL_PREFIX}${series_id}`,
+                contents: new SeriesContentsPager(space_id, author, series_id, series_response, initial_page, page_size),
+                videoCount: series_response.data.page.total
+            })
+        }
+        case "cheese/play/ss": {
+            const season_id = parseInt(maybe_playlist_id)
+            const course_response: CourseResponse = JSON.parse(course_request({ type: "season", id: season_id }).body)
+            return format_course(season_id, course_response)
+        }
+        case "medialist/detail/ml": {
+            const favorites_id = parseInt(maybe_playlist_id)
+            return format_favorites(load_favorites(favorites_id, 1, 20))
+        }
+        case "/favlist?fid=": {
+            const favorites_id = parseInt(maybe_playlist_id)
+            return format_favorites(load_favorites(favorites_id, 1, 20))
+        }
+        case "festival/": {
+            const festival_id = maybe_playlist_id
+            return format_festival(festival_id, festival_parse(festival_request(festival_id)))
+        }
+        case "watchlater/": {
+            if (!bridge.isLoggedIn()) {
+                throw new LoginRequiredException("Login to view watch later")
+            }
+            const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
+                {
+                    request(builder) { return nav_request(true, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return watch_later_request(true, builder) },
+                    process(response) { return JSON.parse(response.body) }
                 }
+            ]
+            const [nav_response, watch_later_response] = execute_requests(requests)
+            const videos = watch_later_response.data.list.map((video) => {
+                const url = `${VIDEO_URL_PREFIX}${video.bvid}`
+
+                // update cid cache
+                local_storage_cache.cid_cache.set(video.bvid, video.cid)
+
+                const video_id = new PlatformID(PLATFORM, video.bvid.toString(), plugin.config.id)
+                const author = new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, video.owner.mid.toString(), plugin.config.id),
+                    video.owner.name,
+                    `${SPACE_URL_PREFIX}${video.owner.mid}`,
+                    video.owner.face,
+                    local_storage_cache.space_cache.get(video.owner.mid)?.num_fans)
+                return new PlatformVideo({
+                    id: video_id,
+                    name: video.title,
+                    url: url,
+                    thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+                    author,
+                    duration: video.duration,
+                    viewCount: video.stat.view,
+                    isLive: false,
+                    shareUrl: url,
+                    uploadDate: video.pubdate
+                })
+            })
+            const first_video = watch_later_response.data.list[0]
+            if (first_video === undefined) {
+                throw new ScriptException("unreachable")
             }
-            local_storage_cache.space_cache.set(space_id, space_info)
-            space_posts_response = results[0]
-        } else {
-            space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body)
+
+            const author = new PlatformAuthorLink(
+                new PlatformID(PLATFORM, nav_response.data.mid.toString(), plugin.config.id),
+                nav_response.data.uname,
+                `${SPACE_URL_PREFIX}${nav_response.data.mid}`,
+                nav_response.data.face,
+                local_storage_cache.space_cache.get(nav_response.data.mid)?.num_fans)
+            return new PlatformPlaylistDetails({
+                id: new PlatformID(PLATFORM, WATCH_LATER_ID, plugin.config.id),
+                name: "稍后再看", // Watch Later
+                author,
+                url: WATCH_LATER_URL,
+                contents: new VideoPager(videos, false),
+                videoCount: watch_later_response.data.count,
+            })
         }
-
-        const has_more = space_posts_response.data.has_more
-        super(
-            format_space_posts(space_posts_response, space_id, space_info),
-            has_more
-        )
-        this.posts_offset = space_posts_response.data.offset
-        this.space_id = space_id
-        this.space_info = space_info
-    }
-    override nextPage(): this {
-        const space_posts_response: SpacePostsResponse = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body)
-
-        this.results = format_space_posts(space_posts_response, this.space_id, this.space_info)
-
-        this.hasMore = space_posts_response.data.has_more
-        this.posts_offset = space_posts_response.data.offset
-
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
+        default:
+            throw assert_no_fall_through(playlist_type, "unreachable")
     }
 }
-
-class SpaceCoursesContentPager extends PlaylistPager {
+class CollectionContentsPager extends VideoPager {
+    private readonly space_id: number
+    private readonly author: PlatformAuthorLink
+    private readonly collection_id: number
     private next_page: number
     private readonly page_size: number
-    private readonly space_info: CoreSpaceInfo
-    private readonly space_id: number
-    constructor(space_id: number, initial_page: number, page_size: number,) {
-        let space_info = local_storage_cache.space_cache.get(space_id)
-        let space_courses_response: SpaceCoursesResponse
-        if (space_info === undefined) {
-            const requests: [
-                RequestMetadata<SpaceCoursesResponse>,
-                RequestMetadata<SpaceResponse>,
-                RequestMetadata<{ data: { follower: number } }>
-            ] = [
-                    {
-                        request(builder) { return space_courses_request(space_id, initial_page, page_size, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return space_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return fan_count_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }
-                ]
-            const results = execute_requests(requests)
-            const space = results[1]
-            space_info = {
-                num_fans: results[2].data.follower,
-                name: space.data.name,
-                face: space.data.face,
-                live_room: space.data.live_room === null ? null : {
-                    title: space.data.live_room.title,
-                    roomid: space.data.live_room.roomid,
-                    live_status: space.data.live_room.liveStatus === 1,
-                    cover: space.data.live_room.cover, watched_show: {
-                        num: space.data.live_room.watched_show.num
-                    }
-                }
-            }
-            local_storage_cache.space_cache.set(space_id, space_info)
-            space_courses_response = results[0]
-        } else {
-            space_courses_response = JSON.parse(space_courses_request(space_id, initial_page, page_size).body)
-        }
-
-        const has_more = space_courses_response.data.page.next
-        super(
-            format_space_courses(space_courses_response, space_id, space_info),
-            has_more
-        )
+    constructor(space_id: number, author: PlatformAuthorLink, collection_id: number, collection_response: CollectionResponse, initial_page: number, page_size: number) {
+        const more = collection_response.data.meta.total > initial_page * page_size
+        super(format_collection(author, collection_response), more)
         this.next_page = initial_page + 1
         this.page_size = page_size
+        this.author = author
+        this.collection_id = collection_id
         this.space_id = space_id
-        this.space_info = space_info
     }
-    override nextPage(): this {
-        const space_courses_response: SpaceCoursesResponse = JSON.parse(space_courses_request(this.space_id, this.next_page, this.page_size).body)
-
-        this.results = format_space_courses(space_courses_response, this.space_id, this.space_info)
-
-        this.hasMore = space_courses_response.data.page.next
+    override nextPage(this: CollectionContentsPager): CollectionContentsPager {
+        const raw_response = collection_request(this.space_id, this.collection_id, this.next_page, this.page_size)
+        const collection_response: CollectionResponse = JSON.parse(raw_response.body)
+        this.hasMore = collection_response.data.meta.total > this.next_page * this.page_size
+        this.results = format_collection(this.author, collection_response)
         this.next_page += 1
-
         return this
     }
-    override hasMorePagers(): boolean {
+    override hasMorePagers(this: CollectionContentsPager): boolean {
         return this.hasMore
     }
 }
-
-class SpaceCollectionsContentPager extends PlaylistPager {
-    private next_page: number
-    private readonly page_size: number
-    private readonly space_info: CoreSpaceInfo
-    private readonly space_id: number
-    constructor(space_id: number, initial_page: number, page_size: number,) {
-        let space_info = local_storage_cache.space_cache.get(space_id)
-        let space_collections_response: SpaceCollectionsResponse
-        if (space_info === undefined) {
-            const requests: [
-                RequestMetadata<SpaceCollectionsResponse>,
-                RequestMetadata<SpaceResponse>,
-                RequestMetadata<{ data: { follower: number } }>
-            ] = [
-                    {
-                        request(builder) {
-                            return space_collections_request(space_id, initial_page, page_size, builder)
-                        },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return space_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }, {
-                        request(builder) { return fan_count_request(space_id, builder) },
-                        process(response) { return JSON.parse(response.body) }
-                    }
-                ]
-            const results = execute_requests(requests)
-            const space = results[1]
-            space_info = {
-                num_fans: results[2].data.follower,
-                name: space.data.name,
-                face: space.data.face,
-                live_room: space.data.live_room === null ? null : {
-                    title: space.data.live_room.title,
-                    roomid: space.data.live_room.roomid,
-                    live_status: space.data.live_room.liveStatus === 1,
-                    cover: space.data.live_room.cover, watched_show: {
-                        num: space.data.live_room.watched_show.num
-                    }
-                }
-            }
-            local_storage_cache.space_cache.set(space_id, space_info)
-            space_collections_response = results[0]
-        } else {
-            space_collections_response = JSON.parse(space_collections_request(space_id, initial_page, page_size).body)
-        }
-
-        const has_more = space_collections_response.data.items_lists.page.total > initial_page * page_size
-        super(
-            format_space_collections(space_collections_response, space_id, space_info),
-            has_more
-        )
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.space_id = space_id
-        this.space_info = space_info
-    }
-    override nextPage(): this {
-        const space_collections_response: SpaceCollectionsResponse = JSON.parse(space_collections_request(this.space_id, this.next_page, this.page_size).body)
-
-        this.results = format_space_collections(space_collections_response, this.space_id, this.space_info)
-
-        this.hasMore = space_collections_response.data.items_lists.page.total > this.next_page * this.page_size
-        this.next_page += 1
-
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-function format_space_results(space_search_results: SearchResultItem[]): PlatformChannel[] {
-    return space_search_results.map((result) => {
-        if (result.type !== "bili_user") {
-            throw new ScriptException("unreachable")
-        }
-        return new PlatformChannel({
-            id: new PlatformID(PLATFORM, result.mid.toString(), plugin.config.id),
-            name: result.uname,
-            thumbnail: `https:${result.upic}`,
-            subscribers: result.fans,
-            description: result.usign,
-            url: `${SPACE_URL_PREFIX}${result.mid}`
-        })
-    })
-}
-
-function format_space_posts(space_posts_response: SpacePostsResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPost[] {
-    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-    const author = new PlatformAuthorLink(
-        author_id,
-        space_info.name,
-        `${SPACE_URL_PREFIX}${space_id}`,
-        space_info.face,
-        space_info.num_fans
-    )
-
-    return space_posts_response.data.items.map((space_post) => {
-        const desc = space_post.modules.module_dynamic.desc
-        const images: string[] = []
-        const thumbnails: Thumbnails[] = []
-
-        const primary_content = desc?.rich_text_nodes.map(
-            (node) => { return format_text_node(node, images, thumbnails) }
-        ).join("")
-
-        const major = space_post.modules.module_dynamic.major
-        const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
-
-        const topic = space_post.modules.module_dynamic.topic
-        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
-
-        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
-
-        return new PlatformPostDetails({
-            thumbnails,
-            images,
-            description: content,
-            // as far as i can tell posts don't have names
-            name: MISSING_NAME,
-            url: `${POST_URL_PREFIX}${space_post.id_str}`,
-            id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
-            rating: new RatingLikes(space_post.modules.module_stat.like.count),
-            textType: Type.Text.HTML,
-            author,
-            content,
-            datetime: space_post.modules.module_author.pub_ts
-        })
-    })
-}
-
-function format_space_videos(space_videos_response: SpaceVideosSearchResponse, space_id: number, space_info: CoreSpaceInfo): PlatformVideo[] {
-    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-    const author = new PlatformAuthorLink(
-        author_id,
-        space_info.name,
-        `${SPACE_URL_PREFIX}${space_id}`,
-        space_info.face,
-        space_info.num_fans
-    )
-
-    return space_videos_response.data.list.vlist.map((space_video) => {
-        const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`
-        const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id)
-
-        const duration = parse_minutes_seconds(space_video.length)
+function format_collection(author: PlatformAuthorLink, collection_response: CollectionResponse): PlatformVideo[] {
+    const videos = collection_response.data.archives.map((video) => {
+        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
+        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
 
         return new PlatformVideo({
             id: video_id,
-            name: space_video.title,
+            name: video.title,
             url: url,
-            thumbnails: new Thumbnails([new Thumbnail(space_video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+            thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
             author,
-            duration,
-            viewCount: space_video.play === "--" ? 0 : space_video.play,
+            duration: video.duration,
+            viewCount: video.stat.view,
             isLive: false,
             shareUrl: url,
-            uploadDate: space_video.created
+            uploadDate: video.pubdate
         })
     })
+    return videos
 }
-
-function search_space_posts(query: string, space_id: number, page: number, page_size: number): SpacePostsSearchResponse {
-    const space_contents_search_prefix = "https://api.bilibili.com/x/space/dynamic/search"
+function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function collection_request(space_id: number, collection_id: number, page: number, page_size: number): BridgeHttpResponse
+function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
     const params: Params = {
         mid: space_id.toString(),
-        keyword: query,
-        pn: page.toString(),
-        ps: page_size.toString(),
+        season_id: collection_id.toString(),
+        page_num: page.toString(),
+        page_size: page_size.toString()
     }
-    const url = create_url(space_contents_search_prefix, params).toString()
+    const playlist_url = create_url(collection_prefix, params)
+    const buvid3 = local_storage_cache.buvid3
 
-    const now = Date.now()
-    const json = local_http.GET(
-        url,
-        {},
-        false).body
-    log_network_call(now)
-
-    const search_response: SpacePostsSearchResponse = JSON.parse(json)
-    return search_response
-}
-
-// TODO the post search results are really hard to parse. might be best to just load whole posts
-// directly
-function format_post_search_result(response: SpacePostsSearchResponse): PlatformPost[] {
-    const space_posts_response = response
-    if (space_posts_response.data.cards === null) {
-        return []
-    }
-    return space_posts_response.data.cards.map((card) => {
-        const post: Card = JSON.parse(card.card)
-        const space_id = card.desc.user_profile.info.uid
-        const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-        const author = new PlatformAuthorLink(
-            author_id,
-            card.desc.user_profile.info.uname,
-            `${SPACE_URL_PREFIX}${space_id}`,
-            card.desc.user_profile.info.face,
-            local_storage_cache.space_cache.get(space_id)?.num_fans
-        )
-        return new PlatformPost({
-            thumbnails: [new Thumbnails([])],
-            images: [],
-            description: post.item?.content ?? post.item?.description ?? "",
-            // as far as i can tell posts don't have names
-            name: MISSING_NAME,
-            url: `${POST_URL_PREFIX}${card.desc.dynamic_id_str}`,
-            id: new PlatformID(PLATFORM, card.desc.dynamic_id_str, plugin.config.id),
-            author,
-            datetime: card.desc.timestamp
-        })
-    })
-}
-
-class ChannelPostsResultsPager extends ContentPager {
-    private next_page: number
-    private readonly page_size: number
-    private readonly space_id: number
-    private readonly query: string
-    constructor(query: string, space_id: number, initial_page: number, page_size: number) {
-        const response = search_space_posts(query, space_id, initial_page, page_size)
-        const more = response.data.total > initial_page * page_size
-        super(format_post_search_result(response), more)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.space_id = space_id
-        this.query = query
-    }
-    override nextPage(): this {
-        const response = search_space_posts(this.query, this.space_id, this.next_page, this.page_size)
-        this.results = format_post_search_result(response)
-        this.hasMore = response.data.total > this.next_page * this.page_size
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-class ChannelVideoResultsPager extends ContentPager {
-    private next_page: number
-    private page_size: number
-    private readonly space_id: number
-    private readonly query: string
-    private readonly order: Order
-    private readonly space_info: CoreSpaceInfo
-    constructor(query: string, space_id: number, initial_page: number, page_size: number, order: Order) {
-        let space_info = local_storage_cache.space_cache.get(space_id)
-        let search_response: SpaceVideosSearchResponse
-        if (space_info === undefined) {
-            const requests: [
-                RequestMetadata<SpaceResponse>,
-                RequestMetadata<{ data: { follower: number } }>,
-                RequestMetadata<MaybeSpaceVideosSearchResponse>
-            ] = [{
-                request(builder) { return space_request(space_id, builder) },
-                process(response) { return JSON.parse(response.body) }
-            }, {
-                request(builder) { return fan_count_request(space_id, builder) },
-                process(response) { return JSON.parse(response.body) }
-            }, {
-                request(builder) {
-                    return space_videos_request(space_id, initial_page, page_size, query, order, builder)
-                },
-                process(response) { return JSON.parse(response.body) }
-            }]
-
-            const [space, fan_count_response, local_search_response] = execute_requests(requests)
-            if (local_search_response.code === -352) {
-                throw new ScriptException("rate limited")
-            }
-            search_response = local_search_response
-            space_info = {
-                num_fans: fan_count_response.data.follower,
-                name: space.data.name,
-                face: space.data.face,
-                live_room: space.data.live_room === null ? null : {
-                    title: space.data.live_room.title,
-                    roomid: space.data.live_room.roomid,
-                    live_status: space.data.live_room.liveStatus === 1,
-                    cover: space.data.live_room.cover, watched_show: {
-                        num: space.data.live_room.watched_show.num
-                    }
-                }
-            }
-            local_storage_cache.space_cache.set(space_id, space_info)
-        } else {
-            const local_search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(space_id, initial_page, page_size, query, order).body)
-            if (local_search_response.code === -352) {
-                throw new ScriptException("rate limited")
-            }
-            search_response = local_search_response
-        }
-
-        const more = search_response.data.page.count > initial_page * page_size
-        super(format_space_videos(search_response, space_id, space_info), more)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-        this.space_id = space_id
-        this.query = query
-        this.order = order
-        this.space_info = space_info
-    }
-    override nextPage(): this {
-        const search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
-        if (search_response.code === -352) {
-            throw new ScriptException("rate lmited")
-        }
-        this.results = format_space_videos(search_response, this.space_id, this.space_info)
-        this.hasMore = search_response.data.page.count > this.next_page * this.page_size
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return this.hasMore
-    }
-}
-
-function get_suggestions(query: string): string[] {
-    const suggestions_url = "https://s.search.bilibili.com/main/suggest"
-    const params: Params = {
-        func: "suggest",
-        suggest_type: "accurate",
-        sub_type: "tag",
-        term: query
-    }
-
-    const url = create_url(suggestions_url, params).toString()
-    const now = Date.now()
-    const suggestions_json = local_http.GET(
-        url,
-        {},
-        false).body
-    log_network_call(now)
-    const suggestions_response: SuggestionsResponse = JSON.parse(suggestions_json)
-    return suggestions_response.result.tag.map((entry) => entry.term)
-}
-
-class HomePager extends VideoPager {
-    private next_page: number
-    private readonly page_size: number
-    constructor(initial_page: number, page_size: number) {
-        super(format_home(get_home(initial_page, page_size)), true)
-        this.next_page = initial_page + 1
-        this.page_size = page_size
-    }
-    override nextPage(): this {
-        this.results = format_home(get_home(this.next_page, this.page_size))
-        this.hasMore = true
-        this.next_page += 1
-        return this
-    }
-    override hasMorePagers(): boolean {
-        return true
-    }
-}
-
-function format_home(home: HomeFeedResponse): PlatformVideo[] {
-    return home.data.item.flatMap((item): PlatformVideo[] => {
-        switch (item.goto) {
-            case "ad":
-                return []
-            case "av": {
-                // update cid cache
-                local_storage_cache.cid_cache.set(item.bvid, item.cid)
-
-                const fan_count = local_storage_cache.space_cache.get(item.owner.mid)?.num_fans
-                const video_id = new PlatformID(PLATFORM, item.bvid, plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), plugin.config.id)
-                return [new PlatformVideo({
-                    id: video_id,
-                    name: item.title,
-                    url: item.uri,
-                    thumbnails: new Thumbnails([new Thumbnail(item.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author: new PlatformAuthorLink(
-                        author_id,
-                        item.owner.name,
-                        `${SPACE_URL_PREFIX}${item.owner.mid}`,
-                        item.owner.face, fan_count),
-                    duration: item.duration,
-                    viewCount: item.stat.view,
-                    isLive: false,
-                    shareUrl: item.uri,
-                    uploadDate: item.pubdate
-                })]
-            }
-            case "live": {
-                const fan_count = local_storage_cache.space_cache.get(item.owner.mid)?.num_fans
-                const room_id = new PlatformID(PLATFORM, item.id.toString(), plugin.config.id)
-                const author_id = new PlatformID(PLATFORM, item.owner.mid.toString(), plugin.config.id)
-                return [new PlatformVideo({
-                    id: room_id,
-                    name: item.title,
-                    url: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
-                    thumbnails: new Thumbnails([new Thumbnail(item.pic, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author: new PlatformAuthorLink(
-                        author_id,
-                        item.owner.name,
-                        `${SPACE_URL_PREFIX}${item.owner.mid}`,
-                        item.owner.face, fan_count),
-                    viewCount: item.room_info.watched_show.num,
-                    isLive: true,
-                    shareUrl: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
-                    // TODO load from cache uploadDate:
-                })]
-            }
-            default:
-                throw assert_no_fall_through(item, `unhandled type on home page item ${item}`)
-        }
-    })
-}
-
-/**
- * 
- * @param page The page to load (starts at 0)
- * @param page_size 
- * @returns 
- */
-function get_home(page: number, page_size: number): HomeFeedResponse {
-    const home_api_url = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd"
-    const fresh_type = "4"
-    const feed_version = "V_WATCHLATER_PIP_WINDOW3"
-    const params: Params = {
-        fresh_idx: page.toString(),
-        ps: page_size.toString(),
-        fresh_type,
-        feed_version,
-        fresh_idx_1h: page.toString(),
-        brush: page.toString(),
-    }
-
-    const url = create_url(home_api_url, params).toString()
-    const now = Date.now()
-    // use auth client so that logged in users get a personalized home feed
-    const home_json = local_http.GET(
-        url,
-        { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}` },
-        true).body
-
-    log_network_call(now)
-    const home_response: HomeFeedResponse = JSON.parse(home_json)
-    return home_response
-}
-
-function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
-function nav_request(useAuthClient: boolean): BridgeHttpResponse
-function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const url = "https://api.bilibili.com/x/web-interface/nav"
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
-    const result = runner.GET(url, {}, useAuthClient)
+    const result = runner.GET(
+        playlist_url.toString(),
+        { Cookie: `buvid3=${buvid3}` },
+        false
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_season(season_id: number, season_response: SeasonResponse): PlatformPlaylistDetails {
+    const episodes = season_response.result.episodes.map((episode) => {
+        const url = `${EPISODE_URL_PREFIX}${episode.ep_id}`
+        const video_id = new PlatformID(PLATFORM, episode.ep_id.toString(), plugin.config.id)
+
+        // update cid cache
+        local_storage_cache.cid_cache.set(episode.bvid, episode.cid)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: episode.long_title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            author: EMPTY_AUTHOR,
+            duration: episode.duration / 1000,
+            viewCount: season_response.result.stat.views,
+            isLive: false,
+            shareUrl: url,
+            uploadDate: episode.pub_time
+        })
+    })
+    return new PlatformPlaylistDetails({
+        id: new PlatformID(PLATFORM, season_id.toString(), plugin.config.id),
+        name: season_response.result.title,
+        author: EMPTY_AUTHOR,
+        url: `${SEASON_URL_PREFIX}${season_id}`,
+        contents: new VideoPager(episodes, false),
+        videoCount: season_response.result.total,
+    })
+}
+class SeriesContentsPager extends VideoPager {
+    private readonly space_id: number
+    private readonly author: PlatformAuthorLink
+    private readonly series_id: number
+    private next_page: number
+    private readonly page_size: number
+    constructor(
+        space_id: number,
+        author: PlatformAuthorLink,
+        series_id: number,
+        initial_series_response: SeriesResponse,
+        initial_page: number,
+        page_size: number
+    ) {
+        const more = initial_series_response.data.page.total > initial_page * page_size
+        super(format_series(author, initial_series_response), more)
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.author = author
+        this.series_id = series_id
+        this.space_id = space_id
+    }
+    override nextPage(this: SeriesContentsPager): SeriesContentsPager {
+        const raw_response = series_request(this.space_id, this.series_id, this.next_page, this.page_size)
+        const series_response: SeriesResponse = JSON.parse(raw_response.body)
+        this.hasMore = series_response.data.page.total > this.next_page * this.page_size
+        this.results = format_series(this.author, series_response)
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: SeriesContentsPager): boolean {
+        return this.hasMore
+    }
+}
+function format_series(author: PlatformAuthorLink, series_response: SeriesResponse): PlatformVideo[] {
+    const videos = series_response.data.archives.map((video) => {
+        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
+        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: video.title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+            author,
+            duration: video.duration,
+            viewCount: video.stat.view,
+            isLive: false,
+            shareUrl: url,
+            uploadDate: video.pubdate
+        })
+    })
+    return videos
+}
+function series_request(space_id: number, series_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function series_request(space_id: number, series_id: number, page: number, page_size: number): BridgeHttpResponse
+function series_request(space_id: number, series_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const series_prefix = "https://api.bilibili.com/x/series/archives"
+    const params: Params = {
+        mid: space_id.toString(),
+        series_id: series_id.toString(),
+        page_num: page.toString(),
+        page_size: page_size.toString()
+    }
+    const playlist_url = create_url(series_prefix, params)
+    const buvid3 = local_storage_cache.buvid3
+    const now = Date.now()
+    const runner = builder === undefined ? local_http : builder
+    const result = runner.GET(
+        playlist_url.toString(),
+        { Cookie: `buvid3=${buvid3}` },
+        false
+    )
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_course(season_id: number, course_response: CourseResponse): PlatformPlaylistDetails {
+    const author = new PlatformAuthorLink(
+        new PlatformID(PLATFORM, course_response.data.up_info.mid.toString(), plugin.config.id),
+        course_response.data.up_info.uname,
+        `${SPACE_URL_PREFIX}${course_response.data.up_info.mid}`,
+        course_response.data.up_info.avatar,
+        course_response.data.up_info.follower)
+
+    const episodes = course_response.data.episodes.map((episode) => {
+        const url = `${COURSE_EPISODE_URL_PREFIX}${episode.id}`
+        const video_id = new PlatformID(PLATFORM, episode.id.toString(), plugin.config.id)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: episode.title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            author,
+            // TODO missing duration
+            // duration:
+            viewCount: episode.play,
+            isLive: false,
+            shareUrl: url,
+            uploadDate: episode.release_date
+        })
+    })
+    return new PlatformPlaylistDetails({
+        id: new PlatformID(PLATFORM, season_id.toString(), plugin.config.id),
+        name: course_response.data.title,
+        author,
+        url: `${COURSE_URL_PREFIX}${season_id}`,
+        contents: new VideoPager(episodes, false),
+        videoCount: course_response.data.ep_count,
+    })
+}
+function load_favorites(favorites_id: number, page: number, page_size: number): FavoritesResponse {
+    const series_prefix = "https://api.bilibili.com/x/v3/fav/resource/list"
+    const params: Params = {
+        media_id: favorites_id.toString(),
+        pn: page.toString(),
+        ps: page_size.toString()
+    }
+    const url = create_url(series_prefix, params)
+    const buvid3 = local_storage_cache.buvid3
+    const now = Date.now()
+    // use the authenticated client so logged in users can view their private favorites lists
+    const json = local_http.GET(
+        url.toString(),
+        { Cookie: `buvid3=${buvid3}` },
+        true
+    ).body
+    log_network_call(now)
+    const results: FavoritesResponse = JSON.parse(json)
+    return results
+}
+function format_favorites(response: FavoritesResponse) {
+    const favorites_id = response.data.info.id
+    return new PlatformPlaylistDetails({
+        id: new PlatformID(PLATFORM, favorites_id.toString(), plugin.config.id),
+        name: response.data.info.title,
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, response.data.info.upper.mid.toString(), plugin.config.id),
+            response.data.info.upper.name,
+            `${SPACE_URL_PREFIX}${response.data.info.upper.mid}`,
+            response.data.info.upper.face,
+            local_storage_cache.space_cache.get(response.data.info.upper.mid)?.num_fans),
+        url: `${FAVORITES_URL_PREFIX}${favorites_id}`,
+        contents: new FavoritesContentsPager(favorites_id, response, 1, 20),
+        videoCount: response.data.info.media_count,
+    })
+}
+class FavoritesContentsPager extends VideoPager {
+    private readonly favorites_id: number
+    private next_page: number
+    private readonly page_size: number
+    constructor(favorites_id: number, favorites_response: FavoritesResponse, initial_page: number, page_size: number) {
+        const more = favorites_response.data.has_more
+        super(format_favorites_videos(favorites_response), more)
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.favorites_id = favorites_id
+    }
+    override nextPage(this: FavoritesContentsPager): FavoritesContentsPager {
+        const favorites_response = load_favorites(this.favorites_id, this.next_page, this.page_size)
+        this.hasMore = favorites_response.data.has_more
+        this.results = format_favorites_videos(favorites_response)
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: FavoritesContentsPager): boolean {
+        return this.hasMore
+    }
+}
+function format_favorites_videos(favorites_response: FavoritesResponse): PlatformVideo[] {
+    const videos = favorites_response.data.medias.map((video) => {
+        const url = `${VIDEO_URL_PREFIX}${video.bvid}`
+        const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: video.title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(video.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, video.upper.mid.toString(), plugin.config.id),
+                video.upper.name,
+                `${SPACE_URL_PREFIX}${video.upper.mid}`,
+                video.upper.face,
+                local_storage_cache.space_cache.get(video.upper.mid)?.num_fans),
+            duration: video.duration,
+            viewCount: video.cnt_info.play,
+            isLive: false,
+            shareUrl: url,
+            uploadDate: video.pubtime
+        })
+    })
+    return videos
+}
+function festival_request(festival_id: string, builder: BatchBuilder): BatchBuilder
+function festival_request(festival_id: string): BridgeHttpResponse
+function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const festival_url = `${FESTIVAL_URL_PREFIX}${festival_id}`
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(festival_url.toString(), {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
+    const festival_html_regex = /<script>window\.__INITIAL_STATE__=(.*?);\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
+    const match_result = festival_html.body.match(festival_html_regex)
+    if (match_result === null) {
+        throw new ScriptException("unreachable")
+    }
+    const json = match_result[1]
+    if (json === undefined) {
+        throw new ScriptException("unreachable")
+    }
+    const results: FestivalResponse = JSON.parse(json)
+    return results
+}
+function format_festival(festival_id: string, festival_response: FestivalResponse): PlatformPlaylistDetails {
+    const episodes = festival_response.sectionEpisodes.map((episode) => {
+        const url = `${VIDEO_URL_PREFIX}${episode.bvid}`
+        const video_id = new PlatformID(PLATFORM, episode.bvid, plugin.config.id)
+
+        // cache cids
+        local_storage_cache.cid_cache.set(episode.bvid, episode.cid)
+
+        return new PlatformVideo({
+            id: video_id,
+            name: episode.title,
+            url: url,
+            thumbnails: new Thumbnails([new Thumbnail(episode.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, episode.author.mid.toString(), plugin.config.id),
+                episode.author.name,
+                `${SPACE_URL_PREFIX}${episode.author.mid}`,
+                episode.author.face,
+                local_storage_cache.space_cache.get(episode.author.mid)?.num_fans),
+            // TODO potentially load this some other way
+            // duration: episode.duration / 1000,
+            // TODO load this some other way
+            viewCount: 0,
+            isLive: false,
+            shareUrl: url,
+            // TODO load this some other way
+            // uploadDate: episode.release_date
+        })
+    })
+    return new PlatformPlaylistDetails({
+        id: new PlatformID(PLATFORM, festival_id.toString(), plugin.config.id),
+        name: festival_response.title,
+        author: EMPTY_AUTHOR,
+        url: `${FESTIVAL_URL_PREFIX}${festival_id}`,
+        contents: new VideoPager(episodes, false),
+        videoCount: festival_response.sectionEpisodes.length,
+    })
+}
+function watch_later_request(logged_in: true, builder: BatchBuilder): BatchBuilder
+function watch_later_request(logged_in: true): BridgeHttpResponse
+function watch_later_request(logged_in: true, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const watch_later_url = "https://api.bilibili.com/x/v2/history/toview/web"
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    // use the authenticated client because watch later is only available when logged in
+    const result = runner.GET(
+        watch_later_url,
+        {},
+        logged_in
+    )
     if (builder === undefined) {
         log_network_call(now)
     }
@@ -3842,133 +3593,349 @@ function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): Bat
 }
 //#endregion
 
-function init_local_storage() {
-    const vendor_and_renderer = WEBGL_VENDOR + WEBGL_RENDERER
+//#region comments
+// TODO when we load comments we actually download all the replies.
+// we should cache them so that when getSubComments is called we don't have to make any networks requests
+function getComments(url: string): CommentPager<BiliBiliCommentContext> {
+    const { subdomain, content_type, content_id } = parse_content_details_url(url)
+    if (subdomain === "live") {
+        return new CommentPager([], false)
+    }
+    const [oid, type, context_url] = ((): [number, 1 | 33, string] => {
+        switch (subdomain) {
+            case "t": {
+                const post_id = content_id
+                const post_response = download_post(post_id)
+                return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
+            }
+            case "www":
+                switch (content_type) {
+                    case "bangumi/play/ep": {
+                        const episode_id = parseInt(content_id)
+                        const season_response: SeasonResponse = JSON.parse(season_request({ id: episode_id, type: "episode" }).body)
+                        const episode_info = season_response.result.episodes.find((episode) => episode.ep_id === episode_id)
+                        if (episode_info === undefined) {
+                            throw new ScriptException("season missing episode")
+                        }
+                        return [episode_info.aid, 1, `${EPISODE_URL_PREFIX}${episode_id}`]
+                    }
+                    case "cheese/play/ep": {
+                        const episode_id = parseInt(content_id)
+                        return [episode_id, 33, `${COURSE_EPISODE_URL_PREFIX}${episode_id}`]
+                    }
+                    case "opus/": {
+                        const post_id = content_id
+                        const post_response = download_post(post_id)
+                        return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
+                    }
+                    case "video/": {
+                        const video_id = content_id
+                        const video_info: VideoDetailResponse = JSON.parse(video_detail_request(video_id).body)
+                        return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`]
+                    }
+                    default:
+                        throw assert_no_fall_through(content_type, "unreachable")
+                }
+            default:
+                throw assert_no_fall_through(subdomain, "unreachable")
+        }
+    })()
 
-    let dm_cover_img_str = local_utility.toBase64(string_to_bytes(vendor_and_renderer))
-    // chop the end off
-    dm_cover_img_str = dm_cover_img_str.slice(0, dm_cover_img_str.length - 2)
-
-    let dm_img_str = local_utility.toBase64(string_to_bytes(WEBGL))
-    // chop the end off
-    dm_img_str = dm_img_str.slice(0, dm_img_str.length - 2)
-
-    const value_one = get_random_int_inclusive(100, 1000)
-    const winWidth = get_random_int_inclusive(50, 5000)
-    const winHeight = get_random_int_inclusive(50, 5000)
-    const value_two = get_random_int_inclusive(5, 500)
-    const wh = [2 * winWidth + 2 * winHeight + 3 * value_two, 4 * winWidth - winHeight + value_two, value_two]
-
-    const dm_img_inter = `{"ds":[],"wh":[${wh[0]},${wh[1]},${wh[2]}],"of":[${value_one},${value_one * 2},${value_one}]}`
-
-    const b_nut = create_b_nut()
-    const requests: [
-        RequestMetadata<readonly number[]>,
-        RequestMetadata<Wbi>,
-        RequestMetadata<FingerSpiResponse>] = [{
-            request: mixin_constant_request,
-            process: process_mixin_constant
-        }, {
-            request(builder) { return nav_request(false, builder) },
-            process: process_wbi_keys
-        }, {
-            request: cookie_request,
-            process(response) { return JSON.parse(response.body) }
-        }]
-    const [mixin_constant, { wbi_img_key, wbi_sub_key }, finger_spi_response] = execute_requests(requests)
-    const buvid3 = finger_spi_response.data.b_3
-    const buvid4 = finger_spi_response.data.b_4
-
-    // required to access space posts
-    activate_cookies(b_nut, buvid3, buvid4)
-
-    // these caches don't work that well because they aren't shared between plugin instances
-    // saveState is what we need
-    local_storage_cache = {
-        buvid3,
-        buvid4,
-        b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
-        mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
-        dm_cover_img_str,
-        dm_img_str,
-        dm_img_inter
+    const pager = new BiliBiliCommentPager(context_url, oid, type, 1)
+    return pager
+}
+class BiliBiliCommentPager extends CommentPager<BiliBiliCommentContext> {
+    private readonly type: 1 | 33
+    private readonly oid: number
+    private readonly context_url: string
+    private next_page: number
+    constructor(context_url: string, oid: number, type: 1 | 33, initial_page: number) {
+        const comments_response = get_comments(oid, type, initial_page)
+        const more = !comments_response.data.cursor.is_end
+        super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more)
+        this.next_page = initial_page + 1
+        this.oid = oid
+        this.type = type
+        this.context_url = context_url
+    }
+    override nextPage(this: BiliBiliCommentPager): BiliBiliCommentPager {
+        const comment_response = get_comments(this.oid, this.type, this.next_page)
+        this.hasMore = !comment_response.data.cursor.is_end
+        this.results = format_comments(comment_response, this.context_url, this.oid, this.type, this.next_page === 1)
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: BiliBiliCommentPager): boolean {
+        return this.hasMore
     }
 }
+function get_comments(oid: number, type: 1 | 33, page: number): CommentResponse {
+    const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main"
+    const params: Params = {
+        type: type.toString(),
+        mode: "3",
+        pagination_str: JSON.stringify({
+            offset: JSON.stringify({
+                type: 1,
+                direction: 1,
+                data: {
+                    pn: page
+                }
+            })
+        }),
+        oid: oid.toString()
+    }
+    const comment_url = create_signed_url(comments_preix, params).toString()
 
-function mixin_constant_request(builder: BatchBuilder): BatchBuilder
-function mixin_constant_request(): BridgeHttpResponse
-function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const url = "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
-
-    const runner = builder === undefined ? local_http : builder
     const now = Date.now()
-    const result = runner.GET(url, {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-function process_mixin_constant(html: BridgeHttpResponse): readonly number[] {
-    const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/
-    const mixin_constant_json = html.body.match(mixin_constant_regex)?.[1]
-    if (mixin_constant_json === undefined) {
-        throw new ScriptException("failed to acquire mixin_constant")
-    }
-    const mixin_constant: readonly number[] = JSON.parse(mixin_constant_json)
-    return mixin_constant
-}
-
-function process_wbi_keys(raw_response: BridgeHttpResponse): Wbi {
-    const response: NavResponse = JSON.parse(raw_response.body)
-
-    return {
-        wbi_img_key: response.data.wbi_img.img_url.slice(29, 61),
-        wbi_sub_key: response.data.wbi_img.sub_url.slice(29, 61)
-    }
-}
-
-// TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
-// this will make things simpler
-function cookie_request(builder: BatchBuilder): BatchBuilder
-function cookie_request(): BridgeHttpResponse
-function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
-    const finger_spi_url = "https://api.bilibili.com/x/frontend/finger/spi"
-    const runner = builder === undefined ? local_http : builder
-    const now = Date.now()
-    const result = runner.GET(finger_spi_url, {}, false)
-    if (builder === undefined) {
-        log_network_call(now)
-    }
-    return result
-}
-
-/**
- * Activates cookies to be usable to load channel posts
- * @param b_nut 
- * @param buvid3 
- * @param buvid4 
- */
-function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
-    const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
-    const body = post_body_for_ExClimbWuzhi
-    const now = Date.now()
-    local_http.POST(cookie_activation_url,
-        body,
-        {
-            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
-            "User-Agent": USER_AGENT,
-            Host: "api.bilibili.com",
-            "Content-Length": body.length.toString(),
-            "Content-Type": "application/json"
-        },
-        false)
+    const json = local_http.GET(comment_url, {}, false).body
     log_network_call(now)
-}
 
-//#region Utilities
+    const results: CommentResponse = JSON.parse(json)
+    return results
+}
+/**
+ * Converts raw comment data into a Grayjay PlatformComments
+ * @param comments_response 
+ * @param context_url 
+ * @param oid 
+ * @param type 
+ * @param include_pinned_comment 
+ * @returns 
+ */
+function format_comments(
+    comments_response: CommentResponse,
+    context_url: string,
+    oid: number,
+    type: 1 | 33,
+    include_pinned_comment: boolean
+): PlatformComment<BiliBiliCommentContext>[] {
+    const replies = comments_response.data.replies
+    if (include_pinned_comment && comments_response.data.top.upper !== null) {
+        replies.unshift(comments_response.data.top.upper)
+    }
+    const comments = replies.map((data) => {
+        const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id)
+        return new PlatformComment<BiliBiliCommentContext>({
+            author: new PlatformAuthorLink(
+                author_id,
+                data.member.uname,
+                `${SPACE_URL_PREFIX}${data.member.mid}`,
+                data.member.avatar,
+                local_storage_cache.space_cache.get(data.member.mid)?.num_fans),
+            message: data.content.message,
+            rating: new RatingLikes(data.like),
+            replyCount: data.rcount,
+            date: data.ctime,
+            contextUrl: context_url,
+            context: {
+                oid: oid.toString(), rpid: data.rpid.toString(), type: ((type): "1" | "33" => {
+                    switch (type) {
+                        case 1:
+                            return "1"
+                        case 33:
+                            return "33"
+                        default:
+                            throw assert_no_fall_through(type, "unreachable")
+                    }
+                })(type)
+            }
+        })
+    })
+    return comments
+}
+function getSubComments(parent_comment: PlatformComment<BiliBiliCommentContext>): CommentPager<BiliBiliCommentContext> {
+    const oid = parseInt(parent_comment.context.oid)
+    const rpid = parseInt(parent_comment.context.rpid)
+    const type = parent_comment.context.type
+    return new SubCommentPager(rpid, oid, type, parent_comment.contextUrl, 1, 20)
+}
+class SubCommentPager extends CommentPager<BiliBiliCommentContext> {
+    private readonly type: "1" | "33"
+    private readonly oid: number
+    private readonly root: number
+    private readonly context_url: string
+    private next_page: number
+    private readonly page_size: number
+    constructor(root: number, oid: number, type: "1" | "33", context_url: string, initial_page: number, page_size: number) {
+        const replies_response = get_replies(oid, root, type, initial_page, page_size)
+        const more = replies_response.data.page.count > initial_page * page_size
+        super(format_replies(replies_response, type, oid, context_url), more)
+        this.next_page = initial_page + 1
+        this.oid = oid
+        this.type = type
+        this.root = root
+        this.context_url = context_url
+        this.page_size = page_size
+    }
+    override nextPage(this: SubCommentPager): SubCommentPager {
+        const replies_response = get_replies(this.oid, this.root, this.type, this.next_page, this.page_size)
+        this.hasMore = replies_response.data.page.count > this.next_page * this.page_size
+        this.results = format_replies(replies_response, this.type, this.oid, this.context_url)
+        this.next_page += 1
+        return this
+    }
+    override hasMorePagers(this: SubCommentPager): boolean {
+        return this.hasMore
+    }
+}
+/**
+ * 
+ * @param oid The root context for the comments (the aid for bangumi and videos, the episode id for courses, and basic->comment_id_str for posts
+ * @param root_rpid The parent comment id
+ * @param type The type of base content to retrieve replies about (33 for courses and 1 for everything else)
+ * @param page 
+ * @param page_size 
+ * @returns 
+ */
+function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: number, page_size: number) {
+    const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply"
+    const params: Params = {
+        type: type,
+        pn: page.toString(),
+        ps: page_size.toString(),
+        oid: oid.toString(),
+        root: root_rpid.toString()
+    }
+
+    const url = create_signed_url(thread_prefix, params).toString()
+    const now = Date.now()
+    const json = local_http.GET(url, {}, false).body
+    log_network_call(now)
+
+    const results: SubCommentsResponse = JSON.parse(json)
+    return results
+}
+/**
+ * Converts raw subcomment data into a Grayjay PlatformComments
+ * @param comment_data 
+ * @param type 
+ * @param oid 
+ * @param context_url 
+ * @returns 
+ */
+function format_replies(
+    comment_data: SubCommentsResponse,
+    type: "1" | "33",
+    oid: number,
+    context_url: string
+): PlatformComment<BiliBiliCommentContext>[] {
+    const comments = comment_data.data.replies.map((comment) => {
+        if (comment.replies.length !== 0) {
+            // these could be supported but as far as we understand they do not exist on BiliBili
+            throw new ScriptException("unsupported sub sub comments")
+        }
+        const author_id = new PlatformID(PLATFORM, comment.member.mid.toString(), plugin.config.id)
+        return new PlatformComment<BiliBiliCommentContext>({
+            author: new PlatformAuthorLink(
+                author_id,
+                comment.member.uname,
+                `${SPACE_URL_PREFIX}${comment.member.mid}`,
+                comment.member.avatar,
+                local_storage_cache.space_cache.get(comment.member.mid)?.num_fans),
+            message: comment.content.message,
+            rating: new RatingLikes(comment.like),
+            // as far as we know BiliBili doesn't support subsubcomments
+            replyCount: 0,
+            date: comment.ctime,
+            contextUrl: context_url,
+            context: { oid: oid.toString(), rpid: comment.rpid.toString(), type }
+        })
+    })
+    return comments
+}
+/**
+ * this doesn't really work. we probably need to use getLiveEvents instead
+ * the elements don't get removed for some reason
+ * and there is weird height code such that even if we were able to delete the elements the comments
+ * likely wouldn't fill the whole screen
+ * we should load the chat history from
+ * (mobile browser)
+ * https://api.live.bilibili.com/AppRoom/msg?room_id=26386397
+ * or
+ * (desktop browser)
+ * https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=26386397
+ * or figure out how to use the websockets to load chat in realtime
+ * https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
+ * wss://hw-sg-live-comet-02.chat.bilibili.com/sub
+ * @param url 
+ * @returns 
+ */
+function getLiveChatWindow(url: string) {
+    log("BiliBili log: live chatting")
+    return {
+        url,
+        removeElements: [".head-info", ".bili-btn-warp", "#app__player-area"]
+    }
+}
+//#endregion
+
+//#region user
+function getUserSubscriptions() {
+    if (!bridge.isLoggedIn()) {
+        throw new ScriptException("unreachable")
+    }
+    const nav_response: LoggedInNavResponse = JSON.parse(nav_request(true).body)
+    const subscriptions: string[] = []
+    let total = Number.MAX_SAFE_INTEGER
+    let page = 1
+    const page_size = 20
+    while (total > page * page_size) {
+        const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body)
+        total = subscriptions_response.data.total
+        subscriptions.push(...subscriptions_response.data.list.map((subscription) => `${SPACE_URL_PREFIX}${subscription.mid}`))
+        page += 1
+    }
+
+    return subscriptions
+}
+function user_subscriptions_request(mid: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
+function user_subscriptions_request(mid: number, page: number, page_size: number): BridgeHttpResponse
+function user_subscriptions_request(mid: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+    const following_url = "https://api.bilibili.com/x/relation/followings"
+    const params: Params = {
+        vmid: mid.toString(),
+        pn: page.toString(),
+        ps: page_size.toString()
+    }
+    const runner = builder === undefined ? local_http : builder
+    const url = create_url(following_url, params).toString()
+    const now = Date.now()
+    // use the authenticated client so logged in users can view their subscriptions even if they are private
+    const result = runner.GET(url, {}, true)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+
+}
+function getUserPlaylists() {
+    if (!bridge.isLoggedIn()) {
+        throw new ScriptException("unreachable")
+    }
+    const requests: [RequestMetadata<LoggedInNavResponse>, RequestMetadata<WatchLaterResponse>] = [
+        {
+            request(builder) { return nav_request(true, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }, {
+            request(builder) { return watch_later_request(true, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }
+    ]
+    const [nav_response, watch_later_response] = execute_requests(requests)
+    const favorites_response: SpaceFavoritesResponse = JSON.parse(space_favorites_request(nav_response.data.mid).body)
+
+    const playlists: string[] = favorites_response.data?.list?.map((list) => {
+        return `${FAVORITES_URL_PREFIX}${list.id}`
+    }) ?? []
+    if (watch_later_response.data.count > 0) {
+        playlists.push(WATCH_LATER_URL)
+    }
+    return playlists
+}
+//#endregion
+
+//#region utilities
 function assert_no_fall_through(value: never): void
 function assert_no_fall_through(value: never, exception_message: string): ScriptException
 function assert_no_fall_through(value: never, exception_message?: string): ScriptException | undefined {
@@ -4062,24 +4029,6 @@ function assert_never(value: never) {
 
 function log_network_call(before_run_timestamp: number) {
     log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`)
-}
-
-/**
- * https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js
- * @param e 
- * @param encryption_info 
- * @returns 
- */
-function getMixinKey(e: string, encryption_info: readonly number[]) {
-    return encryption_info.filter((value) => {
-        return e[value] !== undefined
-    }).map((value) => {
-        return e[value]
-    }).join("").slice(0, 32)
-}
-
-function create_b_nut() {
-    return Math.floor((new Date).getTime() / 1e3)
 }
 
 function create_signed_url(base_url: string, params: Params, special_params?: {
