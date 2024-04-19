@@ -52,6 +52,7 @@ Type.Feed.Collections = "COLLECTIONS";
 Type.Order.Chronological = "最新发布";
 Type.Order.Views = "最多播放";
 Type.Order.Favorites = "最多收藏";
+/** A local cache of values unique to each plugin instance (some of this data should be saved as state shared among instances) */
 let local_storage_cache;
 //#endregion
 //#region Source Methods
@@ -74,10 +75,8 @@ function disable() {
 }
 source.saveState = saveState;
 function saveState() { return ""; }
-// TODO there is additional content on the home page that we can consider loading in the future 
 source.getHome = getHome;
 function getHome() {
-    // load 12 videos at a time some of them are ads and not shown
     return new HomePager(0, 12);
 }
 source.searchSuggestions = searchSuggestions;
@@ -86,7 +85,6 @@ function searchSuggestions(query) {
 }
 source.searchChannels = searchChannels;
 function searchChannels(query) {
-    // the default page size on BiliBili is 36
     return new SpacePager(query, 1, 36);
 }
 // example of handled urls
@@ -499,8 +497,6 @@ function getPlaylist(url) {
             throw assert_no_fall_through(playlist_type, "unreachable");
     }
 }
-// TODO handle content that requires a premium subscription,
-// TODO consider switching from like rating to 0-10 scale rating for bangumi
 source.getContentDetails = getContentDetails;
 function getContentDetails(url) {
     const { subdomain, content_type, content_id } = parse_content_details_url(url);
@@ -991,21 +987,24 @@ function search(query, type, order, filters) {
     })(filters);
     return new SearchPager(query, 1, 42, query_type, query_order, duration);
 }
-// this doesn't really work. we probably need to use getLiveEvents instead
-// the elements don't get removed for some reason
-// and there is weird height code such that even if we were able to delete the elements the comments
-// likely wouldn't fill the whole screen
-// we should load the chat history from
-// (mobile browser)
-// https://api.live.bilibili.com/AppRoom/msg?room_id=26386397
-// or
-// (desktop browser)
-// https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=26386397
-// or figure out how to use the websockets to load chat in realtime
-// https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
-// wss://hw-sg-live-comet-02.chat.bilibili.com/sub
-// 
 source.getLiveChatWindow = getLiveChatWindow;
+/**
+ * this doesn't really work. we probably need to use getLiveEvents instead
+ * the elements don't get removed for some reason
+ * and there is weird height code such that even if we were able to delete the elements the comments
+ * likely wouldn't fill the whole screen
+ * we should load the chat history from
+ * (mobile browser)
+ * https://api.live.bilibili.com/AppRoom/msg?room_id=26386397
+ * or
+ * (desktop browser)
+ * https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=26386397
+ * or figure out how to use the websockets to load chat in realtime
+ * https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=5050&type=0
+ * wss://hw-sg-live-comet-02.chat.bilibili.com/sub
+ * @param url
+ * @returns
+ */
 function getLiveChatWindow(url) {
     log("BiliBili log: live chatting");
     return {
@@ -1167,6 +1166,15 @@ class SearchPager extends VideoPager {
     type;
     order;
     duration;
+    /**
+     * Whole site search pager supporting many different content types
+     * @param query
+     * @param initial_page
+     * @param page_size
+     * @param type
+     * @param order
+     * @param duration
+     */
     constructor(query, initial_page, page_size, type, order, duration) {
         const raw_response = search_request(query, initial_page, page_size, type, order, duration);
         const { search_results, more } = extract_search_results(raw_response, type, initial_page, page_size);
@@ -1205,6 +1213,11 @@ class SearchPager extends VideoPager {
         return this.hasMore;
     }
 }
+/**
+ * Downloads and formats a post
+ * @param post_id
+ * @returns
+ */
 function get_post(post_id) {
     const post_response = download_post(post_id);
     const space_post = post_response.data.item;
@@ -1212,7 +1225,7 @@ function get_post(post_id) {
     const images = [];
     const thumbnails = [];
     const primary_content = desc?.rich_text_nodes
-        .map((node) => { return format_text_node(node, images); })
+        .map((node) => { return format_text_node(node, images, thumbnails); })
         .join("");
     const major = space_post.modules.module_dynamic.major;
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
@@ -1233,6 +1246,15 @@ function get_post(post_id) {
         datetime: space_post.modules.module_author.pub_ts
     });
 }
+/**
+ * Converts raw comment data into a Grayjay PlatformComments
+ * @param comments_response
+ * @param context_url
+ * @param oid
+ * @param type
+ * @param include_pinned_comment
+ * @returns
+ */
 function format_comments(comments_response, context_url, oid, type, include_pinned_comment) {
     const replies = comments_response.data.replies;
     if (include_pinned_comment && comments_response.data.top.upper !== null) {
@@ -1263,6 +1285,14 @@ function format_comments(comments_response, context_url, oid, type, include_pinn
     });
     return comments;
 }
+/**
+ * Converts raw subcomment data into a Grayjay PlatformComments
+ * @param comment_data
+ * @param type
+ * @param oid
+ * @param context_url
+ * @returns
+ */
 function format_replies(comment_data, type, oid, context_url) {
     const comments = comment_data.data.replies.map((comment) => {
         if (comment.replies.length !== 0) {
@@ -1337,8 +1367,14 @@ class BiliBiliCommentPager extends CommentPager {
         return this.hasMore;
     }
 }
-// images in an output array for images
-function format_text_node(node, images) {
+/**
+ * Formats a text node of a post into HTML
+ * @param node
+ * @param images Output array for images in the post that corresponds to thumbnails
+ * @param thumbnails Output array for thumbnails for the images in the post
+ * @returns HTML string
+ */
+function format_text_node(node, images, thumbnails) {
     switch (node.type) {
         case "RICH_TEXT_NODE_TYPE_TEXT":
             return node.text;
@@ -1358,8 +1394,9 @@ function format_text_node(node, images) {
         case "RICH_TEXT_NODE_TYPE_VIEW_PICTURE": {
             for (const pic of node.pics) {
                 images.push(pic.src);
+                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, pic.size)]));
             }
-            return;
+            return "";
         }
         case "RICH_TEXT_NODE_TYPE_AT":
             return `<a href="${SPACE_URL_PREFIX}${node.rid}">${node.text}</a>`;
@@ -1383,6 +1420,15 @@ function format_text_node(node, images) {
 // oid for episodes and videos is the aid
 // oid for courses is the episode id
 // oid for posts is the comment_id_str under basic
+/**
+ *
+ * @param oid The root context for the comments (the aid for bangumi and videos, the episode id for courses, and basic->comment_id_str for posts
+ * @param root_rpid The parent comment id
+ * @param type The type of base content to retrieve replies about (33 for courses and 1 for everything else)
+ * @param page
+ * @param page_size
+ * @returns
+ */
 function get_replies(oid, root_rpid, type, page, page_size) {
     const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply";
     const params = {
@@ -1626,9 +1672,9 @@ class SeriesContentsPager extends VideoPager {
     series_id;
     next_page;
     page_size;
-    constructor(space_id, author, series_id, series_response, initial_page, page_size) {
-        const more = series_response.data.page.total > initial_page * page_size;
-        super(format_series(author, series_response), more);
+    constructor(space_id, author, series_id, initial_series_response, initial_page, page_size) {
+        const more = initial_series_response.data.page.total > initial_page * page_size;
+        super(format_series(author, initial_series_response), more);
         this.next_page = initial_page + 1;
         this.page_size = page_size;
         this.author = author;
@@ -2046,7 +2092,7 @@ function format_major(major, thumbnails, images) {
                 thumbnails.push(new Thumbnails([new Thumbnail(pic.url, HARDCODED_THUMBNAIL_QUALITY)]));
             }
             return major.opus.summary.rich_text_nodes.map((node) => {
-                return format_text_node(node, images);
+                return format_text_node(node, images, thumbnails);
             }).join("");
         case "MAJOR_TYPE_LIVE_RCMD": {
             const live_rcmd = JSON.parse(major.live_rcmd.content);
@@ -2380,7 +2426,14 @@ function search_request(query, page, page_size, type, order, duration, builder) 
     }
     return result;
 }
-// results and whether or not there are more results
+/**
+ *
+ * @param raw_response
+ * @param type
+ * @param page
+ * @param page_size
+ * @returns SearchResultItems and whether there are more results
+ */
 function extract_search_results(raw_response, type, page, page_size) {
     if (type === "live") {
         const results = JSON.parse(raw_response.body);
@@ -2842,7 +2895,7 @@ function format_space_posts(space_posts_response, space_id, space_info) {
         const desc = space_post.modules.module_dynamic.desc;
         const images = [];
         const thumbnails = [];
-        const primary_content = desc?.rich_text_nodes.map((node) => { return format_text_node(node, images); }).join("");
+        const primary_content = desc?.rich_text_nodes.map((node) => { return format_text_node(node, images, thumbnails); }).join("");
         const major = space_post.modules.module_dynamic.major;
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
         const topic = space_post.modules.module_dynamic.topic;
@@ -3038,7 +3091,7 @@ function get_suggestions(query) {
     const suggestions_response = JSON.parse(suggestions_json);
     return suggestions_response.result.tag.map((entry) => entry.term);
 }
-class HomePager extends ContentPager {
+class HomePager extends VideoPager {
     next_page;
     page_size;
     constructor(initial_page, page_size) {
@@ -3101,8 +3154,12 @@ function format_home(home) {
         }
     });
 }
-// page starts at 0
-// warning: makes a network request
+/**
+ *
+ * @param page The page to load (starts at 0)
+ * @param page_size
+ * @returns
+ */
 function get_home(page, page_size) {
     const home_api_url = "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd";
     const fresh_type = "4";
@@ -3142,10 +3199,10 @@ function init_local_storage() {
     let dm_img_str = local_utility.toBase64(string_to_bytes(WEBGL));
     // chop the end off
     dm_img_str = dm_img_str.slice(0, dm_img_str.length - 2);
-    const value_one = getRandomIntInclusive(100, 1000);
-    const winWidth = getRandomIntInclusive(50, 5000);
-    const winHeight = getRandomIntInclusive(50, 5000);
-    const value_two = getRandomIntInclusive(5, 500);
+    const value_one = get_random_int_inclusive(100, 1000);
+    const winWidth = get_random_int_inclusive(50, 5000);
+    const winHeight = get_random_int_inclusive(50, 5000);
+    const value_two = get_random_int_inclusive(5, 500);
     const wh = [2 * winWidth + 2 * winHeight + 3 * value_two, 4 * winWidth - winHeight + value_two, value_two];
     const dm_img_inter = `{"ds":[],"wh":[${wh[0]},${wh[1]},${wh[2]}],"of":[${value_one},${value_one * 2},${value_one}]}`;
     const b_nut = create_b_nut();
@@ -3214,7 +3271,12 @@ function cookie_request(builder) {
     }
     return result;
 }
-// required to access space posts
+/**
+ * Activates cookies to be usable to load channel posts
+ * @param b_nut
+ * @param buvid3
+ * @param buvid4
+ */
 function activate_cookies(b_nut, buvid3, buvid4) {
     const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi";
     const body = post_body_for_ExClimbWuzhi;
@@ -3242,11 +3304,16 @@ function string_to_bytes(str) {
     }
     return new Uint8Array(result);
 }
-function getRandomIntInclusive(min, max) {
+function get_random_int_inclusive(min, max) {
     const minCeiled = Math.ceil(min);
     const maxFloored = Math.floor(max);
     return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled); // The maximum is inclusive and the minimum is inclusive
 }
+/**
+ * Parses a time in minutes and seconds into a unix epoch timestamp
+ * @param minutes_seconds "20:45"
+ * @returns
+ */
 function parse_minutes_seconds(minutes_seconds) {
     const parsed_length = minutes_seconds.match(/^(\d+):(\d+)/);
     if (parsed_length === null) {
@@ -3260,6 +3327,12 @@ function parse_minutes_seconds(minutes_seconds) {
     const duration = parseInt(minutes) * 60 + parseInt(seconds);
     return duration;
 }
+/**
+ * Converts subtitle data to the WebVTT format
+ * @param subtitles_data
+ * @param name
+ * @returns
+ */
 function convert_subtitles(subtitles_data, name) {
     let text = `WEBVTT ${name}\n`;
     text += "\n";
@@ -3271,10 +3344,20 @@ function convert_subtitles(subtitles_data, name) {
     }
     return text;
 }
+/**
+ * Converts seconds to the timestamp format used in WebVTT
+ * @param seconds
+ * @returns
+ */
 function seconds_to_WebVTT_timestamp(seconds) {
     return new Date(seconds * 1000).toISOString().substring(11, 23);
 }
-// starts with the longer array or a if they are the same length
+/**
+ * Interleaves two arrays starting with values from the longer array or from a if a and b are the same length
+ * @param a
+ * @param b
+ * @returns
+ */
 function interleave(a, b) {
     const [first, second] = b.length > a.length ? [b, a] : [a, b];
     return first.flatMap((a_value, index) => {
@@ -3291,7 +3374,12 @@ function assert_never(value) {
 function log_network_call(before_run_timestamp) {
     log(`BiliBili log: made 1 network request taking ${Date.now() - before_run_timestamp} milliseconds`);
 }
-// "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
+/**
+ * https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js
+ * @param e
+ * @param encryption_info
+ * @returns
+ */
 function getMixinKey(e, encryption_info) {
     return encryption_info.filter((value) => {
         return e[value] !== undefined;
@@ -3339,6 +3427,11 @@ function create_url(base_url, params) {
     }
     return url;
 }
+/**
+ * Execute requests in parallel processes each of the results and return a tuple of results
+ * @param requests
+ * @returns
+ */
 function execute_requests(requests) {
     const batch = local_http.batch();
     for (const request of requests) {
@@ -3350,13 +3443,6 @@ function execute_requests(requests) {
     const responses = batch.execute();
     log(`BiliBili log: made ${responses.length} network request(s) in parallel taking ${Date.now() - now} milliseconds`);
     switch (requests.length) {
-        case 1: {
-            const response_0 = responses[0];
-            if (response_0 === undefined) {
-                throw new ScriptException("unreachable");
-            }
-            return requests[0].process(response_0);
-        }
         case 2: {
             const response_0 = responses[0];
             const response_1 = responses[1];

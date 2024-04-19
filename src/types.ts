@@ -1,10 +1,10 @@
 //#region custom types
 export type BiliBiliCommentContext = {
-    // the id of the content
+    /** the id of the content */
     readonly oid: string
-    // the parent/root comment id
+    /** the parent/root comment id */
     readonly rpid: string
-    // the type of comment "33" for course episode comments and "1" for everything else
+    /** the type of comment "33" for course episode comments and "1" for everything else */
     readonly type: "33" | "1"
 }
 
@@ -27,8 +27,14 @@ export type IdObj = {
 
 export type OrderOptions = "click" | "pubdate" | "stow"
 
+/**
+ * Regex capture group options that correspond to different content types
+ */
 export type ContentType = "bangumi/play/ep" | "video/" | "opus/" | "cheese/play/ep"
 
+/**
+ * Regex capture group options that correspond to different playlist types
+ */
 export type PlaylistType = "bangumi/play/ss"
     | "cheese/play/ss"
     | "/channel/collectiondetail?sid="
@@ -87,7 +93,6 @@ export type CoreSpaceInfo = {
 //#endregion
 
 //#region JSON types
-
 export type FingerSpiResponse = {
     readonly data: {
         readonly b_3: string
@@ -507,8 +512,8 @@ export type Major = {
     }
 } | {
     readonly type: "MAJOR_TYPE_LIVE_RCMD"
-    // a JSON string
     readonly live_rcmd: {
+        /** A JSON string */
         readonly content: string
     }
 } | {
@@ -528,9 +533,9 @@ export type Major = {
 }
 
 export type SpaceFavoritesResponse = {
-    // null if there is no favorites section
+    /** Null if there is no favorites section */
     readonly data: null | {
-        // null if the count of favorites lists is 0
+        /** Null if the count of favorites lists is 0 */
         list: null | {
             readonly media_count: number
             readonly title: string
@@ -640,7 +645,7 @@ export type SpacePostsSearchResponse = {
                     }
                 }
             }
-            // a JSON string
+            /** A JSON string */
             readonly card: string
         }[]
     }
@@ -656,7 +661,7 @@ export type SpaceVideosSearchResponse = {
                 readonly title: string
                 readonly length: string
                 readonly pic: string
-                // can be "--" for removed videos
+                /** Can be "--" for removed videos */
                 readonly play: number | "--"
                 readonly author: string
                 readonly created: number
@@ -726,9 +731,11 @@ export type SearchResultItem = {
     readonly uid: number
     readonly uname: string
     readonly uface: string
-    readonly user_cover: string // livestream thumbnail
+    /** Livestream thumbnail */
+    readonly user_cover: string
     readonly watched_show: {
-        readonly num: number // current viewers
+        /** Current viewers */
+        readonly num: number
     }
     readonly live_time: string
 } | {
@@ -740,7 +747,7 @@ export type SearchResultItem = {
     readonly author: string
     readonly id: number
     readonly episode_count_text: string
-    // i think this is always 0 :(
+    /** I think this is always 0 :( */
     readonly pubdate: never
 } | {
     readonly mid: number

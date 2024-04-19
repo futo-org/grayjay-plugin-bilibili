@@ -33,6 +33,10 @@
 - [ ]   Reduce the lines of code somehow
 - [ ]   Show a locked content object for inaccesible premium content
 - [ ]   Investigate and handle other url types (mobile video links?)
+- [ ]   Handle correctly formatted links that don't actually point to any content
+- [ ]   there is additional content on the home page that we can consider loading in the future
+- [ ]   consider switching from like rating to 0-10 scale rating for bangumi
+- [ ]   playlist search should be redone but there needs to be better support for playlist search in Grayjay
 ## Pending Fixed Grayjay Bug
 - [X]   Links in posts aren't clickable
 - [X]   When going back from a post detail opened on a channel page hangs the app
@@ -46,6 +50,7 @@
 - [ ]   Support for playlists, posts, movies, shows, and custom playlist types as search feed type
 - [ ]   The removal of elements from the getlivechatwindow doesn't work likely because it runs before the elements have been created
 - [ ]   Searching from the subscriptions page doesn't searchyour subscriptions it searches everything
+- [ ]   Ordering options and filters can not be specified on a per feed type basis
 - [ ]   Issues with passing search feed type to search api calls
     -   when searching from the main home page search type in the search function call is always null regardless of what is set in getsearchcapabilities
     -   when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
