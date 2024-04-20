@@ -36,7 +36,7 @@
     },
     "type": "module",
     "devDependencies": {
-        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#5a0450a7732dd697c74e6c7db2277b8b29837ad7",
+        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#876b664df2afb521d97c721215f87920dd714569",
         "@types/node": "^20.12.7",
         "eslint": "^8.57.0",
         "eslint-plugin-node": "^11.1.0",

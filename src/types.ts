@@ -620,6 +620,11 @@ export type SpacePostsResponse = {
         readonly has_more: boolean
         readonly offset: number
     }
+    readonly code: 0
+}
+
+export type MaybeSpacePostsResponse = SpacePostsResponse | {
+    readonly code: -352
 }
 
 export type Card = {

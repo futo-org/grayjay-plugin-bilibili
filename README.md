@@ -38,12 +38,10 @@
 - [ ]   consider switching from like rating to 0-10 scale rating for bangumi
 - [ ]   playlist search should be redone but there needs to be better support for playlist search in Grayjay
 ## Pending Fixed Grayjay Bug
-- [X]   Links in posts aren't clickable
-- [X]   When going back from a post detail opened on a channel page hangs the app
-- [X]   When opening a post (PlatformPost) from the channel search results and the return PlatformPostDetails from getContentDetails the loading icon doesn't go away
-- [X]   Search capabilities aren't distinct between channel search and home feed search
+
 ## Grayjay Bugs
 - [ ]   HLS for live streaming is a little wonky in the UI
+- [ ]   Something glitchy with the posts tab on the subscriptions page
 - [ ]   Opening direct links to posts doesn't work
 - [ ]   When making a live PlatformVideoDetails the video option needs to be a blank VideoSourceDescriptor which is kinda weird
 - [ ]   the getSubtitles call is wrapped in an exception swalling thing so when i was hitting a non allow listed domain it was just silently failing
