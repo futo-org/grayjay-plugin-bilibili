@@ -37,6 +37,7 @@
 - [ ]   there is additional content on the home page that we can consider loading in the future
 - [ ]   consider switching from like rating to 0-10 scale rating for bangumi
 - [ ]   playlist search should be redone but there needs to be better support for playlist search in Grayjay
+- [ ]   this is a sort of playlist that we might consider adding support for https://www.bilibili.com/blackboard/era/YyCI1Zsg5iUjelX2.html
 ## Pending Fixed Grayjay Bug
 
 ## Grayjay Bugs
