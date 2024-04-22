@@ -449,6 +449,10 @@ function get_home(page: number, page_size: number): HomeFeedResponse {
     return home_response
 }
 function format_home(home: HomeFeedResponse): PlatformVideo[] {
+    if(home === null){
+        log("BiliBili log: home is null please investigate")
+        return []
+    }
     return home.data.item.flatMap((item): PlatformVideo[] => {
         switch (item.goto) {
             case "ad":
@@ -1002,15 +1006,20 @@ function getChannel(url: string) {
         }
     })
 
-    return new PlatformChannel({
+    const is_default_banner =  new RegExp(/cb1c3ef50e22b6096fde67febe863494caefebad/).test(space.data.top_photo)
+
+    const channel = new PlatformChannel({
         id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
         name: space.data.name,
         thumbnail: space.data.face,
-        banner: space.data.top_photo,
         subscribers: fan_count_response.data.follower,
         description: space.data.sign,
         url: `${SPACE_URL_PREFIX}${space_id}`,
     })
+
+    return is_default_banner ? channel : {
+        ...channel, banner: space.data.top_photo
+    }
 }
 function parse_space_url(url: string) {
     const match_results = url.match(SPACE_URL_REGEX)
@@ -1754,7 +1763,12 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
         space_info.num_fans
     )
 
-    return space_posts_response.data.items.map((space_post) => {
+    return space_posts_response.data.items.flatMap((space_post) => {
+        // ignore video posts (because it creates duplicate items in the combined feed)
+        if(space_post.type === "DYNAMIC_TYPE_AV"){
+            return []
+        }
+
         const desc = space_post.modules.module_dynamic.desc
         const images: string[] = []
         const thumbnails: Thumbnails[] = []
@@ -1769,9 +1783,12 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
         const topic = space_post.modules.module_dynamic.topic
         const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
 
-        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
+        const reference = space_post.orig
+        const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>`  : undefined
 
-        return new PlatformPostDetails({
+        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "")
+
+        return [new PlatformPostDetails({
             thumbnails,
             images,
             description: content,
@@ -1784,7 +1801,7 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
             author,
             content,
             datetime: space_post.modules.module_author.pub_ts
-        })
+        })]
     })
 }
 // note there is another section on the page https://space.bilibili.com/<space_id>/favlist
@@ -1961,7 +1978,7 @@ function format_post_search_result(response: SpacePostsSearchResponse): Platform
         return new PlatformPost({
             thumbnails: [new Thumbnails([])],
             images: [],
-            description: post.item?.content ?? post.item?.description ?? "",
+            description: (post.dynamic ?? "") + (post.item?.content ?? "") + (post.item?.description ?? ""),
             // as far as i can tell posts don't have names
             name: MISSING_NAME,
             url: `${POST_URL_PREFIX}${card.desc.dynamic_id_str}`,
@@ -2466,7 +2483,7 @@ function get_post(post_id: string) {
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
 
     const topic = space_post.modules.module_dynamic.topic
-    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
+    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined
 
     const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "")
 

@@ -386,6 +386,10 @@ function get_home(page, page_size) {
     return home_response;
 }
 function format_home(home) {
+    if (home === null) {
+        log("BiliBili log: home is null please investigate");
+        return [];
+    }
     return home.data.item.flatMap((item) => {
         switch (item.goto) {
             case "ad":
@@ -854,15 +858,18 @@ function getChannel(url) {
             }
         }
     });
-    return new PlatformChannel({
+    const is_default_banner = new RegExp(/cb1c3ef50e22b6096fde67febe863494caefebad/).test(space.data.top_photo);
+    const channel = new PlatformChannel({
         id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
         name: space.data.name,
         thumbnail: space.data.face,
-        banner: space.data.top_photo,
         subscribers: fan_count_response.data.follower,
         description: space.data.sign,
         url: `${SPACE_URL_PREFIX}${space_id}`,
     });
+    return is_default_banner ? channel : {
+        ...channel, banner: space.data.top_photo
+    };
 }
 function parse_space_url(url) {
     const match_results = url.match(SPACE_URL_REGEX);
@@ -1460,7 +1467,11 @@ function space_posts_request(space_id, offset, builder) {
 function format_space_posts(space_posts_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    return space_posts_response.data.items.map((space_post) => {
+    return space_posts_response.data.items.flatMap((space_post) => {
+        // ignore video posts (because it creates duplicate items in the combined feed)
+        if (space_post.type === "DYNAMIC_TYPE_AV") {
+            return [];
+        }
         const desc = space_post.modules.module_dynamic.desc;
         const images = [];
         const thumbnails = [];
@@ -1469,21 +1480,23 @@ function format_space_posts(space_posts_response, space_id, space_info) {
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
         const topic = space_post.modules.module_dynamic.topic;
         const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
-        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
-        return new PlatformPostDetails({
-            thumbnails,
-            images,
-            description: content,
-            // as far as i can tell posts don't have names
-            name: MISSING_NAME,
-            url: `${POST_URL_PREFIX}${space_post.id_str}`,
-            id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
-            rating: new RatingLikes(space_post.modules.module_stat.like.count),
-            textType: Type.Text.HTML,
-            author,
-            content,
-            datetime: space_post.modules.module_author.pub_ts
-        });
+        const reference = space_post.orig;
+        const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined;
+        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
+        return [new PlatformPostDetails({
+                thumbnails,
+                images,
+                description: content,
+                // as far as i can tell posts don't have names
+                name: MISSING_NAME,
+                url: `${POST_URL_PREFIX}${space_post.id_str}`,
+                id: new PlatformID(PLATFORM, space_post.id_str, plugin.config.id),
+                rating: new RatingLikes(space_post.modules.module_stat.like.count),
+                textType: Type.Text.HTML,
+                author,
+                content,
+                datetime: space_post.modules.module_author.pub_ts
+            })];
     });
 }
 function space_favorites_request(space_id, builder) {
@@ -1621,7 +1634,7 @@ function format_post_search_result(response) {
         return new PlatformPost({
             thumbnails: [new Thumbnails([])],
             images: [],
-            description: post.item?.content ?? post.item?.description ?? "",
+            description: (post.dynamic ?? "") + (post.item?.content ?? "") + (post.item?.description ?? ""),
             // as far as i can tell posts don't have names
             name: MISSING_NAME,
             url: `${POST_URL_PREFIX}${card.desc.dynamic_id_str}`,
@@ -2057,7 +2070,7 @@ function get_post(post_id) {
     const major = space_post.modules.module_dynamic.major;
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
     const topic = space_post.modules.module_dynamic.topic;
-    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
+    const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
     const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
     return new PlatformPostDetails({
         thumbnails,

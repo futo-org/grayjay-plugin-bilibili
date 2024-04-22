@@ -39,6 +39,8 @@
 - [ ]   playlist search should be redone but there needs to be better support for playlist search in Grayjay
 - [ ]   this is a sort of playlist that we might consider adding support for https://www.bilibili.com/blackboard/era/YyCI1Zsg5iUjelX2.html
 - [ ]   consider switching from using JSON apis to HTML with regex. this could improve performance because the latency of the html is less than the json
+- [ ]   remove bad post search results that are simply duplicates to video search results
+
 ## Pending Fixed Grayjay Bug
 
 ## Grayjay Bugs
@@ -55,3 +57,4 @@
     -   when searching from the main home page search type in the search function call is always null regardless of what is set in getsearchcapabilities
     -   when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
     -   getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
+- [ ]   the first time when trying to open a channel link the app will say the link isn't supported

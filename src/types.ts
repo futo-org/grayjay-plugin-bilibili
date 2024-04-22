@@ -587,36 +587,40 @@ export type SpaceCoursesResponse = {
         }
     }
 }
+export type SpacePost = {
+    readonly id_str: string
+    readonly modules: {
+        readonly module_dynamic: {
+            readonly desc: null | {
+                readonly rich_text_nodes: TextNode[]
+            }
+            readonly major: null | Major
+            readonly topic: null | {
+                readonly id: number
+                readonly jump_url: string
+                readonly name: string
+            }
+        }
+        readonly module_author: {
+            readonly pub_ts: number
+            readonly face: string
+            readonly name: string
+            readonly mid: number
+        }
+        readonly module_stat: {
+            readonly like: {
+                readonly count: number
+            }
+        }
+    }
+    /** A reference to a different post */
+    readonly orig: SpacePost
+    readonly type: "DYNAMIC_TYPE_FORWARD" | "DYNAMIC_TYPE_AV"
+}
 
 export type SpacePostsResponse = {
     readonly data: {
-        readonly items: {
-            readonly id_str: string
-            readonly modules: {
-                readonly module_dynamic: {
-                    readonly desc: null | {
-                        readonly rich_text_nodes: TextNode[]
-                    }
-                    readonly major: null | Major
-                    readonly topic: null | {
-                        readonly id: number
-                        readonly jump_url: string
-                        readonly name: string
-                    }
-                }
-                readonly module_author: {
-                    readonly pub_ts: number
-                    readonly face: string
-                    readonly name: string
-                    readonly mid: number
-                }
-                readonly module_stat: {
-                    readonly like: {
-                        readonly count: number
-                    }
-                }
-            }
-        }[]
+        readonly items: SpacePost[]
         readonly has_more: boolean
         readonly offset: number
     }
@@ -632,6 +636,7 @@ export type Card = {
         readonly content?: string
         readonly description?: string
     }
+    readonly dynamic?: string
 }
 
 export type SpacePostsSearchResponse = {
@@ -650,7 +655,7 @@ export type SpacePostsSearchResponse = {
                     }
                 }
             }
-            /** A JSON string */
+            /** A JSON string see Card type */
             readonly card: string
         }[]
     }
@@ -918,7 +923,7 @@ export type HomeFeedResponse = {
     readonly data: {
         readonly item: HomeFeedItem[]
     }
-}
+} | null
 
 export type SuggestionsResponse = {
     readonly result: {
