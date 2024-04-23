@@ -449,7 +449,7 @@ function get_home(page: number, page_size: number): HomeFeedResponse {
     return home_response
 }
 function format_home(home: HomeFeedResponse): PlatformVideo[] {
-    if(home === null){
+    if (home === null) {
         log("BiliBili log: home is null please investigate")
         return []
     }
@@ -1006,7 +1006,7 @@ function getChannel(url: string) {
         }
     })
 
-    const is_default_banner =  new RegExp(/cb1c3ef50e22b6096fde67febe863494caefebad/).test(space.data.top_photo)
+    const is_default_banner = new RegExp(/cb1c3ef50e22b6096fde67febe863494caefebad/).test(space.data.top_photo)
 
     const channel = new PlatformChannel({
         id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
@@ -1765,7 +1765,7 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
 
     return space_posts_response.data.items.flatMap((space_post) => {
         // ignore video posts (because it creates duplicate items in the combined feed)
-        if(space_post.type === "DYNAMIC_TYPE_AV"){
+        if (space_post.type === "DYNAMIC_TYPE_AV") {
             return []
         }
 
@@ -1784,7 +1784,7 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
         const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
 
         const reference = space_post.orig
-        const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>`  : undefined
+        const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined
 
         const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "")
 
@@ -2139,16 +2139,38 @@ function getContentDetails(url: string) {
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
                     .find((stream) => stream.protocol_name === "http_stream")?.format
                     .find((format) => format.format_name === "flv")?.codec[0]
-                const url_info = codec?.url_info[0]
-                if (url_info === undefined || codec === undefined) {
+                if (codec === undefined) {
                     throw new ScriptException("unreachable")
                 }
+
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
                     .find((item) => item.qn === codec.current_qn)?.desc
-                if (name === undefined) {
+
+                let video_url: string | undefined
+                let hostname: string | undefined
+                for (const url_info of codec.url_info) {
+                    const url_host = new URL(url_info.host).hostname
+                    const url = `${url_info.host}${codec.base_url}${url_info.extra}`
+                    const now = Date.now()
+                    // if this request returns 404 it takes like 6 seconds to do so.
+                    // however if we remove the Referer header then it returns 403 quickly
+                    // even though the browser uses the Referer header and gets a 404 we might consider leaving it
+                    // off to get the 403 quicker. i'm not doing it now because 200 is expected in the
+                    // vast majority of cases
+                    const code = http.request("HEAD", url, {
+                        Referer: "https://live.bilibili.com"
+                    }, false).code
+                    log_network_call(now)
+                    if (code === 200) {
+                        hostname = url_host
+                        video_url = url
+                        break
+                    }
+                }
+                if (video_url === undefined || hostname === undefined || name === undefined) {
                     throw new ScriptException("unreachable")
                 }
-                const video_url = `${url_info.host}${codec.base_url}${url_info.extra}`
+
                 source = new VideoUrlSource({
                     url: video_url,
                     name,
@@ -2158,12 +2180,6 @@ function getContentDetails(url: string) {
                     codec: "avc",
                     bitrate: HARDCODED_ZERO,
                     duration: HARDCODED_ZERO,
-                    requestModifier: {
-                        headers: {
-                            "User-Agent": USER_AGENT,
-                            Host: new URL(url_info.host).hostname
-                        }
-                    }
                 })
             }
 

@@ -7,7 +7,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Bilibili/BiliBiliConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/bilibili",
     "scriptUrl": "./BiliBiliScript.js",
-    "version": 7,
+    "version": 8,
     "iconUrl": "./BiliBiliIcon.png",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
     "scriptSignature": "",
@@ -23,7 +23,9 @@
         "s1.hdslb.com",
         "live.bilibili.com",
         "s.search.bilibili.com",
-        "aisubtitle.hdslb.com"
+        "aisubtitle.hdslb.com",
+        "d1--ov-gotcha05.bilivideo.com",
+        "d1--ov-gotcha07.bilivideo.com"
     ],
     "authentication": {
 		"loginUrl": "https://passport.bilibili.com/h5-app/passport/login",

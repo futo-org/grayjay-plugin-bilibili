@@ -58,3 +58,4 @@
     -   when searching channel contents from a channel page search type in the searchChannelContents function call is always null regardless of what is set in getsearchchannelcontentscapabilities
     -   getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
 - [ ]   the first time when trying to open a channel link the app will say the link isn't supported
+- [ ]   non utf characters don't get saved to the filename when exporting. this is really bad for simplified chinese characters

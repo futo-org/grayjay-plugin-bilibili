@@ -1784,16 +1784,35 @@ function getContentDetails(url) {
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
                     .find((stream) => stream.protocol_name === "http_stream")?.format
                     .find((format) => format.format_name === "flv")?.codec[0];
-                const url_info = codec?.url_info[0];
-                if (url_info === undefined || codec === undefined) {
+                if (codec === undefined) {
                     throw new ScriptException("unreachable");
                 }
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
                     .find((item) => item.qn === codec.current_qn)?.desc;
-                if (name === undefined) {
+                let video_url;
+                let hostname;
+                for (const url_info of codec.url_info) {
+                    const url_host = new URL(url_info.host).hostname;
+                    const url = `${url_info.host}${codec.base_url}${url_info.extra}`;
+                    const now = Date.now();
+                    // if this request returns 404 it takes like 6 seconds to do so.
+                    // however if we remove the Referer header then it returns 403 quickly
+                    // even though the browser uses the Referer header and gets a 404 we might consider leaving it
+                    // off to get the 403 quicker. i'm not doing it now because 200 is expected in the
+                    // vast majority of cases
+                    const code = http.request("HEAD", url, {
+                        Referer: "https://live.bilibili.com"
+                    }, false).code;
+                    log_network_call(now);
+                    if (code === 200) {
+                        hostname = url_host;
+                        video_url = url;
+                        break;
+                    }
+                }
+                if (video_url === undefined || hostname === undefined || name === undefined) {
                     throw new ScriptException("unreachable");
                 }
-                const video_url = `${url_info.host}${codec.base_url}${url_info.extra}`;
                 source = new VideoUrlSource({
                     url: video_url,
                     name,
@@ -1803,12 +1822,6 @@ function getContentDetails(url) {
                     codec: "avc",
                     bitrate: HARDCODED_ZERO,
                     duration: HARDCODED_ZERO,
-                    requestModifier: {
-                        headers: {
-                            "User-Agent": USER_AGENT,
-                            Host: new URL(url_info.host).hostname
-                        }
-                    }
                 });
             }
             // TODO handle the case where the room is inactive
