@@ -64,16 +64,19 @@ export type SearchTypeCapabilities = Exclude<FeedType, "POSTS" | "COURSES" | "CO
 
 export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
 
-export type LocalCache = {
+export type State = {
     readonly buvid3: string
     readonly buvid4: string
     readonly b_nut: number
     readonly mixin_key: string
-    readonly cid_cache: Map<string, number>
-    readonly space_cache: Map<number, CoreSpaceInfo>
     readonly dm_cover_img_str: string
     readonly dm_img_str: string
     readonly dm_img_inter: string
+}
+
+export type LocalCache = {
+    readonly cid_cache: Map<string, number>
+    readonly space_cache: Map<number, CoreSpaceInfo>
 }
 
 export type CoreSpaceInfo = {
@@ -473,7 +476,6 @@ export type TextNode = {
 } | {
     readonly pics: {
         readonly height: number
-        readonly size: number
         readonly src: string
         readonly width: number
     }[]
@@ -527,6 +529,13 @@ export type Major = {
     readonly type: "MAJOR_TYPE_ARTICLE"
     readonly article: {
         readonly covers: string[]
+        readonly title: string
+        readonly id: number
+    }
+} | {
+    readonly type: "MAJOR_TYPE_COURSES"
+    readonly courses: {
+        readonly cover: string
         readonly title: string
         readonly id: number
     }

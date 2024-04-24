@@ -56,7 +56,8 @@ import type {
     ChannelSearchTypeCapabilities,
     SearchTypeCapabilities,
     PlayDataDash,
-    MaybeSpacePostsResponse
+    MaybeSpacePostsResponse,
+    State
 } from "./types.js"
 
 const PLATFORM = "BiliBili" as const
@@ -123,6 +124,8 @@ Type.Order.Favorites = "最多收藏"
 
 /** A local cache of values unique to each plugin instance (some of this data should be saved as state shared among instances) */
 let local_storage_cache: LocalCache
+/** State */
+let local_state: State
 //#endregion
 
 //#region source methods
@@ -216,7 +219,7 @@ if (IS_TESTING) {
 //#endregion
 
 //#region enable
-function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
+function enable(conf: SourceConfig, settings: Settings, savedState: string | null) {
     if (IS_TESTING) {
         log("IS_TESTING true")
         log("logging configuration")
@@ -227,9 +230,14 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string) {
         log(savedState)
     }
 
-    init_local_storage()
+    if (savedState === null) {
+        init_local_storage()
+    } else {
+        const state: State = JSON.parse(savedState)
+        init_local_storage(state)
+    }
 }
-function init_local_storage() {
+function init_session_info(): State {
     const vendor_and_renderer = WEBGL_VENDOR + WEBGL_RENDERER + "g"
 
     let dm_cover_img_str = local_utility.toBase64(string_to_bytes(vendor_and_renderer))
@@ -279,20 +287,31 @@ function init_local_storage() {
     // required to access space posts
     activate_cookies(b_nut, buvid3, buvid4)
 
-    // these caches don't work that well because they aren't shared between plugin instances
-    // saveState is what we need
-    local_storage_cache = {
+    return {
         buvid3,
         buvid4,
         b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
         mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
         dm_cover_img_str,
         dm_img_str,
         dm_img_inter
     }
 }
+function init_local_storage(state?: State) {
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        cid_cache: new Map(),
+        space_cache: new Map()
+    }
+    local_state = state === undefined ? init_session_info() : state
+}
+// function refresh_session_info() {
+//     local_storage_cache = {
+//         ...local_storage_cache,
+//         ...init_session_info()
+//     }
+// }
 function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
 function nav_request(useAuthClient: boolean): BridgeHttpResponse
 function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
@@ -393,7 +412,9 @@ function disable() {
     log("BiliBili log: disabling")
 }
 
-function saveState() { return "" }
+function saveState() {
+    return JSON.stringify(local_state)
+}
 
 //#region home
 function getHome() {
@@ -441,7 +462,7 @@ function get_home(page: number, page_size: number): HomeFeedResponse {
     // use auth client so that logged in users get a personalized home feed
     const home_json = local_http.GET(
         url,
-        { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}` },
+        { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_state.buvid3}` },
         true).body
 
     log_network_call(now)
@@ -742,7 +763,7 @@ function search_request(query: string,
         params = { ...params, duration: duration.toString() }
     }
     const search_url = create_signed_url(search_prefix, params).toString()
-    const buvid3 = local_storage_cache.buvid3
+    const buvid3 = local_state.buvid3
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     const result = runner.GET(
@@ -1066,7 +1087,7 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
             Referer: "https://www.bilibili.com",
             Host: "api.bilibili.com",
             "User-Agent": USER_AGENT,
-            Cookie: `buvid3=${local_storage_cache.buvid3}`
+            Cookie: `buvid3=${local_state.buvid3}`
         },
         false)
     if (builder === undefined) {
@@ -1315,7 +1336,7 @@ function space_collections_request(space_id: number, page: number, page_size: nu
     const now = Date.now()
     const result = runner.GET(
         create_signed_url(collection_prefix, params).toString(),
-        { Cookie: `buvid3=${local_storage_cache.buvid3}` },
+        { Cookie: `buvid3=${local_state.buvid3}` },
         false)
     if (builder === undefined) {
         log_network_call(now)
@@ -1596,9 +1617,9 @@ function space_videos_request(space_id: number, page: number, page_size: number,
         params = { ...params, keyword }
     }
     const url = create_signed_url(space_contents_search_prefix, params).toString()
-    const b_nut = local_storage_cache.b_nut
-    const buvid4 = local_storage_cache.buvid4
-    const buvid3 = local_storage_cache.buvid3
+    const b_nut = local_state.b_nut
+    const buvid4 = local_state.buvid4
+    const buvid3 = local_state.buvid3
 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -1692,9 +1713,8 @@ class SpacePostsContentPager extends ContentPager {
             space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body)
         }
         if (space_posts_response.code === -352) {
-            throw new ScriptException("rate limited")
+            throw new LoginRequiredException("rate limited")
         }
-
 
         const has_more = space_posts_response.data.has_more
         super(
@@ -1708,7 +1728,7 @@ class SpacePostsContentPager extends ContentPager {
     override nextPage(this: SpacePostsContentPager): SpacePostsContentPager {
         const space_posts_response: MaybeSpacePostsResponse = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body)
         if (space_posts_response.code === -352) {
-            throw new ScriptException("rate limited")
+            throw new LoginRequiredException("rate limited")
         }
 
         this.results = format_space_posts(space_posts_response, this.space_id, this.space_info)
@@ -1722,6 +1742,7 @@ class SpacePostsContentPager extends ContentPager {
         return this.hasMore
     }
 }
+
 function space_posts_request(space_id: number, offset: number | undefined, builder: BatchBuilder): BatchBuilder
 function space_posts_request(space_id: number, offset: number | undefined): BridgeHttpResponse
 function space_posts_request(space_id: number, offset: number | undefined, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
@@ -1733,12 +1754,13 @@ function space_posts_request(space_id: number, offset: number | undefined, build
         host_mid: space_id.toString()
     }
     const url = create_signed_url(space_post_feed_prefix, params).toString()
-    const buvid3 = local_storage_cache.buvid3
-    const buvid4 = local_storage_cache.buvid4
-    const b_nut = local_storage_cache.b_nut
+    const buvid3 = local_state.buvid3
+    const buvid4 = local_state.buvid4
+    const b_nut = local_state.b_nut
 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
+    // use the authenticated client because BiliBili blocks logged out users
     const result = runner.GET(
         url,
         {
@@ -1747,7 +1769,7 @@ function space_posts_request(space_id: number, offset: number | undefined, build
             Referer: "https://space.bilibili.com",
             "User-Agent": USER_AGENT
         },
-        false)
+        true)
     if (builder === undefined) {
         log_network_call(now)
     }
@@ -1775,13 +1797,13 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
 
         const primary_content = desc?.rich_text_nodes.map(
             (node) => { return format_text_node(node, images, thumbnails) }
-        ).join("")
+        ).join("") + "\n"
 
         const major = space_post.modules.module_dynamic.major
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
 
         const topic = space_post.modules.module_dynamic.topic
-        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined
+        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined
 
         const reference = space_post.orig
         const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined
@@ -2493,7 +2515,7 @@ function get_post(post_id: string) {
 
     const primary_content = desc?.rich_text_nodes
         .map((node) => { return format_text_node(node, images, thumbnails) })
-        .join("")
+        .join("") + "\n"
 
     const major = space_post.modules.module_dynamic.major
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined
@@ -2530,7 +2552,7 @@ function download_post(post_id: string): PostResponse {
     }
     const url = create_signed_url(single_post_prefix, params).toString()
     const now = Date.now()
-    const json = local_http.GET(url, { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false).body
+    const json = local_http.GET(url, { Cookie: `buvid3=${local_state.buvid3}` }, false).body
     log_network_call(now)
     const post_response: PostResponse = JSON.parse(json)
     return post_response
@@ -2562,7 +2584,7 @@ function format_text_node(node: TextNode, images: string[], thumbnails: Thumbnai
         case "RICH_TEXT_NODE_TYPE_VIEW_PICTURE": {
             for (const pic of node.pics) {
                 images.push(pic.src)
-                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, pic.size)]))
+                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, pic.height)]))
             }
             return ""
         }
@@ -2629,6 +2651,10 @@ function format_major(major: Major, thumbnails: Thumbnails[], images: string[]):
             }
             return `<a href="https://www.bilibili.com/read/cv${major.article.id}">${major.article.title}</a>`
         }
+        case "MAJOR_TYPE_COURSES":
+            images.push(major.courses.cover)
+            thumbnails.push(new Thumbnails([new Thumbnail(major.courses.cover, HARDCODED_THUMBNAIL_QUALITY)]))
+            return `<a href="${COURSE_URL_PREFIX}${major.courses.id}">${major.courses.title}</a>`
         default:
             throw assert_no_fall_through(major, `unhandled type on major ${major}`)
     }
@@ -2824,7 +2850,7 @@ function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): Batc
         bvid
     }
     const url = create_signed_url(detail_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
+    const buvid3 = local_state.buvid3
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     const result = runner.GET(
@@ -3325,7 +3351,7 @@ function collection_request(space_id: number, collection_id: number, page: numbe
         page_size: page_size.toString()
     }
     const playlist_url = create_url(collection_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
+    const buvid3 = local_state.buvid3
 
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -3434,7 +3460,7 @@ function series_request(space_id: number, series_id: number, page: number, page_
         page_size: page_size.toString()
     }
     const playlist_url = create_url(series_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
+    const buvid3 = local_state.buvid3
     const now = Date.now()
     const runner = builder === undefined ? local_http : builder
     const result = runner.GET(
@@ -3490,7 +3516,7 @@ function load_favorites(favorites_id: number, page: number, page_size: number): 
         ps: page_size.toString()
     }
     const url = create_url(series_prefix, params)
-    const buvid3 = local_storage_cache.buvid3
+    const buvid3 = local_state.buvid3
     const now = Date.now()
     // use the authenticated client so logged in users can view their private favorites lists
     const json = local_http.GET(
@@ -3990,6 +4016,11 @@ function getUserPlaylists() {
 //#endregion
 
 //#region utilities
+function log_passthrough<T>(value: T): T {
+    log(value)
+    return value
+}
+
 function assert_no_fall_through(value: never): void
 function assert_no_fall_through(value: never, exception_message: string): ScriptException
 function assert_no_fall_through(value: never, exception_message?: string): ScriptException | undefined {
@@ -4097,9 +4128,9 @@ function create_signed_url(base_url: string, params: Params, special_params?: {
         // timestamp
         wts: Math.round(Date.now() / 1e3).toString(),
         // device fingerprint values
-        dm_img_inter: local_storage_cache.dm_img_inter,
-        dm_img_str: local_storage_cache.dm_img_str,
-        dm_cover_img_str: local_storage_cache.dm_cover_img_str,
+        dm_img_inter: local_state.dm_img_inter,
+        dm_img_str: local_state.dm_img_str,
+        dm_cover_img_str: local_state.dm_cover_img_str,
         dm_img_list: "[]",
     } : {
         ...params,
@@ -4119,7 +4150,7 @@ function create_signed_url(base_url: string, params: Params, special_params?: {
             return `${name}=${encodeURIComponent(value)}`
         })
         .join("&")
-    const w_rid = local_utility.md5String(sorted_query_string + local_storage_cache.mixin_key)
+    const w_rid = local_utility.md5String(sorted_query_string + local_state.mixin_key)
     return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`)
 }
 
@@ -4367,5 +4398,6 @@ export {
     create_signed_url,
     nav_request,
     process_wbi_keys,
-    init_local_storage
+    init_local_storage,
+    log_passthrough
 }
