@@ -397,9 +397,9 @@ function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
  * @returns 
  */
 function getMixinKey(e: string, encryption_info: readonly number[]) {
-    return encryption_info.filter((value) => {
+    return encryption_info.filter(function (value) {
         return e[value] !== undefined
-    }).map((value) => {
+    }).map(function (value) {
         return e[value]
     }).join("").slice(0, 32)
 }
@@ -474,7 +474,7 @@ function format_home(home: HomeFeedResponse): PlatformVideo[] {
         log("BiliBili log: home is null please investigate")
         return []
     }
-    return home.data.item.flatMap((item): PlatformVideo[] => {
+    return home.data.item.flatMap(function (item): PlatformVideo[] {
         switch (item.goto) {
             case "ad":
                 return []
@@ -550,7 +550,7 @@ function get_suggestions(query: string): string[] {
         false).body
     log_network_call(now)
     const suggestions_response: SuggestionsResponse = JSON.parse(suggestions_json)
-    return suggestions_response.result.tag.map((entry) => entry.term)
+    return suggestions_response.result.tag.map(function (entry) { return entry.term })
 }
 function getSearchCapabilities() {
     return new ResultCapabilities<FilterGroupIDs, SearchTypeCapabilities>(
@@ -609,7 +609,7 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
         }
     }
 
-    const query_type = ((type) => {
+    const query_type = (function (type) {
         switch (type) {
             case "LIVE":
                 return "live"
@@ -624,7 +624,7 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
         }
     })(type)
 
-    const query_order: OrderOptions | undefined = ((order) => {
+    const query_order: OrderOptions | undefined = (function (order) {
         switch (order) {
             case null:
                 return undefined
@@ -639,7 +639,7 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
         }
     })(order)
 
-    const duration = ((filters) => {
+    const duration = (function (filters) {
         const filter = filters["DURATION_FILTER"]
         if (filter === undefined) {
             return undefined
@@ -804,7 +804,7 @@ function extract_search_results(
     }
 }
 function format_search_results(results: SearchResultItem[]): PlatformVideo[] {
-    return results.map((item) => {
+    return results.map(function (item) {
         switch (item.type) {
             case "video": {
                 const url = `${VIDEO_URL_PREFIX}${item.bvid}`
@@ -971,7 +971,7 @@ class SpacePager extends ChannelPager {
     }
 }
 function format_space_results(space_search_results: SearchResultItem[]): PlatformChannel[] {
-    return space_search_results.map((result) => {
+    return space_search_results.map(function (result) {
         if (result.type !== "bili_user") {
             throw new ScriptException("unreachable")
         }
@@ -1353,7 +1353,7 @@ function format_space_collections(space_collections_response: SpaceCollectionsRe
         space_info.num_fans
     )
 
-    return space_collections_response.data.items_lists.seasons_list.map((season) => {
+    return space_collections_response.data.items_lists.seasons_list.map(function (season) {
         return new PlatformPlaylist({
             id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
             name: season.meta.name,
@@ -1363,7 +1363,7 @@ function format_space_collections(space_collections_response: SpaceCollectionsRe
             thumbnail: season.meta.cover
         })
     }).concat(
-        space_collections_response.data.items_lists.series_list.map((series) => {
+        space_collections_response.data.items_lists.series_list.map(function (series) {
             return new PlatformPlaylist({
                 id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
                 name: series.meta.name,
@@ -1472,7 +1472,7 @@ function format_space_courses(space_courses_response: SpaceCoursesResponse, spac
         space_info.num_fans
     )
 
-    return space_courses_response.data.items.map((course) => {
+    return space_courses_response.data.items.map(function (course) {
         return new PlatformPlaylist({
             id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
             name: course.title,
@@ -1597,7 +1597,7 @@ function space_videos_request(space_id: number, page: number, page_size: number,
     if (order !== undefined) {
         params = {
             ...params,
-            order: ((order): OrderOptions => {
+            order: (function (order): OrderOptions {
                 switch (order) {
                     case Type.Order.Chronological:
                         return "pubdate"
@@ -1648,7 +1648,7 @@ function format_space_videos(space_videos_response: SpaceVideosSearchResponse, s
         space_info.num_fans
     )
 
-    return space_videos_response.data.list.vlist.map((space_video) => {
+    return space_videos_response.data.list.vlist.map(function (space_video) {
         const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`
         const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id)
 
@@ -1785,7 +1785,7 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
         space_info.num_fans
     )
 
-    return space_posts_response.data.items.flatMap((space_post) => {
+    return space_posts_response.data.items.flatMap(function (space_post) {
         // ignore video posts (because it creates duplicate items in the combined feed)
         if (space_post.type === "DYNAMIC_TYPE_AV") {
             return []
@@ -1796,7 +1796,7 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
         const thumbnails: Thumbnails[] = []
 
         const primary_content = desc?.rich_text_nodes.map(
-            (node) => { return format_text_node(node, images, thumbnails) }
+            function (node) { return format_text_node(node, images, thumbnails) }
         ).join("") + "\n"
 
         const major = space_post.modules.module_dynamic.major
@@ -1860,7 +1860,7 @@ function format_space_favorites(space_favorites_response: SpaceFavoritesResponse
     )
 
     if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
-        return space_favorites_response.data.list.map((favorite_list) => {
+        return space_favorites_response.data.list.map(function (favorite_list) {
             return new PlatformPlaylist({
                 id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
                 name: favorite_list.title,
@@ -1986,7 +1986,7 @@ function format_post_search_result(response: SpacePostsSearchResponse): Platform
     if (space_posts_response.data.cards === null) {
         return []
     }
-    return space_posts_response.data.cards.map((card) => {
+    return space_posts_response.data.cards.map(function (card) {
         const post: Card = JSON.parse(card.card)
         const space_id = card.desc.user_profile.info.uid
         const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
@@ -2143,12 +2143,12 @@ function getContentDetails(url: string) {
             // Note: while the there is always the http_hls ts option this is currently not usable and 404s
             // even when forcing it on the website live.bilibili.com my changing the return value of hasHLSPlayerSupportStream
             const codec = response.roomInitRes.data.playurl_info.playurl.stream
-                .find((stream) => stream.protocol_name === "http_hls")?.format
-                .find((format) => format.format_name === "fmp4")?.codec[0]
+                .find(function (stream) { return stream.protocol_name === "http_hls" })?.format
+                .find(function (format) { return format.format_name === "fmp4" })?.codec[0]
             if (codec !== undefined) {
                 const url_info = codec.url_info[0]
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
-                    .find((item) => item.qn === codec.current_qn)?.desc
+                    .find(function (item) { return item.qn === codec.current_qn })?.desc
                 if (url_info === undefined || name === undefined) {
                     throw new ScriptException("unreachable")
                 }
@@ -2159,14 +2159,14 @@ function getContentDetails(url: string) {
                 })
             } else {
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
-                    .find((stream) => stream.protocol_name === "http_stream")?.format
-                    .find((format) => format.format_name === "flv")?.codec[0]
+                    .find(function (stream) { return stream.protocol_name === "http_stream" })?.format
+                    .find(function (format) { return format.format_name === "flv" })?.codec[0]
                 if (codec === undefined) {
                     throw new ScriptException("unreachable")
                 }
 
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
-                    .find((item) => item.qn === codec.current_qn)?.desc
+                    .find(function (item) { return item.qn === codec.current_qn })?.desc
 
                 let video_url: string | undefined
                 let hostname: string | undefined
@@ -2277,7 +2277,7 @@ function getContentDetails(url: string) {
                     }
                     const owner_id = upload_info.mid
 
-                    const episode_season_meta = season_response.result.episodes.find((episode) => episode.ep_id === episode_id)
+                    const episode_season_meta = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id })
                     if (episode_season_meta === undefined) {
                         throw new ScriptException("episode missing from season")
                     }
@@ -2337,7 +2337,7 @@ function getContentDetails(url: string) {
                     }
                     const owner_id = upload_info.mid
 
-                    const episode_season_metadata = season_response.data.episodes.find((episode) => episode.id === episode_id)
+                    const episode_season_metadata = season_response.data.episodes.find(function (episode) { return episode.id === episode_id })
                     if (episode_season_metadata === undefined) {
                         throw new ScriptException("episode missing from season")
                     }
@@ -2348,7 +2348,7 @@ function getContentDetails(url: string) {
                             { aid: episode_season_metadata.aid },
                             episode_season_metadata.cid).body
                         )
-                        subtitles = subtitles_response.data.subtitle.subtitles.map((subtitle): ISubtitleSource => {
+                        subtitles = subtitles_response.data.subtitle.subtitles.map(function (subtitle): ISubtitleSource {
                             const url = `https:${subtitle.subtitle_url}`
                             return {
                                 url,
@@ -2414,7 +2414,7 @@ function getContentDetails(url: string) {
                     }
                     const { video_sources, audio_sources } = format_sources(play_info.data)
 
-                    const subtitles = subtitle_response?.data.subtitle.subtitles.map((subtitle): ISubtitleSource => {
+                    const subtitles = subtitle_response?.data.subtitle.subtitles.map(function (subtitle): ISubtitleSource {
                         const url = `https:${subtitle.subtitle_url}`
                         return {
                             url,
@@ -2489,7 +2489,7 @@ function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): Bat
     return result
 }
 function livestream_process(raw_live_response: BridgeHttpResponse): LiveResponse {
-    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=(.*?)<\/script>/
+    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=({.*?})<\/script>/
     const match_result = raw_live_response.body.match(live_regex)
     if (match_result === null) {
         throw new ScriptException("unreachable")
@@ -2514,7 +2514,7 @@ function get_post(post_id: string) {
     const thumbnails: Thumbnails[] = []
 
     const primary_content = desc?.rich_text_nodes
-        .map((node) => { return format_text_node(node, images, thumbnails) })
+        .map(function (node) { return format_text_node(node, images, thumbnails) })
         .join("") + "\n"
 
     const major = space_post.modules.module_dynamic.major
@@ -2623,7 +2623,7 @@ function format_major(major: Major, thumbnails: Thumbnails[], images: string[]):
                 images.push(pic.url)
                 thumbnails.push(new Thumbnails([new Thumbnail(pic.url, HARDCODED_THUMBNAIL_QUALITY)]))
             }
-            return major.opus.summary.rich_text_nodes.map((node) => {
+            return major.opus.summary.rich_text_nodes.map(function (node) {
                 return format_text_node(node, images, thumbnails)
             }
             ).join("")
@@ -2684,7 +2684,7 @@ function season_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
 function season_request(id_obj: IdObj): BridgeHttpResponse
 function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const season_prefix = "https://api.bilibili.com/pgc/view/web/season"
-    const params: Params = ((id_obj: IdObj): Params => {
+    const params: Params = (function (id_obj: IdObj): Params {
         switch (id_obj.type) {
             case "season":
                 return {
@@ -2756,7 +2756,7 @@ function course_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
 function course_request(id_obj: IdObj): BridgeHttpResponse
 function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
     const season_prefix = "https://api.bilibili.com/pugv/view/web/season"
-    const params: Params = ((id_obj: IdObj): Params => {
+    const params: Params = (function (id_obj: IdObj): Params {
         switch (id_obj.type) {
             case "season":
                 return {
@@ -2910,9 +2910,9 @@ function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, 
     return result
 }
 function format_sources(play_data: PlayDataDash) {
-    const video_sources: VideoUrlSource[] = play_data.dash.video.map((video) => {
+    const video_sources: VideoUrlSource[] = play_data.dash.video.map(function (video) {
         const name = play_data.accept_description[
-            play_data.accept_quality.findIndex((value) => {
+            play_data.accept_quality.findIndex(function (value) {
                 return value === video.id
             })
         ]
@@ -2939,7 +2939,7 @@ function format_sources(play_data: PlayDataDash) {
         })
     })
 
-    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map((audio) => {
+    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map(function (audio) {
         const audio_url_hostname = new URL(audio.base_url).hostname
         return new AudioUrlSource({
             container: audio.mime_type,
@@ -3031,7 +3031,7 @@ class BangumiPager extends PlaylistPager {
     }
 }
 function format_bangumi_search(shows: SearchResultItem[] | null, movies: SearchResultItem[] | null): PlatformPlaylist[] {
-    return interleave(shows ?? [], movies ?? []).map((item) => {
+    return interleave(shows ?? [], movies ?? []).map(function (item) {
         if (item.type === "ketang" || item.type === "video" || item.type === "live_room" || item.type === "bili_user") {
             throw new ScriptException("unreachable")
         }
@@ -3243,7 +3243,7 @@ function getPlaylist(url: string) {
                 }
             ]
             const [nav_response, watch_later_response] = execute_requests(requests)
-            const videos = watch_later_response.data.list.map((video) => {
+            const videos = watch_later_response.data.list.map(function (video) {
                 const url = `${VIDEO_URL_PREFIX}${video.bvid}`
 
                 // update cid cache
@@ -3321,7 +3321,7 @@ class CollectionContentsPager extends VideoPager {
     }
 }
 function format_collection(author: PlatformAuthorLink, collection_response: CollectionResponse): PlatformVideo[] {
-    const videos = collection_response.data.archives.map((video) => {
+    const videos = collection_response.data.archives.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
 
@@ -3366,7 +3366,7 @@ function collection_request(space_id: number, collection_id: number, page: numbe
     return result
 }
 function format_season(season_id: number, season_response: SeasonResponse): PlatformPlaylistDetails {
-    const episodes = season_response.result.episodes.map((episode) => {
+    const episodes = season_response.result.episodes.map(function (episode) {
         const url = `${EPISODE_URL_PREFIX}${episode.ep_id}`
         const video_id = new PlatformID(PLATFORM, episode.ep_id.toString(), plugin.config.id)
 
@@ -3430,7 +3430,7 @@ class SeriesContentsPager extends VideoPager {
     }
 }
 function format_series(author: PlatformAuthorLink, series_response: SeriesResponse): PlatformVideo[] {
-    const videos = series_response.data.archives.map((video) => {
+    const videos = series_response.data.archives.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
 
@@ -3481,7 +3481,7 @@ function format_course(season_id: number, course_response: CourseResponse): Plat
         course_response.data.up_info.avatar,
         course_response.data.up_info.follower)
 
-    const episodes = course_response.data.episodes.map((episode) => {
+    const episodes = course_response.data.episodes.map(function (episode) {
         const url = `${COURSE_EPISODE_URL_PREFIX}${episode.id}`
         const video_id = new PlatformID(PLATFORM, episode.id.toString(), plugin.config.id)
 
@@ -3567,7 +3567,7 @@ class FavoritesContentsPager extends VideoPager {
     }
 }
 function format_favorites_videos(favorites_response: FavoritesResponse): PlatformVideo[] {
-    const videos = favorites_response.data.medias.map((video) => {
+    const videos = favorites_response.data.medias.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id)
 
@@ -3604,7 +3604,7 @@ function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): B
     return result
 }
 function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
-    const festival_html_regex = /<script>window\.__INITIAL_STATE__=(.*?);\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
+    const festival_html_regex = /<script>window\.__INITIAL_STATE__=({.*?});\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
     const match_result = festival_html.body.match(festival_html_regex)
     if (match_result === null) {
         throw new ScriptException("unreachable")
@@ -3617,7 +3617,7 @@ function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
     return results
 }
 function format_festival(festival_id: string, festival_response: FestivalResponse): PlatformPlaylistDetails {
-    const episodes = festival_response.sectionEpisodes.map((episode) => {
+    const episodes = festival_response.sectionEpisodes.map(function (episode) {
         const url = `${VIDEO_URL_PREFIX}${episode.bvid}`
         const video_id = new PlatformID(PLATFORM, episode.bvid, plugin.config.id)
 
@@ -3681,7 +3681,7 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
     if (subdomain === "live") {
         return new CommentPager([], false)
     }
-    const [oid, type, context_url] = ((): [number, 1 | 33, string] => {
+    const [oid, type, context_url] = (function (): [number, 1 | 33, string] {
         switch (subdomain) {
             case "t": {
                 const post_id = content_id
@@ -3693,7 +3693,7 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
                     case "bangumi/play/ep": {
                         const episode_id = parseInt(content_id)
                         const season_response: SeasonResponse = JSON.parse(season_request({ id: episode_id, type: "episode" }).body)
-                        const episode_info = season_response.result.episodes.find((episode) => episode.ep_id === episode_id)
+                        const episode_info = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id })
                         if (episode_info === undefined) {
                             throw new ScriptException("season missing episode")
                         }
@@ -3794,7 +3794,7 @@ function format_comments(
     if (include_pinned_comment && comments_response.data.top.upper !== null) {
         replies.unshift(comments_response.data.top.upper)
     }
-    const comments = replies.map((data) => {
+    const comments = replies.map(function (data) {
         const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id)
         return new PlatformComment<BiliBiliCommentContext>({
             author: new PlatformAuthorLink(
@@ -3809,7 +3809,7 @@ function format_comments(
             date: data.ctime,
             contextUrl: context_url,
             context: {
-                oid: oid.toString(), rpid: data.rpid.toString(), type: ((type): "1" | "33" => {
+                oid: oid.toString(), rpid: data.rpid.toString(), type: (function (type): "1" | "33" {
                     switch (type) {
                         case 1:
                             return "1"
@@ -3900,7 +3900,7 @@ function format_replies(
     oid: number,
     context_url: string
 ): PlatformComment<BiliBiliCommentContext>[] {
-    const comments = comment_data.data.replies.map((comment) => {
+    const comments = comment_data.data.replies.map(function (comment) {
         if (comment.replies.length !== 0) {
             // these could be supported but as far as we understand they do not exist on BiliBili
             throw new ScriptException("unsupported sub sub comments")
@@ -3963,7 +3963,7 @@ function getUserSubscriptions() {
     while (total > page * page_size) {
         const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body)
         total = subscriptions_response.data.total
-        subscriptions.push(...subscriptions_response.data.list.map((subscription) => `${SPACE_URL_PREFIX}${subscription.mid}`))
+        subscriptions.push(...subscriptions_response.data.list.map(function (subscription) { return `${SPACE_URL_PREFIX}${subscription.mid}` }))
         page += 1
     }
 
@@ -4005,7 +4005,7 @@ function getUserPlaylists() {
     const [nav_response, watch_later_response] = execute_requests(requests)
     const favorites_response: SpaceFavoritesResponse = JSON.parse(space_favorites_request(nav_response.data.mid).body)
 
-    const playlists: string[] = favorites_response.data?.list?.map((list) => {
+    const playlists: string[] = favorites_response.data?.list?.map(function (list) {
         return `${FAVORITES_URL_PREFIX}${list.id}`
     }) ?? []
     if (watch_later_response.data.count > 0) {
@@ -4099,7 +4099,7 @@ function seconds_to_WebVTT_timestamp(seconds: number) {
  */
 function interleave<T, U>(a: T[], b: U[]): Array<T | U> {
     const [first, second] = b.length > a.length ? [b, a] : [a, b]
-    return first.flatMap((a_value, index) => {
+    return first.flatMap(function (a_value, index) {
         const b_value = second[index]
         if (second[index] === undefined) {
             return a_value
@@ -4145,8 +4145,8 @@ function create_signed_url(base_url: string, params: Params, special_params?: {
 
     const sorted_query_string = Object
         .entries(augmented_params)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, value]) => {
+        .sort(function (a, b) { return a[0].localeCompare(b[0]) })
+        .map(function ([name, value]) {
             return `${name}=${encodeURIComponent(value)}`
         })
         .join("&")
