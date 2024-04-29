@@ -1713,7 +1713,7 @@ class SpacePostsContentPager extends ContentPager {
             space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body)
         }
         if (space_posts_response.code === -352) {
-            throw new LoginRequiredException("rate limited")
+            throw new LoginRequiredException("rate limited: login or wait to view more posts")
         }
 
         const has_more = space_posts_response.data.has_more
@@ -1728,7 +1728,7 @@ class SpacePostsContentPager extends ContentPager {
     override nextPage(this: SpacePostsContentPager): SpacePostsContentPager {
         const space_posts_response: MaybeSpacePostsResponse = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body)
         if (space_posts_response.code === -352) {
-            throw new LoginRequiredException("rate limited")
+            throw new LoginRequiredException("rate limited: login or wait to view more posts")
         }
 
         this.results = format_space_posts(space_posts_response, this.space_id, this.space_info)
@@ -2077,7 +2077,7 @@ class ChannelVideoResultsPager extends ContentPager {
     override nextPage(this: ChannelVideoResultsPager): ChannelVideoResultsPager {
         const search_response: MaybeSpaceVideosSearchResponse = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body)
         if (search_response.code === -352) {
-            throw new ScriptException("rate lmited")
+            throw new ScriptException("rate limited")
         }
         this.results = format_space_videos(search_response, this.space_id, this.space_info)
         this.hasMore = search_response.data.page.count > this.next_page * this.page_size
