@@ -54,6 +54,8 @@ Type.Order.Views = "最多播放";
 Type.Order.Favorites = "最多收藏";
 /** A local cache of values unique to each plugin instance (some of this data should be saved as state shared among instances) */
 let local_storage_cache;
+/** State */
+let local_state;
 //#endregion
 //#region source methods
 source.enable = enable;
@@ -195,9 +197,15 @@ function enable(conf, settings, savedState) {
         log("logging savedState");
         log(savedState);
     }
-    init_local_storage();
+    if (savedState === null) {
+        init_local_storage();
+    }
+    else {
+        const state = JSON.parse(savedState);
+        init_local_storage(state);
+    }
 }
-function init_local_storage() {
+function init_session_info() {
     const vendor_and_renderer = WEBGL_VENDOR + WEBGL_RENDERER + "g";
     let dm_cover_img_str = local_utility.toBase64(string_to_bytes(vendor_and_renderer));
     {
@@ -237,19 +245,24 @@ function init_local_storage() {
     const buvid4 = finger_spi_response.data.b_4;
     // required to access space posts
     activate_cookies(b_nut, buvid3, buvid4);
-    // these caches don't work that well because they aren't shared between plugin instances
-    // saveState is what we need
-    local_storage_cache = {
+    return {
         buvid3,
         buvid4,
         b_nut,
-        cid_cache: new Map(),
-        space_cache: new Map(),
         mixin_key: getMixinKey(wbi_img_key + wbi_sub_key, mixin_constant),
         dm_cover_img_str,
         dm_img_str,
         dm_img_inter
     };
+}
+function init_local_storage(state) {
+    // these caches don't work that well because they aren't shared between plugin instances
+    // saveState is what we need
+    local_storage_cache = {
+        cid_cache: new Map(),
+        space_cache: new Map()
+    };
+    local_state = state === undefined ? init_session_info() : state;
 }
 function nav_request(useAuthClient, builder) {
     const url = "https://api.bilibili.com/x/web-interface/nav";
@@ -323,9 +336,9 @@ function activate_cookies(b_nut, buvid3, buvid4) {
  * @returns
  */
 function getMixinKey(e, encryption_info) {
-    return encryption_info.filter((value) => {
+    return encryption_info.filter(function (value) {
         return e[value] !== undefined;
-    }).map((value) => {
+    }).map(function (value) {
         return e[value];
     }).join("").slice(0, 32);
 }
@@ -336,7 +349,9 @@ function create_b_nut() {
 function disable() {
     log("BiliBili log: disabling");
 }
-function saveState() { return ""; }
+function saveState() {
+    return JSON.stringify(local_state);
+}
 //#region home
 function getHome() {
     return new HomePager(0, 12);
@@ -380,7 +395,7 @@ function get_home(page, page_size) {
     const url = create_url(home_api_url, params).toString();
     const now = Date.now();
     // use auth client so that logged in users get a personalized home feed
-    const home_json = local_http.GET(url, { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_storage_cache.buvid3}` }, true).body;
+    const home_json = local_http.GET(url, { Referer: "https://www.bilibili.com", Cookie: `buvid3=${local_state.buvid3}` }, true).body;
     log_network_call(now);
     const home_response = JSON.parse(home_json);
     return home_response;
@@ -390,7 +405,7 @@ function format_home(home) {
         log("BiliBili log: home is null please investigate");
         return [];
     }
-    return home.data.item.flatMap((item) => {
+    return home.data.item.flatMap(function (item) {
         switch (item.goto) {
             case "ad":
                 return [];
@@ -452,7 +467,7 @@ function get_suggestions(query) {
     const suggestions_json = local_http.GET(url, {}, false).body;
     log_network_call(now);
     const suggestions_response = JSON.parse(suggestions_json);
-    return suggestions_response.result.tag.map((entry) => entry.term);
+    return suggestions_response.result.tag.map(function (entry) { return entry.term; });
 }
 function getSearchCapabilities() {
     return new ResultCapabilities([Type.Feed.Videos, Type.Feed.Live, Type.Feed.Movies, Type.Feed.Shows], [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites], 
@@ -498,7 +513,7 @@ function search(query, type, order, filters) {
                 throw new ScriptException("unreachable");
         }
     }
-    const query_type = ((type) => {
+    const query_type = (function (type) {
         switch (type) {
             case "LIVE":
                 return "live";
@@ -512,7 +527,7 @@ function search(query, type, order, filters) {
                 throw new ScriptException(`unhandled feed type ${type}`);
         }
     })(type);
-    const query_order = ((order) => {
+    const query_order = (function (order) {
         switch (order) {
             case null:
                 return undefined;
@@ -526,7 +541,7 @@ function search(query, type, order, filters) {
                 throw new ScriptException(`unhandled feed order ${order}`);
         }
     })(order);
-    const duration = ((filters) => {
+    const duration = (function (filters) {
         const filter = filters["DURATION_FILTER"];
         if (filter === undefined) {
             return undefined;
@@ -621,7 +636,7 @@ function search_request(query, page, page_size, type, order, duration, builder) 
         params = { ...params, duration: duration.toString() };
     }
     const search_url = create_signed_url(search_prefix, params).toString();
-    const buvid3 = local_storage_cache.buvid3;
+    const buvid3 = local_state.buvid3;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     const result = runner.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false);
@@ -653,7 +668,7 @@ function extract_search_results(raw_response, type, page, page_size) {
     };
 }
 function format_search_results(results) {
-    return results.map((item) => {
+    return results.map(function (item) {
         switch (item.type) {
             case "video": {
                 const url = `${VIDEO_URL_PREFIX}${item.bvid}`;
@@ -809,7 +824,7 @@ class SpacePager extends ChannelPager {
     }
 }
 function format_space_results(space_search_results) {
-    return space_search_results.map((result) => {
+    return space_search_results.map(function (result) {
         if (result.type !== "bili_user") {
             throw new ScriptException("unreachable");
         }
@@ -908,7 +923,7 @@ function space_request(space_id, builder) {
         Referer: "https://www.bilibili.com",
         Host: "api.bilibili.com",
         "User-Agent": USER_AGENT,
-        Cookie: `buvid3=${local_storage_cache.buvid3}`
+        Cookie: `buvid3=${local_state.buvid3}`
     }, false);
     if (builder === undefined) {
         log_network_call(now);
@@ -1118,7 +1133,7 @@ function space_collections_request(space_id, page, page_size, builder) {
     };
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
-    const result = runner.GET(create_signed_url(collection_prefix, params).toString(), { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false);
+    const result = runner.GET(create_signed_url(collection_prefix, params).toString(), { Cookie: `buvid3=${local_state.buvid3}` }, false);
     if (builder === undefined) {
         log_network_call(now);
     }
@@ -1127,7 +1142,7 @@ function space_collections_request(space_id, page, page_size, builder) {
 function format_space_collections(space_collections_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    return space_collections_response.data.items_lists.seasons_list.map((season) => {
+    return space_collections_response.data.items_lists.seasons_list.map(function (season) {
         return new PlatformPlaylist({
             id: new PlatformID(PLATFORM, season.meta.season_id.toString(), plugin.config.id),
             name: season.meta.name,
@@ -1136,7 +1151,7 @@ function format_space_collections(space_collections_response, space_id, space_in
             videoCount: season.meta.total,
             thumbnail: season.meta.cover
         });
-    }).concat(space_collections_response.data.items_lists.series_list.map((series) => {
+    }).concat(space_collections_response.data.items_lists.series_list.map(function (series) {
         return new PlatformPlaylist({
             id: new PlatformID(PLATFORM, series.meta.series_id.toString(), plugin.config.id),
             name: series.meta.name,
@@ -1226,7 +1241,7 @@ function space_courses_request(space_id, page, page_size, builder) {
 function format_space_courses(space_courses_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    return space_courses_response.data.items.map((course) => {
+    return space_courses_response.data.items.map(function (course) {
         return new PlatformPlaylist({
             id: new PlatformID(PLATFORM, course.season_id.toString(), plugin.config.id),
             name: course.title,
@@ -1318,7 +1333,7 @@ function space_videos_request(space_id, page, page_size, keyword, order, builder
     if (order !== undefined) {
         params = {
             ...params,
-            order: ((order) => {
+            order: (function (order) {
                 switch (order) {
                     case Type.Order.Chronological:
                         return "pubdate";
@@ -1338,9 +1353,9 @@ function space_videos_request(space_id, page, page_size, keyword, order, builder
         params = { ...params, keyword };
     }
     const url = create_signed_url(space_contents_search_prefix, params).toString();
-    const b_nut = local_storage_cache.b_nut;
-    const buvid4 = local_storage_cache.buvid4;
-    const buvid3 = local_storage_cache.buvid3;
+    const b_nut = local_state.b_nut;
+    const buvid4 = local_state.buvid4;
+    const buvid3 = local_state.buvid3;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     // use the authenticated client because BiliBili blocks logged out users
@@ -1357,7 +1372,7 @@ function space_videos_request(space_id, page, page_size, keyword, order, builder
 function format_space_videos(space_videos_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    return space_videos_response.data.list.vlist.map((space_video) => {
+    return space_videos_response.data.list.vlist.map(function (space_video) {
         const url = `${VIDEO_URL_PREFIX}${space_video.bvid}`;
         const video_id = new PlatformID(PLATFORM, space_video.bvid, plugin.config.id);
         const duration = parse_minutes_seconds(space_video.length);
@@ -1417,7 +1432,7 @@ class SpacePostsContentPager extends ContentPager {
             space_posts_response = JSON.parse(space_posts_request(space_id, undefined).body);
         }
         if (space_posts_response.code === -352) {
-            throw new ScriptException("rate limited");
+            throw new LoginRequiredException("rate limited: login or wait to view more posts");
         }
         const has_more = space_posts_response.data.has_more;
         super(format_space_posts(space_posts_response, space_id, space_info), has_more);
@@ -1428,7 +1443,7 @@ class SpacePostsContentPager extends ContentPager {
     nextPage() {
         const space_posts_response = JSON.parse(space_posts_request(this.space_id, this.posts_offset).body);
         if (space_posts_response.code === -352) {
-            throw new ScriptException("rate limited");
+            throw new LoginRequiredException("rate limited: login or wait to view more posts");
         }
         this.results = format_space_posts(space_posts_response, this.space_id, this.space_info);
         this.hasMore = space_posts_response.data.has_more;
@@ -1448,17 +1463,18 @@ function space_posts_request(space_id, offset, builder) {
         host_mid: space_id.toString()
     };
     const url = create_signed_url(space_post_feed_prefix, params).toString();
-    const buvid3 = local_storage_cache.buvid3;
-    const buvid4 = local_storage_cache.buvid4;
-    const b_nut = local_storage_cache.b_nut;
+    const buvid3 = local_state.buvid3;
+    const buvid4 = local_state.buvid4;
+    const b_nut = local_state.b_nut;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
+    // use the authenticated client because BiliBili blocks logged out users
     const result = runner.GET(url, {
         Host: "api.bilibili.com",
         Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
         Referer: "https://space.bilibili.com",
         "User-Agent": USER_AGENT
-    }, false);
+    }, true);
     if (builder === undefined) {
         log_network_call(now);
     }
@@ -1467,7 +1483,7 @@ function space_posts_request(space_id, offset, builder) {
 function format_space_posts(space_posts_response, space_id, space_info) {
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
-    return space_posts_response.data.items.flatMap((space_post) => {
+    return space_posts_response.data.items.flatMap(function (space_post) {
         // ignore video posts (because it creates duplicate items in the combined feed)
         if (space_post.type === "DYNAMIC_TYPE_AV") {
             return [];
@@ -1475,11 +1491,11 @@ function format_space_posts(space_posts_response, space_id, space_info) {
         const desc = space_post.modules.module_dynamic.desc;
         const images = [];
         const thumbnails = [];
-        const primary_content = desc?.rich_text_nodes.map((node) => { return format_text_node(node, images, thumbnails); }).join("");
+        const primary_content = desc?.rich_text_nodes.map(function (node) { return format_text_node(node, images, thumbnails); }).join("") + "\n";
         const major = space_post.modules.module_dynamic.major;
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
         const topic = space_post.modules.module_dynamic.topic;
-        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>` : undefined;
+        const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
         const reference = space_post.orig;
         const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined;
         const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
@@ -1517,7 +1533,7 @@ function format_space_favorites(space_favorites_response, space_id, space_info) 
     const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
     const author = new PlatformAuthorLink(author_id, space_info.name, `${SPACE_URL_PREFIX}${space_id}`, space_info.face, space_info.num_fans);
     if (space_favorites_response.data !== null && space_favorites_response.data.list !== null) {
-        return space_favorites_response.data.list.map((favorite_list) => {
+        return space_favorites_response.data.list.map(function (favorite_list) {
             return new PlatformPlaylist({
                 id: new PlatformID(PLATFORM, favorite_list.id.toString(), plugin.config.id),
                 name: favorite_list.title,
@@ -1626,7 +1642,7 @@ function format_post_search_result(response) {
     if (space_posts_response.data.cards === null) {
         return [];
     }
-    return space_posts_response.data.cards.map((card) => {
+    return space_posts_response.data.cards.map(function (card) {
         const post = JSON.parse(card.card);
         const space_id = card.desc.user_profile.info.uid;
         const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id);
@@ -1706,7 +1722,7 @@ class ChannelVideoResultsPager extends ContentPager {
     nextPage() {
         const search_response = JSON.parse(space_videos_request(this.space_id, this.next_page, this.page_size, this.query, this.order).body);
         if (search_response.code === -352) {
-            throw new ScriptException("rate lmited");
+            throw new ScriptException("rate limited");
         }
         this.results = format_space_videos(search_response, this.space_id, this.space_info);
         this.hasMore = search_response.data.page.count > this.next_page * this.page_size;
@@ -1765,12 +1781,12 @@ function getContentDetails(url) {
             // Note: while the there is always the http_hls ts option this is currently not usable and 404s
             // even when forcing it on the website live.bilibili.com my changing the return value of hasHLSPlayerSupportStream
             const codec = response.roomInitRes.data.playurl_info.playurl.stream
-                .find((stream) => stream.protocol_name === "http_hls")?.format
-                .find((format) => format.format_name === "fmp4")?.codec[0];
+                .find(function (stream) { return stream.protocol_name === "http_hls"; })?.format
+                .find(function (format) { return format.format_name === "fmp4"; })?.codec[0];
             if (codec !== undefined) {
                 const url_info = codec.url_info[0];
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
-                    .find((item) => item.qn === codec.current_qn)?.desc;
+                    .find(function (item) { return item.qn === codec.current_qn; })?.desc;
                 if (url_info === undefined || name === undefined) {
                     throw new ScriptException("unreachable");
                 }
@@ -1782,13 +1798,13 @@ function getContentDetails(url) {
             }
             else {
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
-                    .find((stream) => stream.protocol_name === "http_stream")?.format
-                    .find((format) => format.format_name === "flv")?.codec[0];
+                    .find(function (stream) { return stream.protocol_name === "http_stream"; })?.format
+                    .find(function (format) { return format.format_name === "flv"; })?.codec[0];
                 if (codec === undefined) {
                     throw new ScriptException("unreachable");
                 }
                 const name = response.roomInitRes.data.playurl_info.playurl.g_qn_desc
-                    .find((item) => item.qn === codec.current_qn)?.desc;
+                    .find(function (item) { return item.qn === codec.current_qn; })?.desc;
                 let video_url;
                 let hostname;
                 for (const url_info of codec.url_info) {
@@ -1880,7 +1896,7 @@ function getContentDetails(url) {
                         throw new ScriptException("missing upload information");
                     }
                     const owner_id = upload_info.mid;
-                    const episode_season_meta = season_response.result.episodes.find((episode) => episode.ep_id === episode_id);
+                    const episode_season_meta = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id; });
                     if (episode_season_meta === undefined) {
                         throw new ScriptException("episode missing from season");
                     }
@@ -1927,14 +1943,14 @@ function getContentDetails(url) {
                         throw new ScriptException("missing upload information");
                     }
                     const owner_id = upload_info.mid;
-                    const episode_season_metadata = season_response.data.episodes.find((episode) => episode.id === episode_id);
+                    const episode_season_metadata = season_response.data.episodes.find(function (episode) { return episode.id === episode_id; });
                     if (episode_season_metadata === undefined) {
                         throw new ScriptException("episode missing from season");
                     }
                     let subtitles = undefined;
                     if (bridge.isLoggedIn()) {
                         const subtitles_response = JSON.parse(subtitles_request({ aid: episode_season_metadata.aid }, episode_season_metadata.cid).body);
-                        subtitles = subtitles_response.data.subtitle.subtitles.map((subtitle) => {
+                        subtitles = subtitles_response.data.subtitle.subtitles.map(function (subtitle) {
                             const url = `https:${subtitle.subtitle_url}`;
                             return {
                                 url,
@@ -1991,7 +2007,7 @@ function getContentDetails(url) {
                         throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
                     }
                     const { video_sources, audio_sources } = format_sources(play_info.data);
-                    const subtitles = subtitle_response?.data.subtitle.subtitles.map((subtitle) => {
+                    const subtitles = subtitle_response?.data.subtitle.subtitles.map(function (subtitle) {
                         const url = `https:${subtitle.subtitle_url}`;
                         return {
                             url,
@@ -2054,7 +2070,7 @@ function livestream_request(room_id, builder) {
     return result;
 }
 function livestream_process(raw_live_response) {
-    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=(.*?)<\/script>/;
+    const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=({.*?})<\/script>/;
     const match_result = raw_live_response.body.match(live_regex);
     if (match_result === null) {
         throw new ScriptException("unreachable");
@@ -2078,8 +2094,8 @@ function get_post(post_id) {
     const images = [];
     const thumbnails = [];
     const primary_content = desc?.rich_text_nodes
-        .map((node) => { return format_text_node(node, images, thumbnails); })
-        .join("");
+        .map(function (node) { return format_text_node(node, images, thumbnails); })
+        .join("") + "\n";
     const major = space_post.modules.module_dynamic.major;
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
     const topic = space_post.modules.module_dynamic.topic;
@@ -2106,7 +2122,7 @@ function download_post(post_id) {
     };
     const url = create_signed_url(single_post_prefix, params).toString();
     const now = Date.now();
-    const json = local_http.GET(url, { Cookie: `buvid3=${local_storage_cache.buvid3}` }, false).body;
+    const json = local_http.GET(url, { Cookie: `buvid3=${local_state.buvid3}` }, false).body;
     log_network_call(now);
     const post_response = JSON.parse(json);
     return post_response;
@@ -2138,7 +2154,7 @@ function format_text_node(node, images, thumbnails) {
         case "RICH_TEXT_NODE_TYPE_VIEW_PICTURE": {
             for (const pic of node.pics) {
                 images.push(pic.src);
-                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, pic.size)]));
+                thumbnails.push(new Thumbnails([new Thumbnail(pic.src, pic.height)]));
             }
             return "";
         }
@@ -2177,7 +2193,7 @@ function format_major(major, thumbnails, images) {
                 images.push(pic.url);
                 thumbnails.push(new Thumbnails([new Thumbnail(pic.url, HARDCODED_THUMBNAIL_QUALITY)]));
             }
-            return major.opus.summary.rich_text_nodes.map((node) => {
+            return major.opus.summary.rich_text_nodes.map(function (node) {
                 return format_text_node(node, images, thumbnails);
             }).join("");
         case "MAJOR_TYPE_LIVE_RCMD": {
@@ -2198,6 +2214,10 @@ function format_major(major, thumbnails, images) {
             }
             return `<a href="https://www.bilibili.com/read/cv${major.article.id}">${major.article.title}</a>`;
         }
+        case "MAJOR_TYPE_COURSES":
+            images.push(major.courses.cover);
+            thumbnails.push(new Thumbnails([new Thumbnail(major.courses.cover, HARDCODED_THUMBNAIL_QUALITY)]));
+            return `<a href="${COURSE_URL_PREFIX}${major.courses.id}">${major.courses.title}</a>`;
         default:
             throw assert_no_fall_through(major, `unhandled type on major ${major}`);
     }
@@ -2219,7 +2239,7 @@ function episode_play_request(episode_id, builder) {
 }
 function season_request(id_obj, builder) {
     const season_prefix = "https://api.bilibili.com/pgc/view/web/season";
-    const params = ((id_obj) => {
+    const params = (function (id_obj) {
         switch (id_obj.type) {
             case "season":
                 return {
@@ -2273,7 +2293,7 @@ function course_play_request(episode_id, builder) {
 }
 function course_request(id_obj, builder) {
     const season_prefix = "https://api.bilibili.com/pugv/view/web/season";
-    const params = ((id_obj) => {
+    const params = (function (id_obj) {
         switch (id_obj.type) {
             case "season":
                 return {
@@ -2354,7 +2374,7 @@ function video_detail_request(bvid, builder) {
         bvid
     };
     const url = create_signed_url(detail_prefix, params);
-    const buvid3 = local_storage_cache.buvid3;
+    const buvid3 = local_state.buvid3;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     const result = runner.GET(url.toString(), {
@@ -2405,8 +2425,8 @@ function subtitles_request(id, cid, builder) {
     return result;
 }
 function format_sources(play_data) {
-    const video_sources = play_data.dash.video.map((video) => {
-        const name = play_data.accept_description[play_data.accept_quality.findIndex((value) => {
+    const video_sources = play_data.dash.video.map(function (video) {
+        const name = play_data.accept_description[play_data.accept_quality.findIndex(function (value) {
             return value === video.id;
         })];
         if (name === undefined) {
@@ -2431,7 +2451,7 @@ function format_sources(play_data) {
             }
         });
     });
-    const audio_sources = play_data.dash.audio.map((audio) => {
+    const audio_sources = play_data.dash.audio.map(function (audio) {
         const audio_url_hostname = new URL(audio.base_url).hostname;
         return new AudioUrlSource({
             container: audio.mime_type,
@@ -2517,7 +2537,7 @@ class BangumiPager extends PlaylistPager {
     }
 }
 function format_bangumi_search(shows, movies) {
-    return interleave(shows ?? [], movies ?? []).map((item) => {
+    return interleave(shows ?? [], movies ?? []).map(function (item) {
         if (item.type === "ketang" || item.type === "video" || item.type === "live_room" || item.type === "bili_user") {
             throw new ScriptException("unreachable");
         }
@@ -2696,7 +2716,7 @@ function getPlaylist(url) {
                 }
             ];
             const [nav_response, watch_later_response] = execute_requests(requests);
-            const videos = watch_later_response.data.list.map((video) => {
+            const videos = watch_later_response.data.list.map(function (video) {
                 const url = `${VIDEO_URL_PREFIX}${video.bvid}`;
                 // update cid cache
                 local_storage_cache.cid_cache.set(video.bvid, video.cid);
@@ -2761,7 +2781,7 @@ class CollectionContentsPager extends VideoPager {
     }
 }
 function format_collection(author, collection_response) {
-    const videos = collection_response.data.archives.map((video) => {
+    const videos = collection_response.data.archives.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`;
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id);
         return new PlatformVideo({
@@ -2788,7 +2808,7 @@ function collection_request(space_id, collection_id, page, page_size, builder) {
         page_size: page_size.toString()
     };
     const playlist_url = create_url(collection_prefix, params);
-    const buvid3 = local_storage_cache.buvid3;
+    const buvid3 = local_state.buvid3;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     const result = runner.GET(playlist_url.toString(), { Cookie: `buvid3=${buvid3}` }, false);
@@ -2798,7 +2818,7 @@ function collection_request(space_id, collection_id, page, page_size, builder) {
     return result;
 }
 function format_season(season_id, season_response) {
-    const episodes = season_response.result.episodes.map((episode) => {
+    const episodes = season_response.result.episodes.map(function (episode) {
         const url = `${EPISODE_URL_PREFIX}${episode.ep_id}`;
         const video_id = new PlatformID(PLATFORM, episode.ep_id.toString(), plugin.config.id);
         // update cid cache
@@ -2853,7 +2873,7 @@ class SeriesContentsPager extends VideoPager {
     }
 }
 function format_series(author, series_response) {
-    const videos = series_response.data.archives.map((video) => {
+    const videos = series_response.data.archives.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`;
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id);
         return new PlatformVideo({
@@ -2880,7 +2900,7 @@ function series_request(space_id, series_id, page, page_size, builder) {
         page_size: page_size.toString()
     };
     const playlist_url = create_url(series_prefix, params);
-    const buvid3 = local_storage_cache.buvid3;
+    const buvid3 = local_state.buvid3;
     const now = Date.now();
     const runner = builder === undefined ? local_http : builder;
     const result = runner.GET(playlist_url.toString(), { Cookie: `buvid3=${buvid3}` }, false);
@@ -2891,7 +2911,7 @@ function series_request(space_id, series_id, page, page_size, builder) {
 }
 function format_course(season_id, course_response) {
     const author = new PlatformAuthorLink(new PlatformID(PLATFORM, course_response.data.up_info.mid.toString(), plugin.config.id), course_response.data.up_info.uname, `${SPACE_URL_PREFIX}${course_response.data.up_info.mid}`, course_response.data.up_info.avatar, course_response.data.up_info.follower);
-    const episodes = course_response.data.episodes.map((episode) => {
+    const episodes = course_response.data.episodes.map(function (episode) {
         const url = `${COURSE_EPISODE_URL_PREFIX}${episode.id}`;
         const video_id = new PlatformID(PLATFORM, episode.id.toString(), plugin.config.id);
         return new PlatformVideo({
@@ -2925,7 +2945,7 @@ function load_favorites(favorites_id, page, page_size) {
         ps: page_size.toString()
     };
     const url = create_url(series_prefix, params);
-    const buvid3 = local_storage_cache.buvid3;
+    const buvid3 = local_state.buvid3;
     const now = Date.now();
     // use the authenticated client so logged in users can view their private favorites lists
     const json = local_http.GET(url.toString(), { Cookie: `buvid3=${buvid3}` }, true).body;
@@ -2967,7 +2987,7 @@ class FavoritesContentsPager extends VideoPager {
     }
 }
 function format_favorites_videos(favorites_response) {
-    const videos = favorites_response.data.medias.map((video) => {
+    const videos = favorites_response.data.medias.map(function (video) {
         const url = `${VIDEO_URL_PREFIX}${video.bvid}`;
         const video_id = new PlatformID(PLATFORM, video.bvid, plugin.config.id);
         return new PlatformVideo({
@@ -2996,7 +3016,7 @@ function festival_request(festival_id, builder) {
     return result;
 }
 function festival_parse(festival_html) {
-    const festival_html_regex = /<script>window\.__INITIAL_STATE__=(.*?);\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/;
+    const festival_html_regex = /<script>window\.__INITIAL_STATE__=({.*?});\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/;
     const match_result = festival_html.body.match(festival_html_regex);
     if (match_result === null) {
         throw new ScriptException("unreachable");
@@ -3009,7 +3029,7 @@ function festival_parse(festival_html) {
     return results;
 }
 function format_festival(festival_id, festival_response) {
-    const episodes = festival_response.sectionEpisodes.map((episode) => {
+    const episodes = festival_response.sectionEpisodes.map(function (episode) {
         const url = `${VIDEO_URL_PREFIX}${episode.bvid}`;
         const video_id = new PlatformID(PLATFORM, episode.bvid, plugin.config.id);
         // cache cids
@@ -3059,7 +3079,7 @@ function getComments(url) {
     if (subdomain === "live") {
         return new CommentPager([], false);
     }
-    const [oid, type, context_url] = (() => {
+    const [oid, type, context_url] = (function () {
         switch (subdomain) {
             case "t": {
                 const post_id = content_id;
@@ -3071,7 +3091,7 @@ function getComments(url) {
                     case "bangumi/play/ep": {
                         const episode_id = parseInt(content_id);
                         const season_response = JSON.parse(season_request({ id: episode_id, type: "episode" }).body);
-                        const episode_info = season_response.result.episodes.find((episode) => episode.ep_id === episode_id);
+                        const episode_info = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id; });
                         if (episode_info === undefined) {
                             throw new ScriptException("season missing episode");
                         }
@@ -3163,7 +3183,7 @@ function format_comments(comments_response, context_url, oid, type, include_pinn
     if (include_pinned_comment && comments_response.data.top.upper !== null) {
         replies.unshift(comments_response.data.top.upper);
     }
-    const comments = replies.map((data) => {
+    const comments = replies.map(function (data) {
         const author_id = new PlatformID(PLATFORM, data.member.mid.toString(), plugin.config.id);
         return new PlatformComment({
             author: new PlatformAuthorLink(author_id, data.member.uname, `${SPACE_URL_PREFIX}${data.member.mid}`, data.member.avatar, local_storage_cache.space_cache.get(data.member.mid)?.num_fans),
@@ -3173,7 +3193,7 @@ function format_comments(comments_response, context_url, oid, type, include_pinn
             date: data.ctime,
             contextUrl: context_url,
             context: {
-                oid: oid.toString(), rpid: data.rpid.toString(), type: ((type) => {
+                oid: oid.toString(), rpid: data.rpid.toString(), type: (function (type) {
                     switch (type) {
                         case 1:
                             return "1";
@@ -3257,7 +3277,7 @@ function get_replies(oid, root_rpid, type, page, page_size) {
  * @returns
  */
 function format_replies(comment_data, type, oid, context_url) {
-    const comments = comment_data.data.replies.map((comment) => {
+    const comments = comment_data.data.replies.map(function (comment) {
         if (comment.replies.length !== 0) {
             // these could be supported but as far as we understand they do not exist on BiliBili
             throw new ScriptException("unsupported sub sub comments");
@@ -3314,7 +3334,7 @@ function getUserSubscriptions() {
     while (total > page * page_size) {
         const subscriptions_response = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body);
         total = subscriptions_response.data.total;
-        subscriptions.push(...subscriptions_response.data.list.map((subscription) => `${SPACE_URL_PREFIX}${subscription.mid}`));
+        subscriptions.push(...subscriptions_response.data.list.map(function (subscription) { return `${SPACE_URL_PREFIX}${subscription.mid}`; }));
         page += 1;
     }
     return subscriptions;
@@ -3351,13 +3371,19 @@ function getUserPlaylists() {
     ];
     const [nav_response, watch_later_response] = execute_requests(requests);
     const favorites_response = JSON.parse(space_favorites_request(nav_response.data.mid).body);
-    const playlists = favorites_response.data?.list?.map((list) => {
+    const playlists = favorites_response.data?.list?.map(function (list) {
         return `${FAVORITES_URL_PREFIX}${list.id}`;
     }) ?? [];
     if (watch_later_response.data.count > 0) {
         playlists.push(WATCH_LATER_URL);
     }
     return playlists;
+}
+//#endregion
+//#region utilities
+function log_passthrough(value) {
+    log(value);
+    return value;
 }
 function assert_no_fall_through(value, exception_message) {
     log(["BiliBili log:", value]);
@@ -3429,7 +3455,7 @@ function seconds_to_WebVTT_timestamp(seconds) {
  */
 function interleave(a, b) {
     const [first, second] = b.length > a.length ? [b, a] : [a, b];
-    return first.flatMap((a_value, index) => {
+    return first.flatMap(function (a_value, index) {
         const b_value = second[index];
         if (second[index] === undefined) {
             return a_value;
@@ -3449,9 +3475,9 @@ function create_signed_url(base_url, params, special_params) {
         // timestamp
         wts: Math.round(Date.now() / 1e3).toString(),
         // device fingerprint values
-        dm_img_inter: local_storage_cache.dm_img_inter,
-        dm_img_str: local_storage_cache.dm_img_str,
-        dm_cover_img_str: local_storage_cache.dm_cover_img_str,
+        dm_img_inter: local_state.dm_img_inter,
+        dm_img_str: local_state.dm_img_str,
+        dm_cover_img_str: local_state.dm_cover_img_str,
         dm_img_list: "[]",
     } : {
         ...params,
@@ -3465,12 +3491,12 @@ function create_signed_url(base_url, params, special_params) {
     };
     const sorted_query_string = Object
         .entries(augmented_params)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, value]) => {
+        .sort(function (a, b) { return a[0].localeCompare(b[0]); })
+        .map(function ([name, value]) {
         return `${name}=${encodeURIComponent(value)}`;
     })
         .join("&");
-    const w_rid = local_utility.md5String(sorted_query_string + local_storage_cache.mixin_key);
+    const w_rid = local_utility.md5String(sorted_query_string + local_state.mixin_key);
     return new URL(`${base_url}?${sorted_query_string}&w_rid=${w_rid}`);
 }
 function create_url(base_url, params) {
@@ -3639,5 +3665,5 @@ function execute_requests(requests) {
 //#endregion
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-// export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage };
+// export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough };
 //# sourceMappingURL=http://localhost:8080/BiliBiliScript.js.map

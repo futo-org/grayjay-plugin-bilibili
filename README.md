@@ -7,7 +7,7 @@
 -   Prevents some rate limiting/captcha scenarios
 ## Development
 1.  `npm run npm-dev` or `bun run bun-dev`
-2.  load `dev-config.json` into Grayjay
+2.  load `BiliBiliConfig.json` into Grayjay
 ## TO-DO
 - [X]   (I haven't noticed this in a while) Seems like video links time out and stop working fairly quickly. Can we prevent that by send cookies along with the requests?
 - [ ]   Figure out captcha verification for space posts and space videos or at least proper rate limiting error messages
@@ -40,7 +40,7 @@
 - [ ]   consider switching from using JSON apis to HTML with regex. this could improve performance because the latency of the html is less than the json
 - [ ]   remove bad post search results that are simply duplicates to video search results
 
-## Pending Fixed Grayjay Bug
+## Pending Fixed Grayjay Bugs
 
 ## Grayjay Bugs
 - [ ]   HLS for live streaming is a little wonky in the UI
@@ -58,3 +58,4 @@
     -   getchannelcapabilities and getchannelcontents don't ask for LIVE or POSTS types
 - [ ]   the first time when trying to open a channel link the app will say the link isn't supported
 - [ ]   non utf characters don't get saved to the filename when exporting. this is really bad for simplified chinese characters
+- [ ]   when playling a playlist the UnavailableException doesn't display and the playlist simply skips the video
