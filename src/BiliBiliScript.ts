@@ -1084,7 +1084,7 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
     const result = runner.GET(
         url,
         {
-            Referer: "https://www.bilibili.com",
+            Referer: "https://space.bilibili.com",
             Host: "api.bilibili.com",
             "User-Agent": USER_AGENT,
             Cookie: `buvid3=${local_state.buvid3}`

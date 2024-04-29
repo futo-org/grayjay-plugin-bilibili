@@ -920,7 +920,7 @@ function space_request(space_id, builder) {
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
     const result = runner.GET(url, {
-        Referer: "https://www.bilibili.com",
+        Referer: "https://space.bilibili.com",
         Host: "api.bilibili.com",
         "User-Agent": USER_AGENT,
         Cookie: `buvid3=${local_state.buvid3}`
