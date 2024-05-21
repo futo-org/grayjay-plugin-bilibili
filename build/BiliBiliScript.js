@@ -446,7 +446,7 @@ function format_home(home) {
                     })];
             }
             default:
-                throw assert_no_fall_through(item, `unhandled type on home page item ${item}`);
+                throw assert_exhaustive(item, `unhandled type on home page item ${item}`);
         }
     });
 }
@@ -783,7 +783,7 @@ function format_search_results(results) {
             case "bili_user":
                 throw new ScriptException("unreachable");
             default:
-                throw assert_no_fall_through(item, "unreachable");
+                throw assert_exhaustive(item, "unreachable");
         }
     });
 }
@@ -1060,7 +1060,7 @@ function getChannelContents(url, type, order, filters) {
             return new VideoPager(live_room, false);
         }
         default:
-            throw assert_no_fall_through(type, "unreachable");
+            throw assert_exhaustive(type, "unreachable");
     }
 }
 class SpaceCollectionsContentPager extends PlaylistPager {
@@ -1493,14 +1493,14 @@ function format_space_posts(space_posts_response, space_id, space_info) {
         const desc = space_post.modules.module_dynamic.desc;
         const images = [];
         const thumbnails = [];
-        const primary_content = desc?.rich_text_nodes.map(function (node) { return format_text_node(node, images, thumbnails); }).join("") + "\n";
+        const primary_content = desc?.rich_text_nodes.map(function (node) { return format_text_node(node, images, thumbnails); }).join("");
         const major = space_post.modules.module_dynamic.major;
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
         const topic = space_post.modules.module_dynamic.topic;
         const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
         const reference = space_post.orig;
         const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined;
-        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
+        const content = (primary_content ? primary_content + "\n" : "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
         return [new PlatformPostDetails({
                 thumbnails,
                 images,
@@ -2056,10 +2056,10 @@ function getContentDetails(url) {
                     return details;
                 }
                 default:
-                    throw assert_no_fall_through(content_type, "unreachable");
+                    throw assert_exhaustive(content_type, "unreachable");
             }
         default:
-            throw assert_no_fall_through(subdomain, "unreachable");
+            throw assert_exhaustive(subdomain, "unreachable");
     }
 }
 function livestream_request(room_id, builder) {
@@ -2097,12 +2097,12 @@ function get_post(post_id) {
     const thumbnails = [];
     const primary_content = desc?.rich_text_nodes
         .map(function (node) { return format_text_node(node, images, thumbnails); })
-        .join("") + "\n";
+        .join("");
     const major = space_post.modules.module_dynamic.major;
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
     const topic = space_post.modules.module_dynamic.topic;
     const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
-    const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
+    const content = (primary_content ? primary_content + "\n" : "") + (topic_string ?? "") + (major_links ?? "");
     return new PlatformPostDetails({
         thumbnails,
         images,
@@ -2175,7 +2175,7 @@ function format_text_node(node, images, thumbnails) {
         case "RICH_TEXT_NODE_TYPE_OGV_EP":
             return `<a href="https://www.bilibili.com/bangumi/play/${node.rid}">${node.text}</a>`;
         default:
-            throw assert_no_fall_through(node, `unhandled type on node ${node}`);
+            throw assert_exhaustive(node, `unhandled type on node ${node}`);
     }
 }
 function format_major(major, thumbnails, images) {
@@ -2221,7 +2221,7 @@ function format_major(major, thumbnails, images) {
             thumbnails.push(new Thumbnails([new Thumbnail(major.courses.cover, HARDCODED_THUMBNAIL_QUALITY)]));
             return `<a href="${COURSE_URL_PREFIX}${major.courses.id}">${major.courses.title}</a>`;
         default:
-            throw assert_no_fall_through(major, `unhandled type on major ${major}`);
+            throw assert_exhaustive(major, `unhandled type on major ${major}`);
     }
 }
 function episode_play_request(episode_id, builder) {
@@ -2252,7 +2252,7 @@ function season_request(id_obj, builder) {
                     ep_id: id_obj.id.toString()
                 };
             default:
-                throw assert_no_fall_through(id_obj, "unreachable");
+                throw assert_exhaustive(id_obj, "unreachable");
         }
     })(id_obj);
     const season_url = create_url(season_prefix, params);
@@ -2306,7 +2306,7 @@ function course_request(id_obj, builder) {
                     ep_id: id_obj.id.toString()
                 };
             default:
-                throw assert_no_fall_through(id_obj, "unreachable");
+                throw assert_exhaustive(id_obj, "unreachable");
         }
     })(id_obj);
     const season_url = create_url(season_prefix, params);
@@ -2752,7 +2752,7 @@ function getPlaylist(url) {
             });
         }
         default:
-            throw assert_no_fall_through(playlist_type, "unreachable");
+            throw assert_exhaustive(playlist_type, "unreachable");
     }
 }
 class CollectionContentsPager extends VideoPager {
@@ -3114,10 +3114,10 @@ function getComments(url) {
                         return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`];
                     }
                     default:
-                        throw assert_no_fall_through(content_type, "unreachable");
+                        throw assert_exhaustive(content_type, "unreachable");
                 }
             default:
-                throw assert_no_fall_through(subdomain, "unreachable");
+                throw assert_exhaustive(subdomain, "unreachable");
         }
     })();
     const pager = new BiliBiliCommentPager(context_url, oid, type, 1);
@@ -3130,17 +3130,37 @@ class BiliBiliCommentPager extends CommentPager {
     next_page;
     constructor(context_url, oid, type, initial_page) {
         const comments_response = get_comments(oid, type, initial_page);
-        const more = !comments_response.data.cursor.is_end;
-        super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more);
+        switch (comments_response.code) {
+            case -404:
+                super([], false);
+                break;
+            case 0: {
+                const more = !comments_response.data.cursor.is_end;
+                super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more);
+                break;
+            }
+            default:
+                throw assert_exhaustive(comments_response, "unreachable");
+        }
         this.next_page = initial_page + 1;
         this.oid = oid;
         this.type = type;
         this.context_url = context_url;
     }
     nextPage() {
-        const comment_response = get_comments(this.oid, this.type, this.next_page);
-        this.hasMore = !comment_response.data.cursor.is_end;
-        this.results = format_comments(comment_response, this.context_url, this.oid, this.type, this.next_page === 1);
+        const comments_response = get_comments(this.oid, this.type, this.next_page);
+        switch (comments_response.code) {
+            case -404:
+                this.hasMore = false;
+                this.results = [];
+                break;
+            case 0:
+                this.hasMore = !comments_response.data.cursor.is_end;
+                this.results = format_comments(comments_response, this.context_url, this.oid, this.type, this.next_page === 1);
+                break;
+            default:
+                throw assert_exhaustive(comments_response, "unreachable");
+        }
         this.next_page += 1;
         return this;
     }
@@ -3181,6 +3201,9 @@ function get_comments(oid, type, page) {
  * @returns
  */
 function format_comments(comments_response, context_url, oid, type, include_pinned_comment) {
+    if (comments_response.code === -404) {
+        return [];
+    }
     const replies = comments_response.data.replies;
     if (include_pinned_comment && comments_response.data.top.upper !== null) {
         replies.unshift(comments_response.data.top.upper);
@@ -3202,7 +3225,7 @@ function format_comments(comments_response, context_url, oid, type, include_pinn
                         case 33:
                             return "33";
                         default:
-                            throw assert_no_fall_through(type, "unreachable");
+                            throw assert_exhaustive(type, "unreachable");
                     }
                 })(type)
             }
@@ -3387,7 +3410,7 @@ function log_passthrough(value) {
     log(value);
     return value;
 }
-function assert_no_fall_through(value, exception_message) {
+function assert_exhaustive(value, exception_message) {
     log(["BiliBili log:", value]);
     if (exception_message !== undefined) {
         return new ScriptException(exception_message);
@@ -3661,7 +3684,7 @@ function execute_requests(requests) {
             ];
         }
         default:
-            throw assert_no_fall_through(requests, "unreachable");
+            throw assert_exhaustive(requests, "unreachable");
     }
 }
 //#endregion

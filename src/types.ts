@@ -285,7 +285,7 @@ export type Comment = {
     }[]
 }
 
-export type CommentResponse = {
+export type CommentsResponse = {
     readonly data: {
         readonly cursor: {
             is_end: boolean
@@ -295,6 +295,9 @@ export type CommentResponse = {
             readonly upper: Comment | null
         }
     }
+    readonly code: 0
+} | {
+    readonly code: -404
 }
 
 export type WatchLaterResponse = {
