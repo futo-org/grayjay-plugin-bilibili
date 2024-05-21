@@ -39,6 +39,8 @@
 - [ ]   this is a sort of playlist that we might consider adding support for https://www.bilibili.com/blackboard/era/YyCI1Zsg5iUjelX2.html
 - [ ]   consider switching from using JSON apis to HTML with regex. this could improve performance because the latency of the html is less than the json
 - [ ]   remove bad post search results that are simply duplicates to video search results
+- [ ]   bangumi should have a creator page per show based off https://www.bilibili.com/bangumi/media/md28339940
+- [ ]   implement monitization/merch features
 
 ## Pending Fixed Grayjay Bugs
 

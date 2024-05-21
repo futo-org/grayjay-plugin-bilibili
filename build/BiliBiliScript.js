@@ -425,7 +425,7 @@ function format_home(home) {
                         viewCount: item.stat.view,
                         isLive: false,
                         shareUrl: item.uri,
-                        uploadDate: item.pubdate
+                        datetime: item.pubdate
                     })];
             }
             case "live": {
@@ -441,7 +441,8 @@ function format_home(home) {
                         viewCount: item.room_info.watched_show.num,
                         isLive: true,
                         shareUrl: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
-                        // TODO load from cache uploadDate:
+                        // TODO load from cache
+                        datetime: HARDCODED_ZERO
                     })];
             }
             default:
@@ -685,7 +686,7 @@ function format_search_results(results) {
                     viewCount: item.play,
                     isLive: false,
                     shareUrl: url,
-                    uploadDate: item.pubdate
+                    datetime: item.pubdate
                 });
             }
             case "live_room": {
@@ -702,7 +703,7 @@ function format_search_results(results) {
                     isLive: true,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
+                    datetime: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
                 });
             }
             // TODO once the main search results support playlists courses and shows should return playlists
@@ -737,7 +738,7 @@ function format_search_results(results) {
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: item.pubtime
+                    datetime: item.pubtime
                 });
             }
             case "media_ft": {
@@ -776,7 +777,7 @@ function format_search_results(results) {
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: item.pubtime
+                    datetime: item.pubtime
                 });
             }
             case "bili_user":
@@ -1052,8 +1053,8 @@ function getChannelContents(url, type, order, filters) {
                         isLive: true,
                         shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
                         // TODO load from cache. "now" is incorrect but it does result in sorting to the top
-                        // It would be better however to load the actualy stream start time
-                        uploadDate: Date.now() / 1000
+                        // It would be better however to load the actual stream start time
+                        datetime: Date.now() / 1000
                     })]
                 : [];
             return new VideoPager(live_room, false);
@@ -1363,6 +1364,7 @@ function space_videos_request(space_id, page, page_size, keyword, order, builder
         "User-Agent": USER_AGENT,
         Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
         Host: "api.bilibili.com",
+        Referer: "https://space.bilibili.com"
     }, true);
     if (builder === undefined) {
         log_network_call(now);
@@ -1386,7 +1388,7 @@ function format_space_videos(space_videos_response, space_id, space_info) {
             viewCount: space_video.play === "--" ? 0 : space_video.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: space_video.created
+            datetime: space_video.created
         });
     });
 }
@@ -1853,7 +1855,7 @@ function getContentDetails(url) {
                 viewCount: response.roomInfoRes.data.watched_show.num,
                 isLive: true,
                 shareUrl: `${LIVE_ROOM_URL_PREFIX}${room_id}`,
-                uploadDate: response.roomInfoRes.data.room_info.live_start_time,
+                datetime: response.roomInfoRes.data.room_info.live_start_time,
                 name: response.roomInfoRes.data.room_info.title,
                 url: `${LIVE_ROOM_URL_PREFIX}${room_id}`,
                 id: new PlatformID(PLATFORM, room_id.toString(), plugin.config.id),
@@ -1916,7 +1918,7 @@ function getContentDetails(url) {
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(episode_info_response.data.stat.like),
                         shareUrl: `${EPISODE_URL_PREFIX}${episode_id}`,
-                        uploadDate: episode_season_meta.pub_time
+                        datetime: episode_season_meta.pub_time
                     });
                     return details;
                 }
@@ -1981,7 +1983,7 @@ function getContentDetails(url) {
                         // TODO figure out a rating to use. courses/course episodes don't have likes
                         rating: new RatingLikes(MISSING_RATING),
                         shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                        uploadDate: episode_season_metadata.release_date
+                        datetime: episode_season_metadata.release_date
                     };
                     const details = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
                         ...platform_video_details_def,
@@ -2044,7 +2046,7 @@ function getContentDetails(url) {
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(video_info.data.View.stat.like),
                         shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
-                        uploadDate: video_info.data.View.pubdate,
+                        datetime: video_info.data.View.pubdate,
                     };
                     if (subtitles === undefined) {
                         const details = new PlatformVideoDetails(platform_video_details_def);
@@ -2732,7 +2734,7 @@ function getPlaylist(url) {
                     viewCount: video.stat.view,
                     isLive: false,
                     shareUrl: url,
-                    uploadDate: video.pubdate
+                    datetime: video.pubdate
                 });
             });
             const first_video = watch_later_response.data.list[0];
@@ -2794,7 +2796,7 @@ function format_collection(author, collection_response) {
             viewCount: video.stat.view,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubdate
+            datetime: video.pubdate
         });
     });
     return videos;
@@ -2833,7 +2835,7 @@ function format_season(season_id, season_response) {
             viewCount: season_response.result.stat.views,
             isLive: false,
             shareUrl: url,
-            uploadDate: episode.pub_time
+            datetime: episode.pub_time
         });
     });
     return new PlatformPlaylistDetails({
@@ -2886,7 +2888,7 @@ function format_series(author, series_response) {
             viewCount: video.stat.view,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubdate
+            datetime: video.pubdate
         });
     });
     return videos;
@@ -2925,7 +2927,7 @@ function format_course(season_id, course_response) {
             viewCount: episode.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: episode.release_date
+            datetime: episode.release_date
         });
     });
     return new PlatformPlaylistDetails({
@@ -3000,7 +3002,7 @@ function format_favorites_videos(favorites_response) {
             viewCount: video.cnt_info.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubtime
+            datetime: video.pubtime
         });
     });
     return videos;
@@ -3047,7 +3049,7 @@ function format_festival(festival_id, festival_response) {
             isLive: false,
             shareUrl: url,
             // TODO load this some other way
-            // uploadDate: episode.release_date
+            datetime: HARDCODED_ZERO
         });
     });
     return new PlatformPlaylistDetails({

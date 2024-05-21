@@ -46,17 +46,17 @@ export type PlaylistType = "bangumi/play/ss"
 
 export type Settings = unknown
 
-export type BiliBiliSource = Required<Source<
+export type BiliBiliSource = Required<Omit<Source<
     BiliBiliCommentContext,
     FilterGroupIDs,
     ChannelTypeCapabilities,
     SearchTypeCapabilities,
     ChannelSearchTypeCapabilities
->>
+>, "getPlaybackTracker">>
 
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
 
-export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES">
+export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES" | "ALBUMS" | "PLAYLISTS">
 
 export type ChannelSearchTypeCapabilities = Exclude<ChannelTypeCapabilities, "COURSES" | "COLLECTIONS" | "FAVORITES" | "LIVE">
 
