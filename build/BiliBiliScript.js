@@ -425,7 +425,7 @@ function format_home(home) {
                         viewCount: item.stat.view,
                         isLive: false,
                         shareUrl: item.uri,
-                        uploadDate: item.pubdate
+                        datetime: item.pubdate
                     })];
             }
             case "live": {
@@ -441,11 +441,12 @@ function format_home(home) {
                         viewCount: item.room_info.watched_show.num,
                         isLive: true,
                         shareUrl: `${LIVE_ROOM_URL_PREFIX}${item.id}`,
-                        // TODO load from cache uploadDate:
+                        // TODO load from cache
+                        datetime: HARDCODED_ZERO
                     })];
             }
             default:
-                throw assert_no_fall_through(item, `unhandled type on home page item ${item}`);
+                throw assert_exhaustive(item, `unhandled type on home page item ${item}`);
         }
     });
 }
@@ -685,7 +686,7 @@ function format_search_results(results) {
                     viewCount: item.play,
                     isLive: false,
                     shareUrl: url,
-                    uploadDate: item.pubdate
+                    datetime: item.pubdate
                 });
             }
             case "live_room": {
@@ -702,7 +703,7 @@ function format_search_results(results) {
                     isLive: true,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
+                    datetime: (new Date(`${item.live_time} UTC+8`)).getTime() / 1000
                 });
             }
             // TODO once the main search results support playlists courses and shows should return playlists
@@ -737,7 +738,7 @@ function format_search_results(results) {
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: item.pubtime
+                    datetime: item.pubtime
                 });
             }
             case "media_ft": {
@@ -776,13 +777,13 @@ function format_search_results(results) {
                     isLive: false,
                     shareUrl: url,
                     // TODO assumes China timezone
-                    uploadDate: item.pubtime
+                    datetime: item.pubtime
                 });
             }
             case "bili_user":
                 throw new ScriptException("unreachable");
             default:
-                throw assert_no_fall_through(item, "unreachable");
+                throw assert_exhaustive(item, "unreachable");
         }
     });
 }
@@ -1052,14 +1053,14 @@ function getChannelContents(url, type, order, filters) {
                         isLive: true,
                         shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
                         // TODO load from cache. "now" is incorrect but it does result in sorting to the top
-                        // It would be better however to load the actualy stream start time
-                        uploadDate: Date.now() / 1000
+                        // It would be better however to load the actual stream start time
+                        datetime: Date.now() / 1000
                     })]
                 : [];
             return new VideoPager(live_room, false);
         }
         default:
-            throw assert_no_fall_through(type, "unreachable");
+            throw assert_exhaustive(type, "unreachable");
     }
 }
 class SpaceCollectionsContentPager extends PlaylistPager {
@@ -1363,6 +1364,7 @@ function space_videos_request(space_id, page, page_size, keyword, order, builder
         "User-Agent": USER_AGENT,
         Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
         Host: "api.bilibili.com",
+        Referer: "https://space.bilibili.com"
     }, true);
     if (builder === undefined) {
         log_network_call(now);
@@ -1386,7 +1388,7 @@ function format_space_videos(space_videos_response, space_id, space_info) {
             viewCount: space_video.play === "--" ? 0 : space_video.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: space_video.created
+            datetime: space_video.created
         });
     });
 }
@@ -1491,14 +1493,14 @@ function format_space_posts(space_posts_response, space_id, space_info) {
         const desc = space_post.modules.module_dynamic.desc;
         const images = [];
         const thumbnails = [];
-        const primary_content = desc?.rich_text_nodes.map(function (node) { return format_text_node(node, images, thumbnails); }).join("") + "\n";
+        const primary_content = desc?.rich_text_nodes.map(function (node) { return format_text_node(node, images, thumbnails); }).join("");
         const major = space_post.modules.module_dynamic.major;
         const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
         const topic = space_post.modules.module_dynamic.topic;
         const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
         const reference = space_post.orig;
         const reference_string = reference ? `<a href="${`${POST_URL_PREFIX}${reference.id_str}`}">${POST_URL_PREFIX}${reference.id_str}</a>` : undefined;
-        const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
+        const content = (primary_content ? primary_content + "\n" : "") + (topic_string ?? "") + (major_links ?? "") + (reference_string ?? "");
         return [new PlatformPostDetails({
                 thumbnails,
                 images,
@@ -1853,7 +1855,7 @@ function getContentDetails(url) {
                 viewCount: response.roomInfoRes.data.watched_show.num,
                 isLive: true,
                 shareUrl: `${LIVE_ROOM_URL_PREFIX}${room_id}`,
-                uploadDate: response.roomInfoRes.data.room_info.live_start_time,
+                datetime: response.roomInfoRes.data.room_info.live_start_time,
                 name: response.roomInfoRes.data.room_info.title,
                 url: `${LIVE_ROOM_URL_PREFIX}${room_id}`,
                 id: new PlatformID(PLATFORM, room_id.toString(), plugin.config.id),
@@ -1916,7 +1918,7 @@ function getContentDetails(url) {
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(episode_info_response.data.stat.like),
                         shareUrl: `${EPISODE_URL_PREFIX}${episode_id}`,
-                        uploadDate: episode_season_meta.pub_time
+                        datetime: episode_season_meta.pub_time
                     });
                     return details;
                 }
@@ -1981,7 +1983,7 @@ function getContentDetails(url) {
                         // TODO figure out a rating to use. courses/course episodes don't have likes
                         rating: new RatingLikes(MISSING_RATING),
                         shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                        uploadDate: episode_season_metadata.release_date
+                        datetime: episode_season_metadata.release_date
                     };
                     const details = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
                         ...platform_video_details_def,
@@ -2044,7 +2046,7 @@ function getContentDetails(url) {
                         video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
                         rating: new RatingLikes(video_info.data.View.stat.like),
                         shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
-                        uploadDate: video_info.data.View.pubdate,
+                        datetime: video_info.data.View.pubdate,
                     };
                     if (subtitles === undefined) {
                         const details = new PlatformVideoDetails(platform_video_details_def);
@@ -2054,10 +2056,10 @@ function getContentDetails(url) {
                     return details;
                 }
                 default:
-                    throw assert_no_fall_through(content_type, "unreachable");
+                    throw assert_exhaustive(content_type, "unreachable");
             }
         default:
-            throw assert_no_fall_through(subdomain, "unreachable");
+            throw assert_exhaustive(subdomain, "unreachable");
     }
 }
 function livestream_request(room_id, builder) {
@@ -2095,12 +2097,12 @@ function get_post(post_id) {
     const thumbnails = [];
     const primary_content = desc?.rich_text_nodes
         .map(function (node) { return format_text_node(node, images, thumbnails); })
-        .join("") + "\n";
+        .join("");
     const major = space_post.modules.module_dynamic.major;
     const major_links = major !== null ? format_major(major, thumbnails, images) : undefined;
     const topic = space_post.modules.module_dynamic.topic;
     const topic_string = topic ? `<a href="${topic?.jump_url}">${topic.name}</a>\n` : undefined;
-    const content = (primary_content ?? "") + (topic_string ?? "") + (major_links ?? "");
+    const content = (primary_content ? primary_content + "\n" : "") + (topic_string ?? "") + (major_links ?? "");
     return new PlatformPostDetails({
         thumbnails,
         images,
@@ -2173,7 +2175,7 @@ function format_text_node(node, images, thumbnails) {
         case "RICH_TEXT_NODE_TYPE_OGV_EP":
             return `<a href="https://www.bilibili.com/bangumi/play/${node.rid}">${node.text}</a>`;
         default:
-            throw assert_no_fall_through(node, `unhandled type on node ${node}`);
+            throw assert_exhaustive(node, `unhandled type on node ${node}`);
     }
 }
 function format_major(major, thumbnails, images) {
@@ -2219,7 +2221,7 @@ function format_major(major, thumbnails, images) {
             thumbnails.push(new Thumbnails([new Thumbnail(major.courses.cover, HARDCODED_THUMBNAIL_QUALITY)]));
             return `<a href="${COURSE_URL_PREFIX}${major.courses.id}">${major.courses.title}</a>`;
         default:
-            throw assert_no_fall_through(major, `unhandled type on major ${major}`);
+            throw assert_exhaustive(major, `unhandled type on major ${major}`);
     }
 }
 function episode_play_request(episode_id, builder) {
@@ -2250,7 +2252,7 @@ function season_request(id_obj, builder) {
                     ep_id: id_obj.id.toString()
                 };
             default:
-                throw assert_no_fall_through(id_obj, "unreachable");
+                throw assert_exhaustive(id_obj, "unreachable");
         }
     })(id_obj);
     const season_url = create_url(season_prefix, params);
@@ -2304,7 +2306,7 @@ function course_request(id_obj, builder) {
                     ep_id: id_obj.id.toString()
                 };
             default:
-                throw assert_no_fall_through(id_obj, "unreachable");
+                throw assert_exhaustive(id_obj, "unreachable");
         }
     })(id_obj);
     const season_url = create_url(season_prefix, params);
@@ -2732,7 +2734,7 @@ function getPlaylist(url) {
                     viewCount: video.stat.view,
                     isLive: false,
                     shareUrl: url,
-                    uploadDate: video.pubdate
+                    datetime: video.pubdate
                 });
             });
             const first_video = watch_later_response.data.list[0];
@@ -2750,7 +2752,7 @@ function getPlaylist(url) {
             });
         }
         default:
-            throw assert_no_fall_through(playlist_type, "unreachable");
+            throw assert_exhaustive(playlist_type, "unreachable");
     }
 }
 class CollectionContentsPager extends VideoPager {
@@ -2794,7 +2796,7 @@ function format_collection(author, collection_response) {
             viewCount: video.stat.view,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubdate
+            datetime: video.pubdate
         });
     });
     return videos;
@@ -2833,7 +2835,7 @@ function format_season(season_id, season_response) {
             viewCount: season_response.result.stat.views,
             isLive: false,
             shareUrl: url,
-            uploadDate: episode.pub_time
+            datetime: episode.pub_time
         });
     });
     return new PlatformPlaylistDetails({
@@ -2886,7 +2888,7 @@ function format_series(author, series_response) {
             viewCount: video.stat.view,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubdate
+            datetime: video.pubdate
         });
     });
     return videos;
@@ -2925,7 +2927,7 @@ function format_course(season_id, course_response) {
             viewCount: episode.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: episode.release_date
+            datetime: episode.release_date
         });
     });
     return new PlatformPlaylistDetails({
@@ -3000,7 +3002,7 @@ function format_favorites_videos(favorites_response) {
             viewCount: video.cnt_info.play,
             isLive: false,
             shareUrl: url,
-            uploadDate: video.pubtime
+            datetime: video.pubtime
         });
     });
     return videos;
@@ -3047,7 +3049,7 @@ function format_festival(festival_id, festival_response) {
             isLive: false,
             shareUrl: url,
             // TODO load this some other way
-            // uploadDate: episode.release_date
+            datetime: HARDCODED_ZERO
         });
     });
     return new PlatformPlaylistDetails({
@@ -3112,10 +3114,10 @@ function getComments(url) {
                         return [video_info.data.View.aid, 1, `${VIDEO_URL_PREFIX}${video_id}`];
                     }
                     default:
-                        throw assert_no_fall_through(content_type, "unreachable");
+                        throw assert_exhaustive(content_type, "unreachable");
                 }
             default:
-                throw assert_no_fall_through(subdomain, "unreachable");
+                throw assert_exhaustive(subdomain, "unreachable");
         }
     })();
     const pager = new BiliBiliCommentPager(context_url, oid, type, 1);
@@ -3128,17 +3130,37 @@ class BiliBiliCommentPager extends CommentPager {
     next_page;
     constructor(context_url, oid, type, initial_page) {
         const comments_response = get_comments(oid, type, initial_page);
-        const more = !comments_response.data.cursor.is_end;
-        super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more);
+        switch (comments_response.code) {
+            case -404:
+                super([], false);
+                break;
+            case 0: {
+                const more = !comments_response.data.cursor.is_end;
+                super(format_comments(comments_response, context_url, oid, type, initial_page === 1), more);
+                break;
+            }
+            default:
+                throw assert_exhaustive(comments_response, "unreachable");
+        }
         this.next_page = initial_page + 1;
         this.oid = oid;
         this.type = type;
         this.context_url = context_url;
     }
     nextPage() {
-        const comment_response = get_comments(this.oid, this.type, this.next_page);
-        this.hasMore = !comment_response.data.cursor.is_end;
-        this.results = format_comments(comment_response, this.context_url, this.oid, this.type, this.next_page === 1);
+        const comments_response = get_comments(this.oid, this.type, this.next_page);
+        switch (comments_response.code) {
+            case -404:
+                this.hasMore = false;
+                this.results = [];
+                break;
+            case 0:
+                this.hasMore = !comments_response.data.cursor.is_end;
+                this.results = format_comments(comments_response, this.context_url, this.oid, this.type, this.next_page === 1);
+                break;
+            default:
+                throw assert_exhaustive(comments_response, "unreachable");
+        }
         this.next_page += 1;
         return this;
     }
@@ -3179,6 +3201,9 @@ function get_comments(oid, type, page) {
  * @returns
  */
 function format_comments(comments_response, context_url, oid, type, include_pinned_comment) {
+    if (comments_response.code === -404) {
+        return [];
+    }
     const replies = comments_response.data.replies;
     if (include_pinned_comment && comments_response.data.top.upper !== null) {
         replies.unshift(comments_response.data.top.upper);
@@ -3200,7 +3225,7 @@ function format_comments(comments_response, context_url, oid, type, include_pinn
                         case 33:
                             return "33";
                         default:
-                            throw assert_no_fall_through(type, "unreachable");
+                            throw assert_exhaustive(type, "unreachable");
                     }
                 })(type)
             }
@@ -3385,7 +3410,7 @@ function log_passthrough(value) {
     log(value);
     return value;
 }
-function assert_no_fall_through(value, exception_message) {
+function assert_exhaustive(value, exception_message) {
     log(["BiliBili log:", value]);
     if (exception_message !== undefined) {
         return new ScriptException(exception_message);
@@ -3659,7 +3684,7 @@ function execute_requests(requests) {
             ];
         }
         default:
-            throw assert_no_fall_through(requests, "unreachable");
+            throw assert_exhaustive(requests, "unreachable");
     }
 }
 //#endregion
