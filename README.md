@@ -41,7 +41,7 @@
 - [ ]   remove bad post search results that are simply duplicates to video search results
 - [ ]   bangumi should have a creator page per show based off https://www.bilibili.com/bangumi/media/md28339940
 - [ ]   implement monitization/merch features
-- [ ]   there is an issue where space_request doesn't work right. it might be ip address allow list related. like watching a video seems like it might make things work in the future
+- [x]   (should be fixed now) there is an issue where space_request doesn't work right. it might be ip address allow list related. like watching a video seems like it might make things work in the future
 - [ ]   update to use the new playlist api to get channel playlists
 - [ ]   add whatever gets stuff to show up on the channels and support tabs on the cannel page. i think it is just polycentric stuff but idk
 

@@ -90,6 +90,7 @@ const post_body_for_ExClimbWuzhi = JSON.stringify({
         "39c8": "333.999.fp.risk",
         "3c43": {
             "adca": OS,
+            "b8ce": USER_AGENT
         }
     })
 })
@@ -306,12 +307,6 @@ function init_local_storage(state?: State) {
     }
     local_state = state === undefined ? init_session_info() : state
 }
-// function refresh_session_info() {
-//     local_storage_cache = {
-//         ...local_storage_cache,
-//         ...init_session_info()
-//     }
-// }
 function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
 function nav_request(useAuthClient: boolean): BridgeHttpResponse
 function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
@@ -381,13 +376,24 @@ function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
     local_http.POST(cookie_activation_url,
         body,
         {
-            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
+            Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
             "User-Agent": USER_AGENT,
             Host: "api.bilibili.com",
             "Content-Length": body.length.toString(),
             "Content-Type": "application/json"
         },
-        false)
+        false
+    )
+    // we need to hit a normal html endpoint to get the cookies activated
+    local_http
+        .GET(
+            "https://space.bilibili.com/302243597",
+            {
+                Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
+                "User-Agent": USER_AGENT
+            },
+            false
+        )
     log_network_call(now)
 }
 /**
@@ -1012,7 +1018,7 @@ function getChannel(url: string) {
     }]
 
     const [space, fan_count_response] = execute_requests(requests)
-
+    
     // cache results
     local_storage_cache.space_cache.set(space_id, {
         num_fans: fan_count_response.data.follower,
@@ -1088,7 +1094,7 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
             Referer: "https://space.bilibili.com",
             Host: "api.bilibili.com",
             "User-Agent": USER_AGENT,
-            Cookie: `buvid3=${local_state.buvid3}`
+            Cookie: `buvid3=${local_state.buvid3}; buvid4=${local_state.buvid4}; b_nut=${local_state.b_nut}`
         },
         false)
     if (builder === undefined) {
