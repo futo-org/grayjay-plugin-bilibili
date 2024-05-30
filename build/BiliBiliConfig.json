@@ -25,7 +25,8 @@
         "s.search.bilibili.com",
         "aisubtitle.hdslb.com",
         "d1--ov-gotcha05.bilivideo.com",
-        "d1--ov-gotcha07.bilivideo.com"
+        "d1--ov-gotcha07.bilivideo.com",
+        "space.bilibili.com"
     ],
     "authentication": {
 		"loginUrl": "https://passport.bilibili.com/h5-app/passport/login",

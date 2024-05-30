@@ -46,13 +46,19 @@ export type PlaylistType = "bangumi/play/ss"
 
 export type Settings = unknown
 
-export type BiliBiliSource = Required<Omit<Source<
-    BiliBiliCommentContext,
-    FilterGroupIDs,
-    ChannelTypeCapabilities,
-    SearchTypeCapabilities,
-    ChannelSearchTypeCapabilities
->, "getPlaybackTracker">>
+export type BiliBiliSource = Required<
+    Omit<
+        Source<
+            BiliBiliCommentContext,
+            FilterGroupIDs,
+            ChannelTypeCapabilities,
+            SearchTypeCapabilities,
+            ChannelSearchTypeCapabilities
+        >,
+        "getPlaybackTracker"
+        | "getChannelPlaylists"
+    >
+>
 
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
 

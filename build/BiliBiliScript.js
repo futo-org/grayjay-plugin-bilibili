@@ -26,6 +26,7 @@ const post_body_for_ExClimbWuzhi = JSON.stringify({
         "39c8": "333.999.fp.risk",
         "3c43": {
             "adca": OS,
+            "b8ce": USER_AGENT
         }
     })
 });
@@ -321,11 +322,17 @@ function activate_cookies(b_nut, buvid3, buvid4) {
     const body = post_body_for_ExClimbWuzhi;
     const now = Date.now();
     local_http.POST(cookie_activation_url, body, {
-        Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; ${b_nut}`,
+        Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
         "User-Agent": USER_AGENT,
         Host: "api.bilibili.com",
         "Content-Length": body.length.toString(),
         "Content-Type": "application/json"
+    }, false);
+    // we need to hit a normal html endpoint to get the cookies activated
+    local_http
+        .GET("https://space.bilibili.com/302243597", {
+        Cookie: `buvid3=${buvid3}; buvid4=${buvid4}; b_nut=${b_nut}`,
+        "User-Agent": USER_AGENT
     }, false);
     log_network_call(now);
 }
@@ -924,7 +931,7 @@ function space_request(space_id, builder) {
         Referer: "https://space.bilibili.com",
         Host: "api.bilibili.com",
         "User-Agent": USER_AGENT,
-        Cookie: `buvid3=${local_state.buvid3}`
+        Cookie: `buvid3=${local_state.buvid3}; buvid4=${local_state.buvid4}; b_nut=${local_state.b_nut}`
     }, false);
     if (builder === undefined) {
         log_network_call(now);
