@@ -1804,7 +1804,6 @@ function getContentDetails(url) {
                 });
             }
             else {
-                log(response.roomInitRes.data);
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
                     .find(function (stream) { return stream.protocol_name === "http_stream"; })?.format
                     .find(function (format) { return format.format_name === "flv"; })?.codec[0];
