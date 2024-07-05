@@ -223,7 +223,7 @@ if (IS_TESTING) {
 //#endregion
 
 //#region enable
-function enable(conf: SourceConfig, settings: Settings, savedState: string | null) {
+function enable(conf: SourceConfig, settings: Settings, savedState?: string | null) {
     if (IS_TESTING) {
         log("IS_TESTING true")
         log("logging configuration")
@@ -234,7 +234,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         log(savedState)
     }
 
-    if (savedState === null) {
+    if (!savedState) {
         init_local_storage()
     } else {
         const state: State = JSON.parse(savedState)
@@ -2163,6 +2163,7 @@ function getContentDetails(url: string) {
                     name,
                 })
             } else {
+                log(response.roomInitRes.data)
                 const codec = response.roomInitRes.data.playurl_info.playurl.stream
                     .find(function (stream) { return stream.protocol_name === "http_stream" })?.format
                     .find(function (format) { return format.format_name === "flv" })?.codec[0]
@@ -2915,17 +2916,20 @@ function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, 
     return result
 }
 function format_sources(play_data: PlayDataDash) {
-    const video_sources: VideoUrlSource[] = play_data.dash.video.map(function (video) {
+    const video_sources: VideoUrlRangeSource[] = play_data.dash.video.map(function (video) {
         const name = play_data.accept_description[
             play_data.accept_quality.findIndex(function (value) {
                 return value === video.id
             })
         ]
-        if (name === undefined) {
+        const [initStart, initEnd] = video.segment_base.initialization.split("-").map(function (val) { return parseInt(val) })
+        const [indexStart, indexEnd] = video.segment_base.index_range.split("-").map(function (val) { return parseInt(val) })
+        if (name === undefined || initStart === undefined || initEnd === undefined || indexStart === undefined || indexEnd === undefined) {
             throw new ScriptException("can't load content details")
         }
         const video_url_hostname = new URL(video.base_url).hostname
-        return new VideoUrlSource({
+
+        return new VideoUrlRangeSource({
             width: video.width,
             height: video.height,
             container: video.mime_type,
@@ -2934,6 +2938,11 @@ function format_sources(play_data: PlayDataDash) {
             bitrate: video.bandwidth,
             duration: play_data.dash.duration,
             url: video.base_url,
+            itagId: video.id,
+            initStart,
+            initEnd,
+            indexStart,
+            indexEnd,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
@@ -2944,9 +2953,14 @@ function format_sources(play_data: PlayDataDash) {
         })
     })
 
-    const audio_sources: AudioUrlSource[] = play_data.dash.audio.map(function (audio) {
+    const audio_sources: AudioUrlRangeSource[] = play_data.dash.audio.map(function (audio) {
         const audio_url_hostname = new URL(audio.base_url).hostname
-        return new AudioUrlSource({
+        const [initStart, initEnd] = audio.segment_base.initialization.split("-").map(function (val) { return parseInt(val) })
+        const [indexStart, indexEnd] = audio.segment_base.index_range.split("-").map(function (val) { return parseInt(val) })
+        if (initStart === undefined || initEnd === undefined || indexStart === undefined || indexEnd === undefined) {
+            throw new ScriptException("can't load content details")
+        }
+        return new AudioUrlRangeSource({
             container: audio.mime_type,
             codecs: audio.codecs,
             name: `${audio.codecs} at ${audio.bandwidth}`,
@@ -2954,6 +2968,12 @@ function format_sources(play_data: PlayDataDash) {
             duration: play_data.dash.duration,
             url: audio.base_url,
             language: Language.UNKNOWN,
+            itagId: audio.id,
+            initStart,
+            initEnd,
+            indexStart,
+            indexEnd,
+            audioChannels: 2,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
