@@ -59,7 +59,6 @@ export type BiliBiliSource = Required<
         | "getChannelPlaylists"
     >
 >
-
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
 
 export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES" | "ALBUMS" | "PLAYLISTS">

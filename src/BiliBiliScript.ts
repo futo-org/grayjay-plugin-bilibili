@@ -133,91 +133,43 @@ let local_state: State
 //#endregion
 
 //#region source methods
-source.enable = enable
-source.disable = disable
-source.saveState = saveState
-source.getHome = getHome
-
-source.searchSuggestions = searchSuggestions
-source.getSearchCapabilities = getSearchCapabilities
-source.search = search
-
-source.searchChannels = searchChannels
-source.isChannelUrl = isChannelUrl
-source.getChannel = getChannel
-
-source.getChannelCapabilities = getChannelCapabilities
-source.getChannelContents = getChannelContents
-source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities
-source.searchChannelContents = searchChannelContents
-
-source.isContentDetailsUrl = isContentDetailsUrl
-source.getContentDetails = getContentDetails
-
-source.isPlaylistUrl = isPlaylistUrl
-source.searchPlaylists = searchPlaylists
-source.getPlaylist = getPlaylist
-
-source.getComments = getComments
-source.getSubComments = getSubComments
-source.getLiveChatWindow = getLiveChatWindow
-
-source.getUserSubscriptions = getUserSubscriptions
-source.getUserPlaylists = getUserPlaylists
-
-if (IS_TESTING) {
-    const assert_source: BiliBiliSource = {
-        enable,
-        disable,
-        saveState,
-        getHome,
-        searchSuggestions,
-        search,
-        getSearchCapabilities,
-        isContentDetailsUrl,
-        getContentDetails,
-        isChannelUrl,
-        getChannel,
-        getChannelContents,
-        getChannelCapabilities,
-        searchChannelContents,
-        getSearchChannelContentsCapabilities,
-        searchChannels,
-        getComments,
-        getSubComments,
-        isPlaylistUrl,
-        getPlaylist,
-        searchPlaylists,
-        getLiveChatWindow,
-        getUserPlaylists,
-        getUserSubscriptions
-    }
-    if (source.enable === undefined) { assert_never(source.enable) }
-    if (source.disable === undefined) { assert_never(source.disable) }
-    if (source.saveState === undefined) { assert_never(source.saveState) }
-    if (source.getHome === undefined) { assert_never(source.getHome) }
-    if (source.searchSuggestions === undefined) { assert_never(source.searchSuggestions) }
-    if (source.search === undefined) { assert_never(source.search) }
-    if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
-    if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
-    if (source.getContentDetails === undefined) { assert_never(source.getContentDetails) }
-    if (source.isChannelUrl === undefined) { assert_never(source.isChannelUrl) }
-    if (source.getChannel === undefined) { assert_never(source.getChannel) }
-    if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
-    if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
-    if (source.searchChannelContents === undefined) { assert_never(source.searchChannelContents) }
-    if (source.getSearchChannelContentsCapabilities === undefined) { assert_never(source.getSearchChannelContentsCapabilities) }
-    if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
-    if (source.getComments === undefined) { assert_never(source.getComments) }
-    if (source.getSubComments === undefined) { assert_never(source.getSubComments) }
-    if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
-    if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
-    if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
-    if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
-    if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
-    if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
-    if (IS_TESTING) {
-        log(assert_source)
+const local_source: BiliBiliSource = {
+    enable,
+    disable,
+    saveState,
+    getHome,
+    searchSuggestions,
+    search,
+    getSearchCapabilities,
+    isContentDetailsUrl,
+    getContentDetails,
+    isChannelUrl,
+    getChannel,
+    getChannelContents,
+    getChannelCapabilities,
+    searchChannelContents,
+    getSearchChannelContentsCapabilities,
+    searchChannels,
+    getComments,
+    getSubComments,
+    isPlaylistUrl,
+    getPlaylist,
+    searchPlaylists,
+    getLiveChatWindow,
+    getUserPlaylists,
+    getUserSubscriptions
+}
+init_source(local_source)
+function init_source<
+    T extends { readonly [key: string]: string },
+    S extends string,
+    ChannelTypes extends FeedType,
+    SearchTypes extends FeedType,
+    ChannelSearchTypes extends FeedType
+>(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes>) {
+    for (const method_key of Object.keys(local_source)) {
+        // @ts-expect-error
+        source[method_key] = local_source[method_key]
     }
 }
 //#endregion
@@ -586,11 +538,11 @@ function getSearchCapabilities() {
         )]
     )
 }
-function search(query: string, type: SearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
+function search(query: string, type: SearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs> | null) {
+    if (filters === null) {
+        return new ContentPager([], false)
+    }
     if (type === null) {
-        if (filters === null) {
-            return new ContentPager([], false)
-        }
         switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
             case "VIDEOS":
                 type = Type.Feed.Videos
@@ -1120,7 +1072,7 @@ function getChannelContents(
     url: string,
     type: ChannelTypeCapabilities | null,
     order: Order | null,
-    filters: FilterQuery<FilterGroupIDs>
+    filters: FilterQuery<FilterGroupIDs> | null
 ) {
     log(`BiliBili log: feed type ${type}`)
 
@@ -1895,7 +1847,7 @@ function getSearchChannelContentsCapabilities() {
         )]
     )
 }
-function searchChannelContents(space_url: string, query: string, type: ChannelSearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs>) {
+function searchChannelContents(space_url: string, query: string, type: ChannelSearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs> | null) {
     if (type === null) {
         if (filters === null) {
             return new ContentPager([], false)
@@ -4448,5 +4400,6 @@ export {
     nav_request,
     process_wbi_keys,
     init_local_storage,
-    log_passthrough
+    log_passthrough,
+    assert_never
 }
