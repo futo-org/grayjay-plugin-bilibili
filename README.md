@@ -9,7 +9,6 @@
 1.  `npm run npm-dev` or `bun run bun-dev`
 2.  load `BiliBiliConfig.json` into Grayjay
 ## TO-DO
-- [X]   (I haven't noticed this in a while) Seems like video links time out and stop working fairly quickly. Can we prevent that by send cookies along with the requests?
 - [ ]   Figure out captcha verification for space posts and space videos or at least proper rate limiting error messages
         The captcha only shows up for posts. for videos there is just a login prompt that shows up whenever taking an action
         However once the posts captcha is done the login prompts stop
@@ -43,7 +42,6 @@
 - [ ]   implement monitization/merch features
 - [x]   (should be fixed now) there is an issue where space_request doesn't work right. it might be ip address allow list related. like watching a video seems like it might make things work in the future
 - [ ]   update to use the new playlist api to get channel playlists
-- [ ]   add whatever gets stuff to show up on the channels and support tabs on the cannel page. i think it is just polycentric stuff but idk
 
 ## Pending Fixed Grayjay Bugs
 

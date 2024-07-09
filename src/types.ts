@@ -59,7 +59,6 @@ export type BiliBiliSource = Required<
         | "getChannelPlaylists"
     >
 >
-
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
 
 export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES" | "ALBUMS" | "PLAYLISTS">
@@ -851,12 +850,25 @@ export type PlayDataDash = {
             readonly height: number
             readonly codecid: number
             readonly id: number
+            readonly segment_base: {
+                /** of the form "0-974" */
+                readonly initialization: string
+                /** of the form "975-1270" */
+                readonly index_range: string
+            }
         }[]
         readonly audio: {
+            readonly id: number
             readonly base_url: string
             readonly mime_type: string
             readonly codecs: string
             readonly bandwidth: number
+            readonly segment_base: {
+                /** of the form "0-974" */
+                readonly initialization: string
+                /** of the form "975-1270" */
+                readonly index_range: string
+            }
         }[]
     }
 }

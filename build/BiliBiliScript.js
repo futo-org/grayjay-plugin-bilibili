@@ -62,131 +62,37 @@ let local_storage_cache;
 let local_state;
 //#endregion
 //#region source methods
-source.enable = enable;
-source.disable = disable;
-source.saveState = saveState;
-source.getHome = getHome;
-source.searchSuggestions = searchSuggestions;
-source.getSearchCapabilities = getSearchCapabilities;
-source.search = search;
-source.searchChannels = searchChannels;
-source.isChannelUrl = isChannelUrl;
-source.getChannel = getChannel;
-source.getChannelCapabilities = getChannelCapabilities;
-source.getChannelContents = getChannelContents;
-source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities;
-source.searchChannelContents = searchChannelContents;
-source.isContentDetailsUrl = isContentDetailsUrl;
-source.getContentDetails = getContentDetails;
-source.isPlaylistUrl = isPlaylistUrl;
-source.searchPlaylists = searchPlaylists;
-source.getPlaylist = getPlaylist;
-source.getComments = getComments;
-source.getSubComments = getSubComments;
-source.getLiveChatWindow = getLiveChatWindow;
-source.getUserSubscriptions = getUserSubscriptions;
-source.getUserPlaylists = getUserPlaylists;
-if (IS_TESTING) {
-    const assert_source = {
-        enable,
-        disable,
-        saveState,
-        getHome,
-        searchSuggestions,
-        search,
-        getSearchCapabilities,
-        isContentDetailsUrl,
-        getContentDetails,
-        isChannelUrl,
-        getChannel,
-        getChannelContents,
-        getChannelCapabilities,
-        searchChannelContents,
-        getSearchChannelContentsCapabilities,
-        searchChannels,
-        getComments,
-        getSubComments,
-        isPlaylistUrl,
-        getPlaylist,
-        searchPlaylists,
-        getLiveChatWindow,
-        getUserPlaylists,
-        getUserSubscriptions
-    };
-    if (source.enable === undefined) {
-        assert_never(source.enable);
-    }
-    if (source.disable === undefined) {
-        assert_never(source.disable);
-    }
-    if (source.saveState === undefined) {
-        assert_never(source.saveState);
-    }
-    if (source.getHome === undefined) {
-        assert_never(source.getHome);
-    }
-    if (source.searchSuggestions === undefined) {
-        assert_never(source.searchSuggestions);
-    }
-    if (source.search === undefined) {
-        assert_never(source.search);
-    }
-    if (source.getSearchCapabilities === undefined) {
-        assert_never(source.getSearchCapabilities);
-    }
-    if (source.isContentDetailsUrl === undefined) {
-        assert_never(source.isContentDetailsUrl);
-    }
-    if (source.getContentDetails === undefined) {
-        assert_never(source.getContentDetails);
-    }
-    if (source.isChannelUrl === undefined) {
-        assert_never(source.isChannelUrl);
-    }
-    if (source.getChannel === undefined) {
-        assert_never(source.getChannel);
-    }
-    if (source.getChannelContents === undefined) {
-        assert_never(source.getChannelContents);
-    }
-    if (source.getChannelCapabilities === undefined) {
-        assert_never(source.getChannelCapabilities);
-    }
-    if (source.searchChannelContents === undefined) {
-        assert_never(source.searchChannelContents);
-    }
-    if (source.getSearchChannelContentsCapabilities === undefined) {
-        assert_never(source.getSearchChannelContentsCapabilities);
-    }
-    if (source.searchChannels === undefined) {
-        assert_never(source.searchChannels);
-    }
-    if (source.getComments === undefined) {
-        assert_never(source.getComments);
-    }
-    if (source.getSubComments === undefined) {
-        assert_never(source.getSubComments);
-    }
-    if (source.isPlaylistUrl === undefined) {
-        assert_never(source.isPlaylistUrl);
-    }
-    if (source.getPlaylist === undefined) {
-        assert_never(source.getPlaylist);
-    }
-    if (source.searchPlaylists === undefined) {
-        assert_never(source.searchPlaylists);
-    }
-    if (source.getLiveChatWindow === undefined) {
-        assert_never(source.getLiveChatWindow);
-    }
-    if (source.getUserPlaylists === undefined) {
-        assert_never(source.getUserPlaylists);
-    }
-    if (source.getUserSubscriptions === undefined) {
-        assert_never(source.getUserSubscriptions);
-    }
-    if (IS_TESTING) {
-        log(assert_source);
+const local_source = {
+    enable,
+    disable,
+    saveState,
+    getHome,
+    searchSuggestions,
+    search,
+    getSearchCapabilities,
+    isContentDetailsUrl,
+    getContentDetails,
+    isChannelUrl,
+    getChannel,
+    getChannelContents,
+    getChannelCapabilities,
+    searchChannelContents,
+    getSearchChannelContentsCapabilities,
+    searchChannels,
+    getComments,
+    getSubComments,
+    isPlaylistUrl,
+    getPlaylist,
+    searchPlaylists,
+    getLiveChatWindow,
+    getUserPlaylists,
+    getUserSubscriptions
+};
+init_source(local_source);
+function init_source(local_source) {
+    for (const method_key of Object.keys(local_source)) {
+        // @ts-expect-error
+        source[method_key] = local_source[method_key];
     }
 }
 //#endregion
@@ -201,7 +107,7 @@ function enable(conf, settings, savedState) {
         log("logging savedState");
         log(savedState);
     }
-    if (savedState === null) {
+    if (!savedState) {
         init_local_storage();
     }
     else {
@@ -494,10 +400,10 @@ function getSearchCapabilities() {
         ], false, "ADDITIONAL_CONTENT")]);
 }
 function search(query, type, order, filters) {
+    if (filters === null) {
+        return new ContentPager([], false);
+    }
     if (type === null) {
-        if (filters === null) {
-            return new ContentPager([], false);
-        }
         switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
             case "VIDEOS":
                 type = Type.Feed.Videos;
@@ -2436,11 +2342,13 @@ function format_sources(play_data) {
         const name = play_data.accept_description[play_data.accept_quality.findIndex(function (value) {
             return value === video.id;
         })];
-        if (name === undefined) {
+        const [initStart, initEnd] = video.segment_base.initialization.split("-").map(function (val) { return parseInt(val); });
+        const [indexStart, indexEnd] = video.segment_base.index_range.split("-").map(function (val) { return parseInt(val); });
+        if (name === undefined || initStart === undefined || initEnd === undefined || indexStart === undefined || indexEnd === undefined) {
             throw new ScriptException("can't load content details");
         }
         const video_url_hostname = new URL(video.base_url).hostname;
-        return new VideoUrlSource({
+        return new VideoUrlRangeSource({
             width: video.width,
             height: video.height,
             container: video.mime_type,
@@ -2449,6 +2357,11 @@ function format_sources(play_data) {
             bitrate: video.bandwidth,
             duration: play_data.dash.duration,
             url: video.base_url,
+            itagId: video.id,
+            initStart,
+            initEnd,
+            indexStart,
+            indexEnd,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
@@ -2460,7 +2373,12 @@ function format_sources(play_data) {
     });
     const audio_sources = play_data.dash.audio.map(function (audio) {
         const audio_url_hostname = new URL(audio.base_url).hostname;
-        return new AudioUrlSource({
+        const [initStart, initEnd] = audio.segment_base.initialization.split("-").map(function (val) { return parseInt(val); });
+        const [indexStart, indexEnd] = audio.segment_base.index_range.split("-").map(function (val) { return parseInt(val); });
+        if (initStart === undefined || initEnd === undefined || indexStart === undefined || indexEnd === undefined) {
+            throw new ScriptException("can't load content details");
+        }
+        return new AudioUrlRangeSource({
             container: audio.mime_type,
             codecs: audio.codecs,
             name: `${audio.codecs} at ${audio.bandwidth}`,
@@ -2468,6 +2386,12 @@ function format_sources(play_data) {
             duration: play_data.dash.duration,
             url: audio.base_url,
             language: Language.UNKNOWN,
+            itagId: audio.id,
+            initStart,
+            initEnd,
+            indexStart,
+            indexEnd,
+            audioChannels: 2,
             requestModifier: {
                 headers: {
                     "Referer": "https://www.bilibili.com",
@@ -3695,5 +3619,5 @@ function execute_requests(requests) {
 //#endregion
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-// export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough };
+// export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never };
 //# sourceMappingURL=http://localhost:8080/BiliBiliScript.js.map
