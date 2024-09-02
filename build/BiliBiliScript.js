@@ -2380,7 +2380,7 @@ function format_sources(play_data) {
         }
         return new AudioUrlRangeSource({
             container: audio.mime_type,
-            codecs: audio.codecs,
+            codec: audio.codecs,
             name: `${audio.codecs} at ${audio.bandwidth}`,
             bitrate: audio.bandwidth,
             duration: play_data.dash.duration,

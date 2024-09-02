@@ -2913,7 +2913,7 @@ function format_sources(play_data: PlayDataDash) {
         }
         return new AudioUrlRangeSource({
             container: audio.mime_type,
-            codecs: audio.codecs,
+            codec: audio.codecs,
             name: `${audio.codecs} at ${audio.bandwidth}`,
             bitrate: audio.bandwidth,
             duration: play_data.dash.duration,
@@ -2932,7 +2932,7 @@ function format_sources(play_data: PlayDataDash) {
                     "User-Agent": USER_AGENT
                 }
             }
-        })
+        } as any)
     })
     return { audio_sources, video_sources }
 }
