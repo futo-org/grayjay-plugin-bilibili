@@ -2932,7 +2932,7 @@ function format_sources(play_data: PlayDataDash) {
                     "User-Agent": USER_AGENT
                 }
             }
-        } as any)
+        })
     })
     return { audio_sources, video_sources }
 }
