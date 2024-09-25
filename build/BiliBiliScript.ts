@@ -166,7 +166,7 @@ function init_source<
     ChannelTypes extends FeedType,
     SearchTypes extends FeedType,
     ChannelSearchTypes extends FeedType
->(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes>) {
+>(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, any>) {
     for (const method_key of Object.keys(local_source)) {
         // @ts-expect-error
         source[method_key] = local_source[method_key]

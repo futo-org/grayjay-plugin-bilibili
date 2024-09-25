@@ -53,10 +53,12 @@ export type BiliBiliSource = Required<
             FilterGroupIDs,
             ChannelTypeCapabilities,
             SearchTypeCapabilities,
-            ChannelSearchTypeCapabilities
+            ChannelSearchTypeCapabilities,
+            Settings
         >,
         "getPlaybackTracker"
         | "getChannelPlaylists"
+        | "getContentRecommendations"
     >
 >
 export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
