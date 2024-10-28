@@ -80,7 +80,7 @@ const POST_URL_PREFIX = "https://t.bilibili.com/" as const
 const WATCH_LATER_URL = "https://www.bilibili.com/watchlater/#/list" as const
 const PREMIUM_CONTENT_MESSAGE = "本片是大会员专享内容" as const
 
-const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0" as const
+const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0" as const
 const OS = "Linux x86_64" as const // others ["Windows", "MacIntel", "Android", "iOS", "Chromium OS", "Ubuntu", "Linux", "Fedora"]
 const WEBGL = "WebGL 1.0" as const
 //TODO i think these are named backwards
@@ -88,13 +88,15 @@ const WEBGL_VENDOR = "Intel(R) HD Graphics 400, or similar" as const
 const WEBGL_RENDERER = "Intel" as const
 const post_body_for_ExClimbWuzhi = JSON.stringify({
     payload: JSON.stringify({
-        "39c8": "333.999.fp.risk",
+        "39c8": "333.1368.fp.risk",
         "3c43": {
             "adca": OS,
+            "6bc5": WEBGL_VENDOR,
             // PNG on the triangle rendered by the webgl fingerprint library
             "bfe9": "data:image/png;base64,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"
-                .slice(-50)
-        }
+                .slice(-50),
+            "b8ce": USER_AGENT
+        },
     })
 })
 
@@ -263,8 +265,8 @@ function init_local_storage(state?: State) {
     local_state = state === undefined ? init_session_info() : state
 }
 function nav_request(useAuthClient: boolean, builder: BatchBuilder): BatchBuilder
-function nav_request(useAuthClient: boolean): BridgeHttpResponse
-function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function nav_request(useAuthClient: boolean): BridgeHttpResponse<string>
+function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const url = "https://api.bilibili.com/x/web-interface/nav"
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -275,8 +277,8 @@ function nav_request(useAuthClient: boolean, builder?: BatchBuilder | HTTP): Bat
     return result
 }
 function mixin_constant_request(builder: BatchBuilder): BatchBuilder
-function mixin_constant_request(): BridgeHttpResponse
-function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function mixin_constant_request(): BridgeHttpResponse<string>
+function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const url = "https://s1.hdslb.com/bfs/seed/laputa-header/bili-header.umd.js"
 
     const runner = builder === undefined ? local_http : builder
@@ -287,7 +289,7 @@ function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | B
     }
     return result
 }
-function process_mixin_constant(html: BridgeHttpResponse): readonly number[] {
+function process_mixin_constant(html: BridgeHttpResponse<string>): readonly number[] {
     const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/
     const mixin_constant_json = html.body.match(mixin_constant_regex)?.[1]
     if (mixin_constant_json === undefined) {
@@ -296,7 +298,7 @@ function process_mixin_constant(html: BridgeHttpResponse): readonly number[] {
     const mixin_constant: readonly number[] = JSON.parse(mixin_constant_json)
     return mixin_constant
 }
-function process_wbi_keys(raw_response: BridgeHttpResponse): Wbi {
+function process_wbi_keys(raw_response: BridgeHttpResponse<string>): Wbi {
     const response: NavResponse = JSON.parse(raw_response.body)
 
     return {
@@ -307,8 +309,8 @@ function process_wbi_keys(raw_response: BridgeHttpResponse): Wbi {
 // TODO buvid4 is working along with b_nut. we should switch everything from buvid3 to buvid4 plus b_nut
 // this will make things simpler
 function cookie_request(builder: BatchBuilder): BatchBuilder
-function cookie_request(): BridgeHttpResponse
-function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function cookie_request(): BridgeHttpResponse<string>
+function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const finger_spi_url = "https://api.bilibili.com/x/frontend/finger/spi"
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -327,6 +329,7 @@ function cookie_request(builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHtt
 function activate_cookies(b_nut: number, buvid3: string, buvid4: string) {
     const cookie_activation_url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
     const body = post_body_for_ExClimbWuzhi
+
     const now = Date.now()
     local_http.POST(
         cookie_activation_url,
@@ -696,7 +699,7 @@ function search_request(query: string,
     type: SearchResultQueryType,
     order: undefined | OrderOptions,
     duration: undefined | 1 | 2 | 3 | 4
-): BridgeHttpResponse
+): BridgeHttpResponse<string>
 function search_request(query: string,
     page: number,
     page_size: number,
@@ -704,7 +707,7 @@ function search_request(query: string,
     order: undefined | OrderOptions,
     duration: undefined | 1 | 2 | 3 | 4,
     builder?: BatchBuilder
-): BatchBuilder | BridgeHttpResponse {
+): BatchBuilder | BridgeHttpResponse<string> {
     const search_prefix = "https://api.bilibili.com/x/web-interface/wbi/search/type"
     let params: Params = {
         search_type: type,
@@ -740,7 +743,7 @@ function search_request(query: string,
  * @returns SearchResultItems and whether there are more results
  */
 function extract_search_results(
-    raw_response: BridgeHttpResponse,
+    raw_response: BridgeHttpResponse<string>,
     type: SearchResultQueryType,
     page: number,
     page_size: number,
@@ -1011,8 +1014,8 @@ function parse_space_url(url: string) {
     return space_id
 }
 function fan_count_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function fan_count_request(space_id: number): BridgeHttpResponse
-function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function fan_count_request(space_id: number): BridgeHttpResponse<string>
+function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const space_stat_url_prefix = "https://api.bilibili.com/x/relation/stat"
     const url = create_url(
         space_stat_url_prefix,
@@ -1028,8 +1031,8 @@ function fan_count_request(space_id: number, builder?: BatchBuilder | HTTP): Bat
     return result
 }
 function space_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_request(space_id: number): BridgeHttpResponse
-function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_request(space_id: number): BridgeHttpResponse<string>
+function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const space_stat_url_prefix = "https://api.bilibili.com/x/space/wbi/acc/info"
     const params: Params = {
         mid: space_id.toString(),
@@ -1280,8 +1283,8 @@ class SpaceCollectionsContentPager extends PlaylistPager {
     }
 }
 function space_collections_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_collections_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
-function space_collections_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_collections_request(space_id: number, page: number, page_size: number): BridgeHttpResponse<string>
+function space_collections_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_series_list"
     const params: Params = {
         mid: space_id.toString(),
@@ -1401,8 +1404,8 @@ class SpaceCoursesContentPager extends PlaylistPager {
     }
 }
 function space_courses_request(space_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function space_courses_request(space_id: number, page: number, page_size: number): BridgeHttpResponse
-function space_courses_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_courses_request(space_id: number, page: number, page_size: number): BridgeHttpResponse<string>
+function space_courses_request(space_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const course_prefix = "https://api.bilibili.com/pugv/app/web/season/page"
     const params: Params = {
         mid: space_id.toString(),
@@ -1542,8 +1545,8 @@ class SpaceVideosContentPager extends VideoPager {
 // https://api.bilibili.com/x/v3/fav/resource/infos
 // it's used when viewing a favorites list
 function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder: BatchBuilder): BatchBuilder
-function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined): BridgeHttpResponse
-function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse {
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined): BridgeHttpResponse<string>
+function space_videos_request(space_id: number, page: number, page_size: number, keyword: string | undefined, order: Order | undefined, builder?: BatchBuilder): BatchBuilder | BridgeHttpResponse<string> {
     const space_contents_search_prefix = "https://api.bilibili.com/x/space/wbi/arc/search"
     let params: Params = {
         mid: space_id.toString(),
@@ -1701,8 +1704,8 @@ class SpacePostsContentPager extends ContentPager {
 }
 
 function space_posts_request(space_id: number, offset: number | undefined, builder: BatchBuilder): BatchBuilder
-function space_posts_request(space_id: number, offset: number | undefined): BridgeHttpResponse
-function space_posts_request(space_id: number, offset: number | undefined, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_posts_request(space_id: number, offset: number | undefined): BridgeHttpResponse<string>
+function space_posts_request(space_id: number, offset: number | undefined, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const space_post_feed_prefix = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
     const params: Params = offset ? {
         host_mid: space_id.toString(),
@@ -1787,8 +1790,8 @@ function format_space_posts(space_posts_response: SpacePostsResponse, space_id: 
 // that has the users collected playlists. those are playlists created by others that the user has saved
 // we won't load these into the feed because they aren't their playlists
 function space_favorites_request(space_id: number, builder: BatchBuilder): BatchBuilder
-function space_favorites_request(space_id: number): BridgeHttpResponse
-function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function space_favorites_request(space_id: number): BridgeHttpResponse<string>
+function space_favorites_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const favorites_prefix = "https://api.bilibili.com/x/v3/fav/folder/created/list-all"
     const params: Params = {
         up_mid: space_id.toString()
@@ -2435,8 +2438,8 @@ function getContentDetails(url: string) {
     }
 }
 function livestream_request(room_id: number, builder: BatchBuilder): BatchBuilder
-function livestream_request(room_id: number): BridgeHttpResponse
-function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function livestream_request(room_id: number): BridgeHttpResponse<string>
+function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
     const result = runner.GET(`${LIVE_ROOM_URL_PREFIX}${room_id}`, {}, false)
@@ -2445,7 +2448,7 @@ function livestream_request(room_id: number, builder?: BatchBuilder | HTTP): Bat
     }
     return result
 }
-function livestream_process(raw_live_response: BridgeHttpResponse): LiveResponse {
+function livestream_process(raw_live_response: BridgeHttpResponse<string>): LiveResponse {
     const live_regex = /<script>window\.__NEPTUNE_IS_MY_WAIFU__=({.*?})<\/script>/
     const match_result = raw_live_response.body.match(live_regex)
     if (match_result === null) {
@@ -2507,9 +2510,9 @@ function download_post(post_id: string): PostResponse {
     const params: Params = {
         id: post_id
     }
-    const url = create_signed_url(single_post_prefix, params).toString()
+    const url = create_url(single_post_prefix, params).toString()
     const now = Date.now()
-    const json = local_http.GET(url, { Cookie: `buvid3=${local_state.buvid3}` }, false).body
+    const json = local_http.GET(url, { Cookie: `buvid3=${local_state.buvid3}`, "User-Agent": USER_AGENT, Host: "api.bilibili.com" }, false).body
     log_network_call(now)
     const post_response: PostResponse = JSON.parse(json)
     return post_response
@@ -2617,8 +2620,8 @@ function format_major(major: Major, thumbnails: Thumbnails[], images: string[]):
     }
 }
 function episode_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function episode_play_request(episode_id: number): BridgeHttpResponse
-function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function episode_play_request(episode_id: number): BridgeHttpResponse<string>
+function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const play_url_prefix = "https://api.bilibili.com/pgc/player/web/v2/playurl"
     const params: Params = {
         fnval: "4048",
@@ -2638,8 +2641,8 @@ function episode_play_request(episode_id: number, builder?: BatchBuilder | HTTP)
     return result
 }
 function season_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
-function season_request(id_obj: IdObj): BridgeHttpResponse
-function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function season_request(id_obj: IdObj): BridgeHttpResponse<string>
+function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const season_prefix = "https://api.bilibili.com/pgc/view/web/season"
     const params: Params = (function (id_obj: IdObj): Params {
         switch (id_obj.type) {
@@ -2669,8 +2672,8 @@ function season_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuil
     return result
 }
 function episode_info_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function episode_info_request(episode_id: number): BridgeHttpResponse
-function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function episode_info_request(episode_id: number): BridgeHttpResponse<string>
+function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const episode_info_prefix = "https://api.bilibili.com/pgc/season/episode/web/info"
     const info_params: Params = {
         ep_id: episode_id.toString()
@@ -2689,8 +2692,8 @@ function episode_info_request(episode_id: number, builder?: BatchBuilder | HTTP)
     return result
 }
 function course_play_request(episode_id: number, builder: BatchBuilder): BatchBuilder
-function course_play_request(episode_id: number): BridgeHttpResponse
-function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function course_play_request(episode_id: number): BridgeHttpResponse<string>
+function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const play_url_prefix = "https://api.bilibili.com/pugv/player/web/playurl"
     const params: Params = {
         fnval: "4048",
@@ -2710,8 +2713,8 @@ function course_play_request(episode_id: number, builder?: BatchBuilder | HTTP):
     return result
 }
 function course_request(id_obj: IdObj, builder: BatchBuilder): BatchBuilder
-function course_request(id_obj: IdObj): BridgeHttpResponse
-function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function course_request(id_obj: IdObj): BridgeHttpResponse<string>
+function course_request(id_obj: IdObj, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const season_prefix = "https://api.bilibili.com/pugv/view/web/season"
     const params: Params = (function (id_obj: IdObj): Params {
         switch (id_obj.type) {
@@ -2800,8 +2803,8 @@ function load_video_details(video_id: string, is_logged_in: boolean = false): [V
     }
 }
 function video_detail_request(bvid: string, builder: BatchBuilder): BatchBuilder
-function video_detail_request(bvid: string): BridgeHttpResponse
-function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function video_detail_request(bvid: string): BridgeHttpResponse<string>
+function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const detail_prefix = "https://api.bilibili.com/x/web-interface/wbi/view/detail"
     const params: Params = {
         bvid
@@ -2826,8 +2829,8 @@ function video_detail_request(bvid: string, builder?: BatchBuilder | HTTP): Batc
     return result
 }
 function video_play_request(bvid: string, cid: number, builder: BatchBuilder): BatchBuilder
-function video_play_request(bvid: string, cid: number): BridgeHttpResponse
-function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function video_play_request(bvid: string, cid: number): BridgeHttpResponse<string>
+function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const play_prefix = "https://api.bilibili.com/x/player/wbi/playurl"
     const params: Params = {
         bvid,
@@ -2846,8 +2849,8 @@ function video_play_request(bvid: string, cid: number, builder?: BatchBuilder | 
     return result
 }
 function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder: BatchBuilder): BatchBuilder
-function subtitles_request(id: { bvid: string } | { aid: number }, cid: number): BridgeHttpResponse
-function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number): BridgeHttpResponse<string>
+function subtitles_request(id: { bvid: string } | { aid: number }, cid: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const subtitles_prefix = "https://api.bilibili.com/x/player/wbi/v2"
     const params: Params = "bvid" in id ? {
         bvid: id.bvid,
@@ -3317,8 +3320,8 @@ function format_collection(author: PlatformAuthorLink, collection_response: Coll
     return videos
 }
 function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function collection_request(space_id: number, collection_id: number, page: number, page_size: number): BridgeHttpResponse
-function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function collection_request(space_id: number, collection_id: number, page: number, page_size: number): BridgeHttpResponse<string>
+function collection_request(space_id: number, collection_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const collection_prefix = "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
     const params: Params = {
         mid: space_id.toString(),
@@ -3426,8 +3429,8 @@ function format_series(author: PlatformAuthorLink, series_response: SeriesRespon
     return videos
 }
 function series_request(space_id: number, series_id: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function series_request(space_id: number, series_id: number, page: number, page_size: number): BridgeHttpResponse
-function series_request(space_id: number, series_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function series_request(space_id: number, series_id: number, page: number, page_size: number): BridgeHttpResponse<string>
+function series_request(space_id: number, series_id: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const series_prefix = "https://api.bilibili.com/x/series/archives"
     const params: Params = {
         mid: space_id.toString(),
@@ -3568,8 +3571,8 @@ function format_favorites_videos(favorites_response: FavoritesResponse): Platfor
     return videos
 }
 function festival_request(festival_id: string, builder: BatchBuilder): BatchBuilder
-function festival_request(festival_id: string): BridgeHttpResponse
-function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function festival_request(festival_id: string): BridgeHttpResponse<string>
+function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const festival_url = `${FESTIVAL_URL_PREFIX}${festival_id}`
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -3579,7 +3582,7 @@ function festival_request(festival_id: string, builder?: BatchBuilder | HTTP): B
     }
     return result
 }
-function festival_parse(festival_html: BridgeHttpResponse): FestivalResponse {
+function festival_parse(festival_html: BridgeHttpResponse<string>): FestivalResponse {
     const festival_html_regex = /<script>window\.__INITIAL_STATE__=({.*?});\(function\(\){var s;\(s=document\.currentScript\|\|document\.scripts\[document\.scripts\.length-1\]\)\.parentNode\.removeChild\(s\);}\(\)\);<\/script>/
     const match_result = festival_html.body.match(festival_html_regex)
     if (match_result === null) {
@@ -3631,8 +3634,8 @@ function format_festival(festival_id: string, festival_response: FestivalRespons
     })
 }
 function watch_later_request(logged_in: true, builder: BatchBuilder): BatchBuilder
-function watch_later_request(logged_in: true): BridgeHttpResponse
-function watch_later_request(logged_in: true, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function watch_later_request(logged_in: true): BridgeHttpResponse<string>
+function watch_later_request(logged_in: true, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const watch_later_url = "https://api.bilibili.com/x/v2/history/toview/web"
     const runner = builder === undefined ? local_http : builder
     const now = Date.now()
@@ -3657,12 +3660,12 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
     if (subdomain === "live") {
         return new CommentPager([], false)
     }
-    const [oid, type, context_url] = (function (): [number, 1 | 33, string] {
+    const [oid, type, context_url] = (function (): [number, 1 | 33 | 11, string] {
         switch (subdomain) {
             case "t": {
                 const post_id = content_id
                 const post_response = download_post(post_id)
-                return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
+                return [parseInt(post_response.data.item.basic.comment_id_str), 11, `${POST_URL_PREFIX}${post_id}`]
             }
             case "www":
                 switch (content_type) {
@@ -3682,7 +3685,7 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
                     case "opus/": {
                         const post_id = content_id
                         const post_response = download_post(post_id)
-                        return [parseInt(post_response.data.item.basic.comment_id_str), 1, `${POST_URL_PREFIX}${post_id}`]
+                        return [parseInt(post_response.data.item.basic.comment_id_str), 11, `${POST_URL_PREFIX}${post_id}`]
                     }
                     case "video/": {
                         const video_id = content_id
@@ -3701,11 +3704,11 @@ function getComments(url: string): CommentPager<BiliBiliCommentContext> {
     return pager
 }
 class BiliBiliCommentPager extends CommentPager<BiliBiliCommentContext> {
-    private readonly type: 1 | 33
+    private readonly type: 1 | 33 | 11
     private readonly oid: number
     private readonly context_url: string
     private next_page: number
-    constructor(context_url: string, oid: number, type: 1 | 33, initial_page: number) {
+    constructor(context_url: string, oid: number, type: 1 | 33 | 11, initial_page: number) {
         const comments_response = get_comments(oid, type, initial_page)
         switch (comments_response.code) {
             case -404:
@@ -3747,7 +3750,7 @@ class BiliBiliCommentPager extends CommentPager<BiliBiliCommentContext> {
         return this.hasMore
     }
 }
-function get_comments(oid: number, type: 1 | 33, page: number): CommentsResponse {
+function get_comments(oid: number, type: 1 | 33 | 11, page: number): CommentsResponse {
     const comments_preix = "https://api.bilibili.com/x/v2/reply/wbi/main"
     const params: Params = {
         type: type.toString(),
@@ -3785,7 +3788,7 @@ function format_comments(
     comments_response: CommentsResponse,
     context_url: string,
     oid: number,
-    type: 1 | 33,
+    type: 1 | 33 | 11,
     include_pinned_comment: boolean
 ): PlatformComment<BiliBiliCommentContext>[] {
     if (comments_response.code === -404) {
@@ -3810,12 +3813,14 @@ function format_comments(
             date: data.ctime,
             contextUrl: context_url,
             context: {
-                oid: oid.toString(), rpid: data.rpid.toString(), type: (function (type): "1" | "33" {
+                oid: oid.toString(), rpid: data.rpid.toString(), type: (function (type): "1" | "33" | "11" {
                     switch (type) {
                         case 1:
                             return "1"
                         case 33:
                             return "33"
+                        case 11:
+                            return "11"
                         default:
                             throw assert_exhaustive(type, "unreachable")
                     }
@@ -3832,13 +3837,13 @@ function getSubComments(parent_comment: PlatformComment<BiliBiliCommentContext>)
     return new SubCommentPager(rpid, oid, type, parent_comment.contextUrl, 1, 20)
 }
 class SubCommentPager extends CommentPager<BiliBiliCommentContext> {
-    private readonly type: "1" | "33"
+    private readonly type: "1" | "33" | "11"
     private readonly oid: number
     private readonly root: number
     private readonly context_url: string
     private next_page: number
     private readonly page_size: number
-    constructor(root: number, oid: number, type: "1" | "33", context_url: string, initial_page: number, page_size: number) {
+    constructor(root: number, oid: number, type: "1" | "33" | "11", context_url: string, initial_page: number, page_size: number) {
         const replies_response = get_replies(oid, root, type, initial_page, page_size)
         const more = replies_response.data.page.count > initial_page * page_size
         super(format_replies(replies_response, type, oid, context_url), more)
@@ -3869,7 +3874,7 @@ class SubCommentPager extends CommentPager<BiliBiliCommentContext> {
  * @param page_size 
  * @returns 
  */
-function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: number, page_size: number) {
+function get_replies(oid: number, root_rpid: number, type: "1" | "33" | "11", page: number, page_size: number) {
     const thread_prefix = "https://api.bilibili.com/x/v2/reply/reply"
     const params: Params = {
         type: type,
@@ -3879,9 +3884,9 @@ function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: num
         root: root_rpid.toString()
     }
 
-    const url = create_signed_url(thread_prefix, params).toString()
+    const url = create_url(thread_prefix, params).toString()
     const now = Date.now()
-    const json = local_http.GET(url, {}, false).body
+    const json = local_http.GET(url, { "User-Agent": USER_AGENT }, false).body
     log_network_call(now)
 
     const results: SubCommentsResponse = JSON.parse(json)
@@ -3897,7 +3902,7 @@ function get_replies(oid: number, root_rpid: number, type: "1" | "33", page: num
  */
 function format_replies(
     comment_data: SubCommentsResponse,
-    type: "1" | "33",
+    type: "1" | "33" | "11",
     oid: number,
     context_url: string
 ): PlatformComment<BiliBiliCommentContext>[] {
@@ -3971,8 +3976,8 @@ function getUserSubscriptions() {
     return subscriptions
 }
 function user_subscriptions_request(mid: number, page: number, page_size: number, builder: BatchBuilder): BatchBuilder
-function user_subscriptions_request(mid: number, page: number, page_size: number): BridgeHttpResponse
-function user_subscriptions_request(mid: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse {
+function user_subscriptions_request(mid: number, page: number, page_size: number): BridgeHttpResponse<string>
+function user_subscriptions_request(mid: number, page: number, page_size: number, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
     const following_url = "https://api.bilibili.com/x/relation/followings"
     const params: Params = {
         vmid: mid.toString(),

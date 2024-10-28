@@ -5,12 +5,12 @@ export type BiliBiliCommentContext = {
     /** the parent/root comment id */
     readonly rpid: string
     /** the type of comment "33" for course episode comments and "1" for everything else */
-    readonly type: "33" | "1"
+    readonly type: "33" | "1" | "11"
 }
 
 export type RequestMetadata<X> = {
     request(builder: BatchBuilder): BatchBuilder
-    process(http_response: BridgeHttpResponse): X
+    process(http_response: BridgeHttpResponse<string>): X
 }
 
 export type Params = {
