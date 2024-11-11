@@ -94,7 +94,7 @@ const local_source = {
 init_source(local_source);
 function init_source(local_source) {
     for (const method_key of Object.keys(local_source)) {
-        // @ts-expect-error
+        // @ts-expect-error assign to readonly constant source object
         source[method_key] = local_source[method_key];
     }
 }
@@ -3663,4 +3663,4 @@ function execute_requests(requests) {
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
 // export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never };
-//# sourceMappingURL=http://localhost:8080/BiliBiliScript.js.map
+//# sourceMappingURL=BiliBiliScript.js.map

@@ -169,9 +169,9 @@ function init_source<
     ChannelTypes extends FeedType,
     SearchTypes extends FeedType,
     ChannelSearchTypes extends FeedType
->(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, any>) {
+>(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, unknown>) {
     for (const method_key of Object.keys(local_source)) {
-        // @ts-expect-error
+        // @ts-expect-error assign to readonly constant source object
         source[method_key] = local_source[method_key]
     }
 }
@@ -4436,7 +4436,7 @@ function execute_requests<T, U, V, W, X, Y, Z>(
 
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-// export {
+export {
     interleave,
     getMixinKey,
     mixin_constant_request,

@@ -2,7 +2,7 @@
 import { before, describe, test } from "node:test"
 import assert from "node:assert"
 // initializes global state
-import "@grayjay/plugin/source.js"
+import "@kaidelorenzo/grayjay-polyfill"
 
 import {
     getMixinKey,
