@@ -248,6 +248,7 @@ export type LiveResponse = {
 }
 
 export type SpaceResponse = {
+    readonly code: 0
     readonly data: {
         readonly name: string
         readonly face: string
@@ -263,6 +264,8 @@ export type SpaceResponse = {
             }
         }
     }
+} | {
+    readonly code: -352
 }
 
 export type SubCommentsResponse = {

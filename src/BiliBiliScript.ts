@@ -111,6 +111,7 @@ const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.
 const MISSING_NAME = "" as const
 const HARDCODED_ZERO = 0 as const
 const MISSING_RATING = 0 as const
+const NAME_LOAD_FAILED = "Name Load Failed" as const
 
 // set missing constants
 Type.Order.Chronological = "Latest releases"
@@ -971,6 +972,16 @@ function getChannel(url: string) {
 
     const [space, fan_count_response] = execute_requests(requests)
 
+    if(space.code !== 0){
+        log("BiliBili log: Failed loading space info")
+        return new PlatformChannel({
+            id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
+            name: NAME_LOAD_FAILED,
+            thumbnail: "",
+            url: `${SPACE_URL_PREFIX}${space_id}`,
+        })
+    }
+
     // cache results
     local_storage_cache.space_cache.set(space_id, {
         num_fans: fan_count_response.data.follower,
@@ -1048,7 +1059,7 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
             "User-Agent": USER_AGENT,
             Cookie: `buvid3=${local_state.buvid3}; buvid4=${local_state.buvid4}; b_nut=${local_state.b_nut}`
         },
-        false)
+        true)
     if (builder === undefined) {
         log_network_call(now)
     }
@@ -1126,6 +1137,10 @@ function getChannelContents(
                     ]
                 const results = execute_requests(requests)
                 const space = results[1]
+                if(space.code !== 0){
+                    log("BiliBili log: Failed loading space info")
+                    return new PlaylistPager([], false)
+                }
                 space_info = {
                     num_fans: results[2].data.follower,
                     name: space.data.name,
@@ -1162,6 +1177,11 @@ function getChannelContents(
                 }]
 
                 const [space, fan_count_response] = execute_requests(requests)
+
+                if(space.code !== 0){
+                    log("BiliBili log: Failed loading space info")
+                    return new VideoPager([], false)
+                }
 
                 space_info = {
                     num_fans: fan_count_response.data.follower,
@@ -1239,6 +1259,9 @@ class SpaceCollectionsContentPager extends PlaylistPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
+            if(space.code !== 0){
+                throw new ScriptException("Failed to load space info")
+            }
             space_info = {
                 num_fans: results[2].data.follower,
                 name: space.data.name,
@@ -1360,6 +1383,9 @@ class SpaceCoursesContentPager extends PlaylistPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
+            if(space.code !== 0){
+                throw new ScriptException("Failed to load space info")
+            }
             space_info = {
                 num_fans: results[2].data.follower,
                 name: space.data.name,
@@ -1475,6 +1501,9 @@ class SpaceVideosContentPager extends VideoPager {
             }]
             const results = execute_requests(requests)
             const space = results[1]
+            if(space.code !== 0){
+                throw new ScriptException("Failed to load space info")
+            }
             space_info = {
                 num_fans: results[2].data.follower,
                 name: space.data.name,
@@ -1654,6 +1683,9 @@ class SpacePostsContentPager extends ContentPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
+            if(space.code !== 0){
+                throw new ScriptException("Failed to load space info")
+            }
             space_info = {
                 num_fans: results[2].data.follower,
                 name: space.data.name,
@@ -2001,6 +2033,9 @@ class ChannelVideoResultsPager extends ContentPager {
             const [space, fan_count_response, local_search_response] = execute_requests(requests)
             if (local_search_response.code === -352) {
                 throw new ScriptException("rate limited")
+            }
+            if(space.code !== 0){
+                throw new ScriptException("Failed to load space info")
             }
             search_response = local_search_response
             space_info = {
@@ -3071,6 +3106,9 @@ function getPlaylist(url: string) {
                 }]
                 const results = execute_requests(requests)
                 const [space, fan_info] = [results[0], results[1]]
+                if(space.code !== 0){
+                    throw new ScriptException("Failed to load space info")
+                }
                 collection_response = results[2]
                 space_info =
                     space_info = {
@@ -3153,6 +3191,9 @@ function getPlaylist(url: string) {
                 }]
                 const results = execute_requests(requests)
                 const [space, fan_info] = [results[0], results[1]]
+                if(space.code !== 0){
+                    throw new ScriptException("Failed to load space info")
+                }
                 series_response = results[2]
                 space_info =
                     space_info = {
