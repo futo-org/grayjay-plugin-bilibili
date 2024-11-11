@@ -972,7 +972,7 @@ function getChannel(url: string) {
 
     const [space, fan_count_response] = execute_requests(requests)
 
-    if(space.code !== 0){
+    if (space.code !== 0) {
         log("BiliBili log: Failed loading space info")
         return new PlatformChannel({
             id: new PlatformID(PLATFORM, space_id.toString(), plugin.config.id),
@@ -1137,7 +1137,7 @@ function getChannelContents(
                     ]
                 const results = execute_requests(requests)
                 const space = results[1]
-                if(space.code !== 0){
+                if (space.code !== 0) {
                     log("BiliBili log: Failed loading space info")
                     return new PlaylistPager([], false)
                 }
@@ -1178,7 +1178,7 @@ function getChannelContents(
 
                 const [space, fan_count_response] = execute_requests(requests)
 
-                if(space.code !== 0){
+                if (space.code !== 0) {
                     log("BiliBili log: Failed loading space info")
                     return new VideoPager([], false)
                 }
@@ -1259,7 +1259,7 @@ class SpaceCollectionsContentPager extends PlaylistPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
-            if(space.code !== 0){
+            if (space.code !== 0) {
                 throw new ScriptException("Failed to load space info")
             }
             space_info = {
@@ -1383,7 +1383,7 @@ class SpaceCoursesContentPager extends PlaylistPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
-            if(space.code !== 0){
+            if (space.code !== 0) {
                 throw new ScriptException("Failed to load space info")
             }
             space_info = {
@@ -1501,7 +1501,7 @@ class SpaceVideosContentPager extends VideoPager {
             }]
             const results = execute_requests(requests)
             const space = results[1]
-            if(space.code !== 0){
+            if (space.code !== 0) {
                 throw new ScriptException("Failed to load space info")
             }
             space_info = {
@@ -1683,7 +1683,7 @@ class SpacePostsContentPager extends ContentPager {
                 ]
             const results = execute_requests(requests)
             const space = results[1]
-            if(space.code !== 0){
+            if (space.code !== 0) {
                 throw new ScriptException("Failed to load space info")
             }
             space_info = {
@@ -2034,7 +2034,7 @@ class ChannelVideoResultsPager extends ContentPager {
             if (local_search_response.code === -352) {
                 throw new ScriptException("rate limited")
             }
-            if(space.code !== 0){
+            if (space.code !== 0) {
                 throw new ScriptException("Failed to load space info")
             }
             search_response = local_search_response
@@ -3106,7 +3106,7 @@ function getPlaylist(url: string) {
                 }]
                 const results = execute_requests(requests)
                 const [space, fan_info] = [results[0], results[1]]
-                if(space.code !== 0){
+                if (space.code !== 0) {
                     throw new ScriptException("Failed to load space info")
                 }
                 collection_response = results[2]
@@ -3191,7 +3191,7 @@ function getPlaylist(url: string) {
                 }]
                 const results = execute_requests(requests)
                 const [space, fan_info] = [results[0], results[1]]
-                if(space.code !== 0){
+                if (space.code !== 0) {
                     throw new ScriptException("Failed to load space info")
                 }
                 series_response = results[2]
@@ -4434,18 +4434,7 @@ function execute_requests<T, U, V, W, X, Y, Z>(
 }
 //#endregion
 
+console.log(assert_never, log_passthrough)
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-export {
-    interleave,
-    getMixinKey,
-    mixin_constant_request,
-    process_mixin_constant,
-    load_video_details,
-    create_signed_url,
-    nav_request,
-    process_wbi_keys,
-    init_local_storage,
-    log_passthrough,
-    assert_never
-}
+// export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never }

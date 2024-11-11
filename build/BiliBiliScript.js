@@ -3660,6 +3660,7 @@ function execute_requests(requests) {
     }
 }
 //#endregion
+console.log(assert_never, log_passthrough);
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
 // export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never };
