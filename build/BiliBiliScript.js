@@ -1,5 +1,5 @@
 const PLATFORM = "BiliBili";
-const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www|live|t)\.bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/;
+const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www\.|live\.|t\.|m\.|)bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/;
 const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=|watchlater\/)(\d+|[0-9a-zA-Z]+|.*#\/list)(\/|\?|$)/;
 const SPACE_URL_REGEX = /^https:\/\/space\.bilibili\.com\/(\d+)(\/|\?|$)/;
 const VIDEO_URL_PREFIX = "https://www.bilibili.com/video/";
@@ -1716,7 +1716,7 @@ function parse_content_details_url(url) {
 function getContentDetails(url) {
     const { subdomain, content_type, content_id } = parse_content_details_url(url);
     switch (subdomain) {
-        case "live": {
+        case "live.": {
             // TODO this currently parses the html
             // there are however some json apis that could potentially be used instead
             // https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo
@@ -1807,204 +1807,208 @@ function getContentDetails(url) {
                 live: source,
             });
         }
-        case "t": {
+        case "t.": {
             const post_id = content_id;
             return get_post(post_id);
         }
-        case "www":
-            switch (content_type) {
-                // TODO as far as i can tell bangumi don't have subtitles
-                case "bangumi/play/ep": {
-                    const episode_id = parseInt(content_id);
-                    const requests = [{
-                            request(builder) { return episode_play_request(episode_id, builder); },
-                            process(response) { return JSON.parse(response.body); }
-                        }, {
-                            request(builder) { return season_request({ type: "episode", id: episode_id }, builder); },
-                            process(response) { return JSON.parse(response.body); }
-                        }, {
-                            request(builder) { return episode_info_request(episode_id, builder); },
-                            process(response) { return JSON.parse(response.body); }
-                        }];
-                    const [episode_response, season_response, episode_info_response] = execute_requests(requests);
-                    // region restricted
-                    if (episode_response.code === -10403) {
-                        let message = "非常抱歉，根据版权方要求\n";
-                        message += "您所在的地区无法观看本片";
-                        throw new UnavailableException(message);
-                    }
-                    // premium content
-                    if ("durl" in episode_response.result.video_info) {
-                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
-                    }
-                    const { video_sources, audio_sources } = format_sources(episode_response.result.video_info);
-                    const upload_info = episode_info_response.data.related_up[0];
-                    if (upload_info === undefined) {
-                        throw new ScriptException("missing upload information");
-                    }
-                    const owner_id = upload_info.mid;
-                    const episode_season_meta = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id; });
-                    if (episode_season_meta === undefined) {
-                        throw new ScriptException("episode missing from season");
-                    }
-                    const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id);
-                    const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id);
-                    const details = new PlatformVideoDetails({
-                        id: platform_video_ID,
-                        name: episode_season_meta.long_title,
-                        thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-                        author: new PlatformAuthorLink(platform_creator_ID, upload_info.uname, `${SPACE_URL_PREFIX}${owner_id}`, upload_info.avatar, local_storage_cache.space_cache.get(owner_id)?.num_fans),
-                        duration: episode_response.result.video_info.dash.duration,
-                        viewCount: episode_info_response.data.stat.view,
-                        url: `${EPISODE_URL_PREFIX}${episode_id}`,
-                        isLive: false,
-                        // TODO this will include HTML tags and render poorly
-                        description: season_response.result.evaluate,
-                        video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
-                        rating: new RatingLikes(episode_info_response.data.stat.like),
-                        shareUrl: `${EPISODE_URL_PREFIX}${episode_id}`,
-                        datetime: episode_season_meta.pub_time
-                    });
-                    return details;
-                }
-                case "cheese/play/ep": {
-                    const episode_id = parseInt(content_id);
-                    const requests = [{
-                            request(builder) { return course_play_request(episode_id, builder); },
-                            process(response) { return JSON.parse(response.body); }
-                        }, {
-                            request(builder) { return course_request({ type: "episode", id: episode_id }, builder); },
-                            process(response) { return JSON.parse(response.body); }
-                        }];
-                    const [episode_play_response, season_response] = execute_requests(requests);
-                    // premium content
-                    if (episode_play_response.code === -403) {
-                        throw new UnavailableException("Purchase Course");
-                    }
-                    if ("durl" in episode_play_response.data) {
-                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
-                    }
-                    const { video_sources, audio_sources } = format_sources(episode_play_response.data);
-                    const upload_info = season_response.data.up_info;
-                    if (upload_info === undefined) {
-                        throw new ScriptException("missing upload information");
-                    }
-                    const owner_id = upload_info.mid;
-                    const episode_season_metadata = season_response.data.episodes.find(function (episode) { return episode.id === episode_id; });
-                    if (episode_season_metadata === undefined) {
-                        throw new ScriptException("episode missing from season");
-                    }
-                    let subtitles = undefined;
-                    if (bridge.isLoggedIn()) {
-                        const subtitles_response = JSON.parse(subtitles_request({ aid: episode_season_metadata.aid }, episode_season_metadata.cid).body);
-                        subtitles = subtitles_response.data.subtitle.subtitles.map(function (subtitle) {
-                            const url = `https:${subtitle.subtitle_url}`;
-                            return {
-                                url,
-                                name: subtitle.lan_doc,
-                                getSubtitles() {
-                                    const json = local_http.GET(url, {}, false).body;
-                                    const response = JSON.parse(json);
-                                    return convert_subtitles(response, subtitle.lan_doc);
-                                },
-                                format: "text/vtt",
-                            };
-                        });
-                    }
-                    const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id);
-                    const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id);
-                    const platform_video_details_def = {
-                        id: platform_video_ID,
-                        name: episode_season_metadata.title,
-                        thumbnails: new Thumbnails([new Thumbnail(episode_season_metadata.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-                        author: new PlatformAuthorLink(platform_creator_ID, upload_info.uname, `${SPACE_URL_PREFIX}${owner_id}`, upload_info.avatar, upload_info.follower),
-                        duration: episode_play_response.data.dash.duration,
-                        viewCount: episode_season_metadata.play,
-                        url: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                        isLive: false,
-                        // TODO this will include HTML tags and render poorly
-                        description: `${season_response.data.title}\n${season_response.data.subtitle}`,
-                        video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
-                        // TODO figure out a rating to use. courses/course episodes don't have likes
-                        rating: new RatingLikes(MISSING_RATING),
-                        shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                        datetime: episode_season_metadata.release_date
-                    };
-                    const details = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
-                        ...platform_video_details_def,
-                        subtitles
-                    });
-                    return details;
-                }
-                case "opus/": {
-                    const post_id = content_id;
-                    return get_post(post_id);
-                }
-                case "video/": {
-                    const video_id = content_id;
-                    let video_info, play_info, subtitle_response;
-                    if (bridge.isLoggedIn()) {
-                        [video_info, play_info, subtitle_response] = load_video_details(video_id, true);
-                    }
-                    else {
-                        [video_info, play_info] = load_video_details(video_id);
-                    }
-                    // premium content
-                    if ("durl" in play_info.data) {
-                        throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
-                    }
-                    const { video_sources, audio_sources } = format_sources(play_info.data);
-                    const subtitles = subtitle_response?.data.subtitle.subtitles.map(function (subtitle) {
-                        const url = `https:${subtitle.subtitle_url}`;
-                        return {
-                            url,
-                            name: subtitle.lan_doc,
-                            getSubtitles() {
-                                const json = local_http.GET(url, {}, false).body;
-                                const response = JSON.parse(json);
-                                return convert_subtitles(response, subtitle.lan_doc);
-                            },
-                            format: "text/vtt",
-                        };
-                    });
-                    const description = video_info.data.View.desc_v2 === null
-                        ? { raw_text: "" }
-                        : video_info.data.View.desc_v2[0];
-                    if (description === undefined) {
-                        throw new ScriptException("missing description");
-                    }
-                    const owner_id = video_info.data.View.owner.mid.toString();
-                    const platform_video_ID = new PlatformID(PLATFORM, video_id, plugin.config.id);
-                    const platform_creator_ID = new PlatformID(PLATFORM, owner_id, plugin.config.id);
-                    const platform_video_details_def = {
-                        id: platform_video_ID,
-                        name: video_info.data.View.title,
-                        thumbnails: new Thumbnails([
-                            new Thumbnail(video_info.data.View.pic, HARDCODED_THUMBNAIL_QUALITY)
-                        ]),
-                        author: new PlatformAuthorLink(platform_creator_ID, video_info.data.View.owner.name, `${SPACE_URL_PREFIX}${video_info.data.View.owner.mid}`, video_info.data.View.owner.face, video_info.data.Card.card.fans),
-                        duration: play_info.data.dash.duration,
-                        viewCount: video_info.data.View.stat.view,
-                        url: `${VIDEO_URL_PREFIX}${video_id}`,
-                        isLive: false,
-                        description: description.raw_text,
-                        video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
-                        rating: new RatingLikes(video_info.data.View.stat.like),
-                        shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
-                        datetime: video_info.data.View.pubdate,
-                    };
-                    if (subtitles === undefined) {
-                        const details = new PlatformVideoDetails(platform_video_details_def);
-                        return details;
-                    }
-                    const details = new PlatformVideoDetails({ ...platform_video_details_def, subtitles });
-                    return details;
-                }
-                default:
-                    throw assert_exhaustive(content_type, "unreachable");
-            }
+        case "www.": return get_video_details(content_type, content_id);
+        case "m.": return get_video_details(content_type, content_id);
+        case "": return get_video_details(content_type, content_id);
         default:
             throw assert_exhaustive(subdomain, "unreachable");
+    }
+}
+function get_video_details(content_type, content_id) {
+    switch (content_type) {
+        // TODO as far as i can tell bangumi don't have subtitles
+        case "bangumi/play/ep": {
+            const episode_id = parseInt(content_id);
+            const requests = [{
+                    request(builder) { return episode_play_request(episode_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return season_request({ type: "episode", id: episode_id }, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return episode_info_request(episode_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }];
+            const [episode_response, season_response, episode_info_response] = execute_requests(requests);
+            // region restricted
+            if (episode_response.code === -10403) {
+                let message = "非常抱歉，根据版权方要求\n";
+                message += "您所在的地区无法观看本片";
+                throw new UnavailableException(message);
+            }
+            // premium content
+            if ("durl" in episode_response.result.video_info) {
+                throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
+            }
+            const { video_sources, audio_sources } = format_sources(episode_response.result.video_info);
+            const upload_info = episode_info_response.data.related_up[0];
+            if (upload_info === undefined) {
+                throw new ScriptException("missing upload information");
+            }
+            const owner_id = upload_info.mid;
+            const episode_season_meta = season_response.result.episodes.find(function (episode) { return episode.ep_id === episode_id; });
+            if (episode_season_meta === undefined) {
+                throw new ScriptException("episode missing from season");
+            }
+            const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id);
+            const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id);
+            const details = new PlatformVideoDetails({
+                id: platform_video_ID,
+                name: episode_season_meta.long_title,
+                thumbnails: new Thumbnails([new Thumbnail(episode_season_meta.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+                author: new PlatformAuthorLink(platform_creator_ID, upload_info.uname, `${SPACE_URL_PREFIX}${owner_id}`, upload_info.avatar, local_storage_cache.space_cache.get(owner_id)?.num_fans),
+                duration: episode_response.result.video_info.dash.duration,
+                viewCount: episode_info_response.data.stat.view,
+                url: `${EPISODE_URL_PREFIX}${episode_id}`,
+                isLive: false,
+                // TODO this will include HTML tags and render poorly
+                description: season_response.result.evaluate,
+                video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
+                rating: new RatingLikes(episode_info_response.data.stat.like),
+                shareUrl: `${EPISODE_URL_PREFIX}${episode_id}`,
+                datetime: episode_season_meta.pub_time
+            });
+            return details;
+        }
+        case "cheese/play/ep": {
+            const episode_id = parseInt(content_id);
+            const requests = [{
+                    request(builder) { return course_play_request(episode_id, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }, {
+                    request(builder) { return course_request({ type: "episode", id: episode_id }, builder); },
+                    process(response) { return JSON.parse(response.body); }
+                }];
+            const [episode_play_response, season_response] = execute_requests(requests);
+            // premium content
+            if (episode_play_response.code === -403) {
+                throw new UnavailableException("Purchase Course");
+            }
+            if ("durl" in episode_play_response.data) {
+                throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
+            }
+            const { video_sources, audio_sources } = format_sources(episode_play_response.data);
+            const upload_info = season_response.data.up_info;
+            if (upload_info === undefined) {
+                throw new ScriptException("missing upload information");
+            }
+            const owner_id = upload_info.mid;
+            const episode_season_metadata = season_response.data.episodes.find(function (episode) { return episode.id === episode_id; });
+            if (episode_season_metadata === undefined) {
+                throw new ScriptException("episode missing from season");
+            }
+            let subtitles = undefined;
+            if (bridge.isLoggedIn()) {
+                const subtitles_response = JSON.parse(subtitles_request({ aid: episode_season_metadata.aid }, episode_season_metadata.cid).body);
+                subtitles = subtitles_response.data.subtitle.subtitles.map(function (subtitle) {
+                    const url = `https:${subtitle.subtitle_url}`;
+                    return {
+                        url,
+                        name: subtitle.lan_doc,
+                        getSubtitles() {
+                            const json = local_http.GET(url, {}, false).body;
+                            const response = JSON.parse(json);
+                            return convert_subtitles(response, subtitle.lan_doc);
+                        },
+                        format: "text/vtt",
+                    };
+                });
+            }
+            const platform_video_ID = new PlatformID(PLATFORM, episode_id.toString(), plugin.config.id);
+            const platform_creator_ID = new PlatformID(PLATFORM, owner_id.toString(), plugin.config.id);
+            const platform_video_details_def = {
+                id: platform_video_ID,
+                name: episode_season_metadata.title,
+                thumbnails: new Thumbnails([new Thumbnail(episode_season_metadata.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+                author: new PlatformAuthorLink(platform_creator_ID, upload_info.uname, `${SPACE_URL_PREFIX}${owner_id}`, upload_info.avatar, upload_info.follower),
+                duration: episode_play_response.data.dash.duration,
+                viewCount: episode_season_metadata.play,
+                url: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
+                isLive: false,
+                // TODO this will include HTML tags and render poorly
+                description: `${season_response.data.title}\n${season_response.data.subtitle}`,
+                video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
+                // TODO figure out a rating to use. courses/course episodes don't have likes
+                rating: new RatingLikes(MISSING_RATING),
+                shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
+                datetime: episode_season_metadata.release_date
+            };
+            const details = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
+                ...platform_video_details_def,
+                subtitles
+            });
+            return details;
+        }
+        case "opus/": {
+            const post_id = content_id;
+            return get_post(post_id);
+        }
+        case "video/": {
+            const video_id = content_id;
+            let video_info, play_info, subtitle_response;
+            if (bridge.isLoggedIn()) {
+                [video_info, play_info, subtitle_response] = load_video_details(video_id, true);
+            }
+            else {
+                [video_info, play_info] = load_video_details(video_id);
+            }
+            // premium content
+            if ("durl" in play_info.data) {
+                throw new UnavailableException(PREMIUM_CONTENT_MESSAGE);
+            }
+            const { video_sources, audio_sources } = format_sources(play_info.data);
+            const subtitles = subtitle_response?.data.subtitle.subtitles.map(function (subtitle) {
+                const url = `https:${subtitle.subtitle_url}`;
+                return {
+                    url,
+                    name: subtitle.lan_doc,
+                    getSubtitles() {
+                        const json = local_http.GET(url, {}, false).body;
+                        const response = JSON.parse(json);
+                        return convert_subtitles(response, subtitle.lan_doc);
+                    },
+                    format: "text/vtt",
+                };
+            });
+            const description = video_info.data.View.desc_v2 === null
+                ? { raw_text: "" }
+                : video_info.data.View.desc_v2[0];
+            if (description === undefined) {
+                throw new ScriptException("missing description");
+            }
+            const owner_id = video_info.data.View.owner.mid.toString();
+            const platform_video_ID = new PlatformID(PLATFORM, video_id, plugin.config.id);
+            const platform_creator_ID = new PlatformID(PLATFORM, owner_id, plugin.config.id);
+            const platform_video_details_def = {
+                id: platform_video_ID,
+                name: video_info.data.View.title,
+                thumbnails: new Thumbnails([
+                    new Thumbnail(video_info.data.View.pic, HARDCODED_THUMBNAIL_QUALITY)
+                ]),
+                author: new PlatformAuthorLink(platform_creator_ID, video_info.data.View.owner.name, `${SPACE_URL_PREFIX}${video_info.data.View.owner.mid}`, video_info.data.View.owner.face, video_info.data.Card.card.fans),
+                duration: play_info.data.dash.duration,
+                viewCount: video_info.data.View.stat.view,
+                url: `${VIDEO_URL_PREFIX}${video_id}`,
+                isLive: false,
+                description: description.raw_text,
+                video: new UnMuxVideoSourceDescriptor(video_sources, audio_sources),
+                rating: new RatingLikes(video_info.data.View.stat.like),
+                shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
+                datetime: video_info.data.View.pubdate,
+            };
+            if (subtitles === undefined) {
+                const details = new PlatformVideoDetails(platform_video_details_def);
+                return details;
+            }
+            const details = new PlatformVideoDetails({ ...platform_video_details_def, subtitles });
+            return details;
+        }
+        default:
+            throw assert_exhaustive(content_type, "unreachable");
     }
 }
 function livestream_request(room_id, builder) {
@@ -3047,17 +3051,18 @@ function watch_later_request(logged_in, builder) {
 // we should cache them so that when getSubComments is called we don't have to make any networks requests
 function getComments(url) {
     const { subdomain, content_type, content_id } = parse_content_details_url(url);
-    if (subdomain === "live") {
+    const reduced_subdomain = subdomain === "m." || subdomain === "" ? "www." : subdomain;
+    if (reduced_subdomain === "live.") {
         return new CommentPager([], false);
     }
     const [oid, type, context_url] = (function () {
-        switch (subdomain) {
-            case "t": {
+        switch (reduced_subdomain) {
+            case "t.": {
                 const post_id = content_id;
                 const post_response = download_post(post_id);
                 return [parseInt(post_response.data.item.basic.comment_id_str), 11, `${POST_URL_PREFIX}${post_id}`];
             }
-            case "www":
+            case "www.":
                 switch (content_type) {
                     case "bangumi/play/ep": {
                         const episode_id = parseInt(content_id);
@@ -3086,7 +3091,7 @@ function getComments(url) {
                         throw assert_exhaustive(content_type, "unreachable");
                 }
             default:
-                throw assert_exhaustive(subdomain, "unreachable");
+                throw assert_exhaustive(reduced_subdomain, "unreachable");
         }
     })();
     const pager = new BiliBiliCommentPager(context_url, oid, type, 1);
