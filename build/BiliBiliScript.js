@@ -876,6 +876,7 @@ function getChannelContents(url, type, order, filters) {
     //     return new ContentPager([], false)
     // }
     if (type === null || type === Type.Feed.Mixed) {
+        log("BiliBili log: missing feed type");
         type = Type.Feed.Videos;
     }
     if (filters !== null) {
