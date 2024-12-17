@@ -1094,8 +1094,7 @@ function getChannelContents(
     //     return new ContentPager([], false)
     // }
     if (type === null || type === Type.Feed.Mixed) {
-        log("BiliBili log: missing feed type")
-        return new ContentPager([], false)
+        type = Type.Feed.Videos
     }
     if (filters !== null) {
         throw new ScriptException("unreachable")
