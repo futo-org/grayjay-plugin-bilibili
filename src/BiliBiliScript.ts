@@ -291,7 +291,7 @@ function mixin_constant_request(builder?: BatchBuilder | HTTP): BatchBuilder | B
     return result
 }
 function process_mixin_constant(html: BridgeHttpResponse<string>): readonly number[] {
-    const mixin_constant_regex = /function getMixinKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/
+    const mixin_constant_regex = /function getPictureHashKey\(e\){var t=\[\];return(.*?)\.forEach\(\(function\(r\){e\.charAt\(r\)&&t\.push\(e\.charAt\(r\)\)}\)\),t\.join\(""\)\.slice\(0,32\)}/
     const mixin_constant_json = html.body.match(mixin_constant_regex)?.[1]
     if (mixin_constant_json === undefined) {
         throw new ScriptException("failed to acquire mixin_constant")

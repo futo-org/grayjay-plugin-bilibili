@@ -7,7 +7,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Bilibili/BiliBiliConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/bilibili",
     "scriptUrl": "./BiliBiliScript.js",
-    "version": 19,
+    "version": 20,
     "iconUrl": "./BiliBiliIcon.png",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
     "scriptSignature": "",
