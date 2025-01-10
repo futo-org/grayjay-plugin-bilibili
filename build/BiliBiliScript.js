@@ -1712,7 +1712,16 @@ function parse_content_details_url(url) {
     if (maybe_content_id === undefined) {
         throw new ScriptException("unreachable regex error");
     }
-    return { subdomain, content_type, content_id: maybe_content_id };
+    const content_id = maybe_content_id;
+    // handle weird url format
+    if (content_type === "video/" && /^av[0-9]{15}$/.test(content_id)) {
+        const new_url = local_http.GET(url, {}, false).body.match(/<meta data-vue-meta="true" itemprop="url" content="(.*?)">/)?.[1];
+        if (new_url === undefined) {
+            throw new ScriptException("unreachable regex error");
+        }
+        return parse_content_details_url(new_url);
+    }
+    return { subdomain, content_type, content_id };
 }
 function getContentDetails(url) {
     const { subdomain, content_type, content_id } = parse_content_details_url(url);
