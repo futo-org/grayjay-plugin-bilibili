@@ -61,7 +61,7 @@ import type {
 } from "./types.js"
 
 const PLATFORM = "BiliBili" as const
-const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www\.|live\.|t\.|m\.|)bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12})(\/|\?|$)/
+const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www\.|live\.|t\.|m\.|)bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12}|av[0-9]{15})(\/|\?|$)/
 const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=|watchlater\/)(\d+|[0-9a-zA-Z]+|.*#\/list)(\/|\?|$)/
 const SPACE_URL_REGEX = /^https:\/\/space\.bilibili\.com\/(\d+)(\/|\?|$)/
 
