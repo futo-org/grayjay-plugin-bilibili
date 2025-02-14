@@ -57,7 +57,8 @@ import type {
     SearchTypeCapabilities,
     PlayDataDash,
     MaybeSpacePostsResponse,
-    State
+    State,
+    SpaceBangumiResponse
 } from "./types.js"
 
 const PLATFORM = "BiliBili" as const
@@ -118,12 +119,6 @@ Type.Order.Chronological = "Latest releases"
 Type.Order.Views = "Most played"
 Type.Order.Favorites = "Most favorited"
 
-Type.Feed.Posts = "POSTS"
-Type.Feed.Shows = "SHOWS"
-Type.Feed.Movies = "MOVIES"
-Type.Feed.Courses = "COURSES"
-Type.Feed.Favorites = "FAVORITES"
-Type.Feed.Collections = "COLLECTIONS"
 // align with the rest of the plugin use Simplified Chinese
 Type.Order.Chronological = "最新发布"
 Type.Order.Views = "最多播放"
@@ -152,6 +147,7 @@ const local_source: BiliBiliSource = {
     getChannelCapabilities,
     searchChannelContents,
     getSearchChannelContentsCapabilities,
+    getChannelPlaylists,
     searchChannels,
     getComments,
     getSubComments,
@@ -514,7 +510,7 @@ function get_suggestions(query: string): string[] {
 }
 function getSearchCapabilities() {
     return new ResultCapabilities<FilterGroupIDs, SearchTypeCapabilities>(
-        [Type.Feed.Videos, Type.Feed.Live, Type.Feed.Movies, Type.Feed.Shows],
+        [Type.Feed.Mixed],
         [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
         // TODO implement category filtering
         [new FilterGroup(
@@ -528,61 +524,13 @@ function getSearchCapabilities() {
             ],
             false,
             "DURATION_FILTER"
-        ),
-        new FilterGroup(
-            "Additional Content",
-            [
-                new FilterCapability("Live Rooms", "LIVE", "Live Rooms"),
-                new FilterCapability("Videos", "VIDEOS", "Videos"),
-                new FilterCapability("Shows", "SHOWS", "Shows"),
-                new FilterCapability("Movies", "MOVIES", "Movies")
-            ],
-            false,
-            "ADDITIONAL_CONTENT"
         )]
     )
 }
 function search(query: string, type: SearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs> | null) {
-    if (filters === null) {
-        return new ContentPager([], false)
-    }
     if (type === null) {
-        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-            case "VIDEOS":
-                type = Type.Feed.Videos
-                break
-            case "LIVE":
-                type = Type.Feed.Live
-                break
-            case "MOVIES":
-                type = Type.Feed.Movies
-                break
-            case "SHOWS":
-                type = Type.Feed.Shows
-                break
-            case undefined:
-                type = Type.Feed.Videos
-                log("BiliBili log: missing feed type defaulting to VIDEOS")
-                break
-            default:
-                throw new ScriptException("unreachable")
-        }
+        type = Type.Feed.Mixed
     }
-
-    const query_type = (function (type) {
-        switch (type) {
-            case "LIVE":
-                return "live"
-            case "SHOWS":
-                return "media_bangumi"
-            case "MOVIES":
-                return "media_ft"
-            case "VIDEOS":
-                return "video"
-            default:
-                throw new ScriptException(`unhandled feed type ${type}`)
-        }
-    })(type)
 
     const query_order: OrderOptions | undefined = (function (order) {
         switch (order) {
@@ -600,6 +548,10 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
     })(order)
 
     const duration = (function (filters) {
+        if (filters === null) {
+            return undefined
+        }
+
         const filter = filters["DURATION_FILTER"]
         if (filter === undefined) {
             return undefined
@@ -624,7 +576,18 @@ function search(query: string, type: SearchTypeCapabilities | null, order: Order
         }
     })(filters)
 
-    return new SearchPager(query, 1, 42, query_type, query_order, duration)
+    switch (type) {
+        case Type.Feed.Mixed: {
+            const live_pager = new SearchPager(query, 1, 42, "live", query_order, duration)
+            const video_pager = new SearchPager(query, 1, 42, "video", query_order, duration)
+            const movie_pager = new SearchPager(query, 1, 42, "media_ft", query_order, duration)
+            const show_pager = new SearchPager(query, 1, 42, "media_bangumi", query_order, duration)
+
+            return new CompositeContentPager([live_pager, video_pager, movie_pager, show_pager])
+        }
+        default:
+            throw assert_exhaustive(type, "unreachable")
+    }
 }
 class SearchPager extends VideoPager {
     private next_page: number
@@ -1070,12 +1033,9 @@ function space_request(space_id: number, builder?: BatchBuilder | HTTP): BatchBu
 //#region channel contents
 function getChannelCapabilities() {
     return new ResultCapabilities<FilterGroupIDs, ChannelTypeCapabilities>([
-        Type.Feed.Collections,
-        Type.Feed.Courses,
-        Type.Feed.Favorites,
+        Type.Feed.Mixed,
         Type.Feed.Live,
-        Type.Feed.Posts,
-        Type.Feed.Videos
+        Type.Feed.Videos,
     ], [
         Type.Order.Chronological,
         Type.Order.Favorites,
@@ -1088,14 +1048,8 @@ function getChannelContents(
     order: Order | null,
     filters: FilterQuery<FilterGroupIDs> | null
 ) {
-    log(`BiliBili log: feed type ${type}`)
-
-    // if (type === Type.Feed.Videos && !IS_TESTING){
-    //     return new ContentPager([], false)
-    // }
-    if (type === null || type === Type.Feed.Mixed) {
-        log("BiliBili log: missing feed type")
-        type = Type.Feed.Videos
+    if (type === null) {
+        type = Type.Feed.Mixed
     }
     if (filters !== null) {
         throw new ScriptException("unreachable")
@@ -1107,128 +1061,85 @@ function getChannelContents(
     const space_id = parse_space_url(url)
 
     switch (type) {
-        case Type.Feed.Collections:
-            return new SpaceCollectionsContentPager(space_id, 1, 20)
-        case Type.Feed.Courses:
-            return new SpaceCoursesContentPager(space_id, 1, 15)
         case Type.Feed.Videos:
             return new SpaceVideosContentPager(space_id, 1, 25, order === null ? Type.Order.Chronological : order)
-        case Type.Feed.Posts:
-            return new SpacePostsContentPager(space_id)
-        case Type.Feed.Favorites: {
-            let space_info = local_storage_cache.space_cache.get(space_id)
-            let space_favorites_response: SpaceFavoritesResponse
-            if (space_info === undefined) {
-                const requests: [
-                    RequestMetadata<SpaceFavoritesResponse>,
-                    RequestMetadata<SpaceResponse>,
-                    RequestMetadata<{ data: { follower: number } }>
-                ] = [
-                        {
-                            request(builder) { return space_favorites_request(space_id, builder) },
-                            process(response) { return JSON.parse(response.body) }
-                        }, {
-                            request(builder) { return space_request(space_id, builder) },
-                            process(response) { return JSON.parse(response.body) }
-                        }, {
-                            request(builder) { return fan_count_request(space_id, builder) },
-                            process(response) { return JSON.parse(response.body) }
-                        }
-                    ]
-                const results = execute_requests(requests)
-                const space = results[1]
-                if (space.code !== 0) {
-                    log("BiliBili log: Failed loading space info")
-                    return new PlaylistPager([], false)
-                }
-                space_info = {
-                    num_fans: results[2].data.follower,
-                    name: space.data.name,
-                    face: space.data.face,
-                    live_room: space.data.live_room === null ? null : {
-                        title: space.data.live_room.title,
-                        roomid: space.data.live_room.roomid,
-                        live_status: space.data.live_room.liveStatus === 1,
-                        cover: space.data.live_room.cover, watched_show: {
-                            num: space.data.live_room.watched_show.num
-                        }
-                    }
-                }
-                local_storage_cache.space_cache.set(space_id, space_info)
-                space_favorites_response = results[0]
-            } else {
-                space_favorites_response = JSON.parse(space_favorites_request(space_id).body)
-            }
-            const formatted_favorites: PlatformPlaylist[] = format_space_favorites(space_favorites_response, space_id, space_info)
-            return new PlaylistPager(formatted_favorites, false)
+        case Type.Feed.Mixed: {
+            const posts_pager = new SpacePostsContentPager(space_id)
+            const videos_pager = new SpaceVideosContentPager(space_id, 1, 25, order === null ? Type.Order.Chronological : order)
+            const live_pager = get_space_live_pager(space_id)
+            return new CompositeContentPager([live_pager, videos_pager, posts_pager])
         }
+
         case Type.Feed.Live: {
-            let space_info = local_storage_cache.space_cache.get(space_id)
-            if (space_info === undefined) {
-                const requests: [
-                    RequestMetadata<SpaceResponse>,
-                    RequestMetadata<{ data: { follower: number } }>
-                ] = [{
-                    request(builder) { return space_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }, {
-                    request(builder) { return fan_count_request(space_id, builder) },
-                    process(response) { return JSON.parse(response.body) }
-                }]
-
-                const [space, fan_count_response] = execute_requests(requests)
-
-                if (space.code !== 0) {
-                    log("BiliBili log: Failed loading space info")
-                    return new VideoPager([], false)
-                }
-
-                space_info = {
-                    num_fans: fan_count_response.data.follower,
-                    name: space.data.name,
-                    face: space.data.face,
-                    live_room: space.data.live_room === null ? null : {
-                        title: space.data.live_room.title,
-                        roomid: space.data.live_room.roomid,
-                        live_status: space.data.live_room.liveStatus === 1,
-                        cover: space.data.live_room.cover, watched_show: {
-                            num: space.data.live_room.watched_show.num
-                        }
-                    }
-                }
-
-                // cache results
-                local_storage_cache.space_cache.set(space_id, space_info)
-            }
-            const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
-            const author = new PlatformAuthorLink(
-                author_id,
-                space_info.name,
-                `${SPACE_URL_PREFIX}${space_id}`,
-                space_info.face,
-                space_info.num_fans
-            )
-            const live_room = space_info.live_room !== null
-                && space_info.live_room.live_status === true
-                ? [new PlatformVideo({
-                    id: new PlatformID(PLATFORM, space_info.live_room.roomid.toString(), plugin.config.id),
-                    name: space_info.live_room.title,
-                    url: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
-                    thumbnails: new Thumbnails([new Thumbnail(space_info.live_room.cover, HARDCODED_THUMBNAIL_QUALITY)]),
-                    author,
-                    viewCount: space_info.live_room.watched_show.num,
-                    isLive: true,
-                    shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
-                    // TODO load from cache. "now" is incorrect but it does result in sorting to the top
-                    // It would be better however to load the actual stream start time
-                    datetime: Date.now() / 1000
-                })]
-                : []
-            return new VideoPager(live_room, false)
+            return get_space_live_pager(space_id)
         }
         default:
             throw assert_exhaustive(type, "unreachable")
     }
+}
+function get_space_live_pager(space_id: number): VideoPager {
+    let space_info = local_storage_cache.space_cache.get(space_id)
+    if (space_info === undefined) {
+        const requests: [
+            RequestMetadata<SpaceResponse>,
+            RequestMetadata<{ data: { follower: number } }>
+        ] = [{
+            request(builder) { return space_request(space_id, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }, {
+            request(builder) { return fan_count_request(space_id, builder) },
+            process(response) { return JSON.parse(response.body) }
+        }]
+
+        const [space, fan_count_response] = execute_requests(requests)
+
+        if (space.code !== 0) {
+            log("BiliBili log: Failed loading space info")
+            return new VideoPager([], false)
+        }
+
+        space_info = {
+            num_fans: fan_count_response.data.follower,
+            name: space.data.name,
+            face: space.data.face,
+            live_room: space.data.live_room === null ? null : {
+                title: space.data.live_room.title,
+                roomid: space.data.live_room.roomid,
+                live_status: space.data.live_room.liveStatus === 1,
+                cover: space.data.live_room.cover, watched_show: {
+                    num: space.data.live_room.watched_show.num
+                }
+            }
+        }
+
+        // cache results
+        local_storage_cache.space_cache.set(space_id, space_info)
+    }
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+    const live_room = space_info.live_room !== null
+        && space_info.live_room.live_status === true
+        ? [new PlatformVideo({
+            id: new PlatformID(PLATFORM, space_info.live_room.roomid.toString(), plugin.config.id),
+            name: space_info.live_room.title,
+            url: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
+            thumbnails: new Thumbnails([new Thumbnail(space_info.live_room.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            author,
+            viewCount: space_info.live_room.watched_show.num,
+            isLive: true,
+            shareUrl: `${LIVE_ROOM_URL_PREFIX}${space_info.live_room.roomid}`,
+            // TODO load from cache. "now" is incorrect but it does result in sorting to the top
+            // It would be better however to load the actual stream start time
+            datetime: Date.now() / 1000
+        })]
+        : []
+    return new VideoPager(live_room, false)
 }
 class SpaceCollectionsContentPager extends PlaylistPager {
     private next_page: number
@@ -1355,6 +1266,128 @@ function format_space_collections(space_collections_response: SpaceCollectionsRe
                 thumbnail: series.meta.cover
             })
         }))
+}
+class SpaceBangumiContentPager extends PlaylistPager {
+    private next_page: number
+    private readonly page_size: number
+    private readonly space_info: CoreSpaceInfo
+    private readonly space_id: number
+    /**
+     * 
+     * @param space_id 
+     * @param initial_page 
+     * @param page_size 
+     * @param type i'm not entirely sure what this does i think it's a different type of bangumi
+     */
+    constructor(space_id: number, initial_page: number, page_size: number, private readonly type: 1 | 2) {
+        let space_info = local_storage_cache.space_cache.get(space_id)
+        let space_bangumi_response: SpaceBangumiResponse
+        if (space_info === undefined) {
+            const requests: [
+                RequestMetadata<SpaceBangumiResponse>,
+                RequestMetadata<SpaceResponse>,
+                RequestMetadata<{ data: { follower: number } }>
+            ] = [
+                    {
+                        request(builder) { return space_bangumi_request(space_id, initial_page, page_size, type, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return space_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }, {
+                        request(builder) { return fan_count_request(space_id, builder) },
+                        process(response) { return JSON.parse(response.body) }
+                    }
+                ]
+            const results = execute_requests(requests)
+            const space = results[1]
+            if (space.code !== 0) {
+                throw new ScriptException("Failed to load space info")
+            }
+            space_info = {
+                num_fans: results[2].data.follower,
+                name: space.data.name,
+                face: space.data.face,
+                live_room: space.data.live_room === null ? null : {
+                    title: space.data.live_room.title,
+                    roomid: space.data.live_room.roomid,
+                    live_status: space.data.live_room.liveStatus === 1,
+                    cover: space.data.live_room.cover, watched_show: {
+                        num: space.data.live_room.watched_show.num
+                    }
+                }
+            }
+            local_storage_cache.space_cache.set(space_id, space_info)
+            space_bangumi_response = results[0]
+        } else {
+            space_bangumi_response = JSON.parse(space_bangumi_request(space_id, initial_page, page_size, type).body)
+        }
+
+        const has_more = space_bangumi_response.data.total > space_bangumi_response.data.ps * space_bangumi_response.data.pn
+        super(
+            format_space_bangumi(space_bangumi_response, space_id, space_info),
+            has_more
+        )
+        this.next_page = initial_page + 1
+        this.page_size = page_size
+        this.space_id = space_id
+        this.space_info = space_info
+    }
+    override nextPage(this: SpaceBangumiContentPager): SpaceBangumiContentPager {
+        const space_bangumi_response: SpaceBangumiResponse = JSON.parse(space_bangumi_request(this.space_id, this.next_page, this.page_size, this.type).body)
+
+        this.results = format_space_bangumi(space_bangumi_response, this.space_id, this.space_info)
+
+        this.hasMore = space_bangumi_response.data.total > space_bangumi_response.data.ps * space_bangumi_response.data.pn
+        this.next_page += 1
+
+        return this
+    }
+    override hasMorePagers(this: SpaceBangumiContentPager): boolean {
+        return this.hasMore
+    }
+}
+function space_bangumi_request(space_id: number, page: number, page_size: number, type: 1 | 2, builder: BatchBuilder): BatchBuilder
+function space_bangumi_request(space_id: number, page: number, page_size: number, type: 1 | 2): BridgeHttpResponse<string>
+function space_bangumi_request(space_id: number, page: number, page_size: number, type: 1 | 2, builder?: BatchBuilder | HTTP): BatchBuilder | BridgeHttpResponse<string> {
+    const course_prefix = "https://api.bilibili.com/x/space/bangumi/follow/list"
+    const params: Params = {
+        vmid: space_id.toString(),
+        pn: page.toString(),
+        ps: page_size.toString(),
+        type: type.toString()
+    }
+    const url = create_url(course_prefix, params).toString()
+    const runner = builder === undefined ? local_http : builder
+    const now = Date.now()
+    const result = runner.GET(url, {}, false)
+    if (builder === undefined) {
+        log_network_call(now)
+    }
+    return result
+}
+function format_space_bangumi(space_courses_response: SpaceBangumiResponse, space_id: number, space_info: CoreSpaceInfo): PlatformPlaylist[] {
+    const author_id = new PlatformID(PLATFORM, space_id.toString(), plugin.config.id)
+    const author = new PlatformAuthorLink(
+        author_id,
+        space_info.name,
+        `${SPACE_URL_PREFIX}${space_id}`,
+        space_info.face,
+        space_info.num_fans
+    )
+
+    return space_courses_response.data.list.map(function (season) {
+        return new PlatformPlaylist({
+            id: new PlatformID(PLATFORM, season.season_id.toString(), plugin.config.id),
+            name: season.title,
+            author,
+            url: `${SEASON_URL_PREFIX}${season.season_id}`,
+            videoCount: season.formal_ep_count,
+            thumbnail: season.cover,
+            thumbnails: new Thumbnails([new Thumbnail(season.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+            datetime: new Date(season.publish.release_date).getTime() / 1000
+        })
+    })
 }
 class SpaceCoursesContentPager extends PlaylistPager {
     private next_page: number
@@ -1869,46 +1902,20 @@ function format_space_favorites(space_favorites_response: SpaceFavoritesResponse
 function getSearchChannelContentsCapabilities() {
     // TODO there are filter options but they only show up after a search has been returned
     return new ResultCapabilities<FilterGroupIDs, ChannelSearchTypeCapabilities>(
-        [Type.Feed.Videos, Type.Feed.Posts],
+        [Type.Feed.Mixed],
         [Type.Order.Chronological, Type.Order.Views, Type.Order.Favorites],
-        [new FilterGroup(
-            "Additional Content",
-            [
-                new FilterCapability("Videos", "VIDEOS", "Videos"),
-                new FilterCapability("Posts", "POSTS", "Posts")
-            ],
-            false,
-            "ADDITIONAL_CONTENT"
-        )]
+        []
     )
 }
 function searchChannelContents(space_url: string, query: string, type: ChannelSearchTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs> | null) {
     if (type === null) {
-        if (filters === null) {
-            return new ContentPager([], false)
-        }
-        switch (filters["ADDITIONAL_CONTENT"]?.[0]) {
-            case "VIDEOS":
-                type = Type.Feed.Videos
-                break
-            case "POSTS":
-                type = Type.Feed.Posts
-                break
-            case undefined:
-                // log("BiliBili log: missing feed type defaulting to VIDEOS")
-                // type = Type.Feed.Videos
-                log("BiliBili log: missing feed type defaulting to POSTS")
-                type = Type.Feed.Posts
-                break
-            default:
-                throw new ScriptException("unreachable")
-        }
-    }
-    if (order !== null && type !== Type.Feed.Videos) {
-        log("BiliBili log: order only applies to videos")
+        type = Type.Feed.Mixed
     }
     if (order === null) {
         order = Type.Order.Chronological
+    }
+    if (filters !== null && Object.keys(filters).length !== 0) {
+        throw new ScriptException("unreachable")
     }
     const space_id = parse_space_url(space_url)
 
@@ -1918,12 +1925,13 @@ function searchChannelContents(space_url: string, query: string, type: ChannelSe
     order = order === null ? Type.Order.Chronological : order
 
     switch (type) {
-        case Type.Feed.Posts:
-            return new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
-        case Type.Feed.Videos:
-            return new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
+        case Type.Feed.Mixed: {
+            const posts_pager = new ChannelPostsResultsPager(query, space_id, initial_page, page_size)
+            const videos_pager = new ChannelVideoResultsPager(query, space_id, initial_page, page_size, order)
+            return new CompositeContentPager([videos_pager, posts_pager])
+        }
         default:
-            throw new ScriptException(`unhandled feed type ${type}`)
+            throw new ScriptException("unreachable")
     }
 }
 class ChannelPostsResultsPager extends ContentPager {
@@ -2082,6 +2090,63 @@ class ChannelVideoResultsPager extends ContentPager {
     override hasMorePagers(this: ChannelVideoResultsPager): boolean {
         return this.hasMore
     }
+}
+
+function getChannelPlaylists(url: string): PlaylistPager {
+    const space_id = parse_space_url(url)
+
+    let space_info = local_storage_cache.space_cache.get(space_id)
+    let space_favorites_response: SpaceFavoritesResponse
+    if (space_info === undefined) {
+        const requests: [
+            RequestMetadata<SpaceFavoritesResponse>,
+            RequestMetadata<SpaceResponse>,
+            RequestMetadata<{ data: { follower: number } }>
+        ] = [
+                {
+                    request(builder) { return space_favorites_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return space_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }, {
+                    request(builder) { return fan_count_request(space_id, builder) },
+                    process(response) { return JSON.parse(response.body) }
+                }
+            ]
+        const results = execute_requests(requests)
+        const space = results[1]
+        if (space.code !== 0) {
+            log("BiliBili log: Failed loading space info")
+            return new PlaylistPager([], false)
+        }
+        space_info = {
+            num_fans: results[2].data.follower,
+            name: space.data.name,
+            face: space.data.face,
+            live_room: space.data.live_room === null ? null : {
+                title: space.data.live_room.title,
+                roomid: space.data.live_room.roomid,
+                live_status: space.data.live_room.liveStatus === 1,
+                cover: space.data.live_room.cover, watched_show: {
+                    num: space.data.live_room.watched_show.num
+                }
+            }
+        }
+        local_storage_cache.space_cache.set(space_id, space_info)
+        space_favorites_response = results[0]
+    } else {
+        space_favorites_response = JSON.parse(space_favorites_request(space_id).body)
+    }
+    const formatted_favorites: PlatformPlaylist[] = format_space_favorites(space_favorites_response, space_id, space_info)
+    const favorites_pager = new PlaylistPager(formatted_favorites, false)
+
+    const collections_pager = new SpaceCollectionsContentPager(space_id, 1, 20)
+    const courses_pager = new SpaceCoursesContentPager(space_id, 1, 15)
+    const bangumi_pager_1 = new SpaceBangumiContentPager(space_id, 1, 24, 1)
+    const bangumi_pager_2 = new SpaceBangumiContentPager(space_id, 1, 24, 2)
+
+    return new CompositePlaylistPager([bangumi_pager_1, bangumi_pager_2, favorites_pager, collections_pager, courses_pager])
 }
 //#endregion
 
@@ -2317,6 +2382,10 @@ function get_video_details(content_type: ContentType, content_id: string) {
                 rating: new RatingLikes(episode_info_response.data.stat.like),
                 shareUrl: `${EPISODE_URL_PREFIX}${episode_id}`,
                 datetime: episode_season_meta.pub_time
+                // the recommendations are other series which in Grayjay are playlists
+                // the recommendations section doesn't currently support playlists
+                // the implementation would be similar to courses for the playlists 
+                // getContentRecommendations
             })
             return details
         }
@@ -2398,7 +2467,21 @@ function get_video_details(content_type: ContentType, content_id: string) {
                 // TODO figure out a rating to use. courses/course episodes don't have likes
                 rating: new RatingLikes(MISSING_RATING),
                 shareUrl: `${COURSE_EPISODE_URL_PREFIX}${episode_id}`,
-                datetime: episode_season_metadata.release_date
+                datetime: episode_season_metadata.release_date,
+                // Note Grayjay doesn't support playlists as content recommendations so this does currently do anything
+                getContentRecommendations: function () {
+                    return new PlaylistPager(season_response.data.recommend_seasons.map((season) => {
+                        log("hi")
+                        return new PlatformPlaylist({
+                            id: new PlatformID(PLATFORM, season.id.toString(), plugin.config.id),
+                            name: season.title,
+                            thumbnails: new Thumbnails([new Thumbnail(season.cover, HARDCODED_THUMBNAIL_QUALITY)]),
+                            author: EMPTY_AUTHOR,
+                            url: `${COURSE_URL_PREFIX}${season.id}`,
+                            thumbnail: season.cover
+                        })
+                    }), false)
+                }
             }
             const details: PlatformContentDetails = new PlatformVideoDetails(subtitles === undefined ? platform_video_details_def : {
                 ...platform_video_details_def,
@@ -2474,6 +2557,27 @@ function get_video_details(content_type: ContentType, content_id: string) {
                 rating: new RatingLikes(video_info.data.View.stat.like),
                 shareUrl: `${VIDEO_URL_PREFIX}${video_id}`,
                 datetime: video_info.data.View.pubdate,
+                getContentRecommendations: function () {
+                    return new VideoPager(video_info.data.Related.map((video) => {
+                        return new PlatformVideo({
+                            id: new PlatformID(PLATFORM, video.bvid, plugin.config.id),
+                            name: video.title,
+                            thumbnails: new Thumbnails([new Thumbnail(video.pic, HARDCODED_THUMBNAIL_QUALITY)]),
+                            author: new PlatformAuthorLink(
+                                new PlatformID(PLATFORM, video.owner.mid.toString(), plugin.config.id),
+                                video.owner.name,
+                                `${SPACE_URL_PREFIX}${video_info.data.View.owner.mid}`,
+                                video.owner.face
+                            ),
+                            datetime: video.pubdate,
+                            url: `${VIDEO_URL_PREFIX}${video.bvid}`,
+                            duration: video.duration,
+                            viewCount: video.stat.view,
+                            isLive: false,
+                            shareUrl: `${VIDEO_URL_PREFIX}${video.bvid}`,
+                        })
+                    }), false)
+                }
             }
             if (subtitles === undefined) {
                 const details: PlatformContentDetails = new PlatformVideoDetails(platform_video_details_def)
@@ -3059,7 +3163,7 @@ class BangumiPager extends PlaylistPager {
     }
 }
 function format_bangumi_search(shows: SearchResultItem[] | null, movies: SearchResultItem[] | null): PlatformPlaylist[] {
-    return interleave(shows ?? [], movies ?? []).map(function (item) {
+    return interleave_two(shows ?? [], movies ?? []).map(function (item) {
         if (item.type === "ketang" || item.type === "video" || item.type === "live_room" || item.type === "bili_user") {
             throw new ScriptException("unreachable")
         }
@@ -3426,7 +3530,7 @@ function format_season(season_id: number, season_response: SeasonResponse): Plat
         author: EMPTY_AUTHOR,
         url: `${SEASON_URL_PREFIX}${season_id}`,
         contents: new VideoPager(episodes, false),
-        videoCount: season_response.result.total,
+        videoCount: season_response.result.episodes.length,
     })
 }
 class SeriesContentsPager extends VideoPager {
@@ -4079,6 +4183,60 @@ function getUserPlaylists() {
 //#endregion
 
 //#region utilities
+
+
+// TODO this structure isn't ideal because each pager will make http requests
+// it would be ideal if all of those http requests were combined into a single batch request
+// we could still reuse the code somehow but it will be trickier
+class CompositeContentPager extends ContentPager {
+    constructor(private pagers: ContentPager[]) {
+        const results = interleave(pagers.map((pager) => pager.results))
+        const no_more_results = pagers.every((pager) => !pager.hasMore)
+        super(results, !no_more_results)
+    }
+    override nextPage(this: CompositeContentPager): CompositeContentPager {
+        this.pagers = this.pagers.flatMap((pager) => {
+            if (pager.hasMore) {
+                pager.nextPage()
+                return pager
+            }
+            return []
+        })
+        const results = interleave(this.pagers.map((pager) => pager.results))
+        const no_more_results = this.pagers.every((pager) => !pager.hasMore)
+        this.results = results
+        this.hasMore = !no_more_results
+        return this
+    }
+    override hasMorePagers(this: CompositeContentPager): boolean {
+        return this.hasMore
+    }
+}
+class CompositePlaylistPager extends PlaylistPager {
+    constructor(private pagers: PlaylistPager[]) {
+        const results = interleave(pagers.map((pager) => pager.results))
+        const no_more_results = pagers.every((pager) => !pager.hasMore)
+        super(results, !no_more_results)
+    }
+    override nextPage(this: CompositePlaylistPager): CompositePlaylistPager {
+        this.pagers = this.pagers.flatMap((pager) => {
+            if (pager.hasMore) {
+                pager.nextPage()
+                return pager
+            }
+            return []
+        })
+        const results = interleave(this.pagers.map((pager) => pager.results))
+        const no_more_results = this.pagers.every((pager) => !pager.hasMore)
+        this.results = results
+        this.hasMore = !no_more_results
+        return this
+    }
+    override hasMorePagers(this: CompositePlaylistPager): boolean {
+        return this.hasMore
+    }
+}
+
 function log_passthrough<T>(value: T): T {
     log(value)
     return value
@@ -4154,13 +4312,30 @@ function seconds_to_WebVTT_timestamp(seconds: number) {
     return new Date(seconds * 1000).toISOString().substring(11, 23)
 }
 
+function interleave<T>(arrays: T[][]): T[] {
+    const maxLength = Math.max(...arrays.map(arr => arr.length))
+    const result: T[] = []
+    for (let i = 0; i < maxLength; i++) {
+        arrays.forEach((array) => {
+            if (i < array.length) {
+                const val = array[i]
+                if (val === undefined) {
+                    throw new ScriptException("unreachable")
+                }
+                result.push(val)
+            }
+        })
+    }
+    return result
+}
+
 /**
  * Interleaves two arrays starting with values from the longer array or from a if a and b are the same length
  * @param a 
  * @param b 
  * @returns 
  */
-function interleave<T, U>(a: T[], b: U[]): Array<T | U> {
+function interleave_two<T, U>(a: T[], b: U[]): Array<T | U> {
     const [first, second] = b.length > a.length ? [b, a] : [a, b]
     return first.flatMap(function (a_value, index) {
         const b_value = second[index]
@@ -4453,4 +4628,4 @@ function execute_requests<T, U, V, W, X, Y, Z>(
 console.log(assert_never, log_passthrough)
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-export { interleave, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never }
+export { interleave_two, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never }

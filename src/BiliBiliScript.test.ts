@@ -8,7 +8,7 @@ import {
     getMixinKey,
     mixin_constant_request,
     process_mixin_constant,
-    interleave,
+    interleave_two,
     load_video_details,
     create_signed_url,
     process_wbi_keys,
@@ -83,11 +83,11 @@ describe("utility functions", () => {
     test("interleave same length", { skip: false }, () => {
         const a = [1, 2, 3]
         const b = ["a", "b", "c"]
-        assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c"])
+        assert.deepStrictEqual(interleave_two(a, b), [1, "a", 2, "b", 3, "c"])
     })
     test("interleave first longer", { skip: false }, () => {
         const a = [1, 2, 3, 4]
         const b = ["a", "b", "c"]
-        assert.deepStrictEqual(interleave(a, b), [1, "a", 2, "b", 3, "c", 4])
+        assert.deepStrictEqual(interleave_two(a, b), [1, "a", 2, "b", 3, "c", 4])
     })
 })

@@ -57,17 +57,16 @@ export type BiliBiliSource = Required<
             Settings
         >,
         "getPlaybackTracker"
-        | "getChannelPlaylists"
         | "getContentRecommendations"
     >
 >
-export type FilterGroupIDs = "ADDITIONAL_CONTENT" | "DURATION_FILTER"
+export type FilterGroupIDs = "DURATION_FILTER"
 
-export type ChannelTypeCapabilities = Exclude<FeedType, "SHOWS" | "MOVIES" | "ALBUMS" | "PLAYLISTS">
+export type ChannelTypeCapabilities = Exclude<FeedType, typeof Type.Feed.Shorts>
 
-export type ChannelSearchTypeCapabilities = Exclude<ChannelTypeCapabilities, "COURSES" | "COLLECTIONS" | "FAVORITES" | "LIVE">
+export type ChannelSearchTypeCapabilities = Exclude<ChannelTypeCapabilities, typeof Type.Feed.Videos | typeof Type.Feed.Live | typeof Type.Feed.Shorts>
 
-export type SearchTypeCapabilities = Exclude<FeedType, "POSTS" | "COURSES" | "COLLECTIONS" | "FAVORITES">
+export type SearchTypeCapabilities = Exclude<FeedType, typeof Type.Feed.Videos | typeof Type.Feed.Live | typeof Type.Feed.Shorts>
 
 export type Wbi = { readonly wbi_img_key: string, readonly wbi_sub_key: string }
 
@@ -416,6 +415,13 @@ export type CourseResponse = {
             readonly follower: number
             readonly uname: string
         }
+        readonly recommend_seasons: {
+            readonly cover: "https://archive.biliimg.com/bfs/archive/0ab2d492ba085a0a7b67ea766097420eedbe5118.jpg",
+            readonly ep_count: "共40课时",
+            readonly id: 1279,
+            readonly title: "李梦娇时政专项班（清华同款）",
+            readonly view: 274174
+        }[]
     }
 }
 
@@ -434,7 +440,6 @@ export type SeasonResponse = {
         }[]
         readonly cover: string
         readonly title: string
-        readonly total: number
         readonly stat: {
             readonly views: number
         }
@@ -594,7 +599,6 @@ export type SpaceCollectionsResponse = {
         }
     }
 }
-
 export type SpaceCoursesResponse = {
     readonly data: {
         readonly items: {
@@ -607,6 +611,22 @@ export type SpaceCoursesResponse = {
             readonly next: boolean
             readonly total: number
         }
+    }
+}
+export type SpaceBangumiResponse = {
+    readonly data: {
+        readonly list : {
+            readonly season_id: number
+            readonly cover: string
+            readonly publish: {
+                readonly release_date: string
+            }
+            readonly title: string
+            readonly formal_ep_count: number
+        }[]
+        readonly pn: number,
+        readonly ps: number,
+        readonly total: number
     }
 }
 export type SpacePost = {
@@ -823,6 +843,24 @@ export type VideoDetailResponse = {
                 readonly fans: number
             }
         }
+        readonly Related: {
+            readonly title: string
+            readonly pic: string
+            readonly pubdate: number
+            readonly cid: number
+            readonly aid: number
+            readonly bvid: string
+            readonly owner: {
+                readonly mid: number
+                readonly name: string
+                readonly face: string
+            }
+            readonly stat: {
+                readonly view: number
+                readonly like: number
+            }
+            readonly duration: number
+        }[]
     }
 }
 
