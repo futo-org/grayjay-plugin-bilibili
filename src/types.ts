@@ -58,6 +58,7 @@ export type BiliBiliSource = Required<
         >,
         "getPlaybackTracker"
         | "getContentRecommendations"
+        | "getShorts"
     >
 >
 export type FilterGroupIDs = "DURATION_FILTER"
@@ -737,6 +738,8 @@ export type LiveSearchResponse = {
                 readonly total: number
             }
         }
+    } | {
+        readonly v_voucher: string
     }
 }
 export type SearchResultQueryType = "live" | "video" | "media_bangumi" | "media_ft" | "bili_user"

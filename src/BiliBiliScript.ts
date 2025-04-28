@@ -691,7 +691,7 @@ function search_request(query: string,
     const now = Date.now()
     const result = runner.GET(
         search_url,
-        { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` },
+        { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}; buvid4=${local_state.buvid4}; b_nut=${local_state.b_nut}` },
         false)
     if (builder === undefined) {
         log_network_call(now)
@@ -714,6 +714,9 @@ function extract_search_results(
 ): { search_results: SearchResultItem[] | null, more: boolean } {
     if (type === "live") {
         const results: LiveSearchResponse = JSON.parse(raw_response.body)
+        if ("v_voucher" in results.data) {
+            throw new ScriptException("unable to load live video search results")
+        }
         return {
             search_results: results.data.result === undefined ? null : results.data.result.live_room,
             more: results.data.pageinfo.live_room.total > page * page_size

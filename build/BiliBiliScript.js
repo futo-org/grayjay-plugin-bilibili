@@ -520,7 +520,7 @@ function search_request(query, page, page_size, type, order, duration, builder) 
     const buvid3 = local_state.buvid3;
     const runner = builder === undefined ? local_http : builder;
     const now = Date.now();
-    const result = runner.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}` }, false);
+    const result = runner.GET(search_url, { "User-Agent": USER_AGENT, Cookie: `buvid3=${buvid3}; buvid4=${local_state.buvid4}; b_nut=${local_state.b_nut}` }, false);
     if (builder === undefined) {
         log_network_call(now);
     }
@@ -537,6 +537,9 @@ function search_request(query, page, page_size, type, order, duration, builder) 
 function extract_search_results(raw_response, type, page, page_size) {
     if (type === "live") {
         const results = JSON.parse(raw_response.body);
+        if ("v_voucher" in results.data) {
+            throw new ScriptException("unable to load live video search results");
+        }
         return {
             search_results: results.data.result === undefined ? null : results.data.result.live_room,
             more: results.data.pageinfo.live_room.total > page * page_size

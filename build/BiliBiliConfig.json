@@ -7,7 +7,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Bilibili/BiliBiliConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/bilibili",
     "scriptUrl": "./BiliBiliScript.js",
-    "version": 23,
+    "version": 24,
     "iconUrl": "./BiliBiliIcon.png",
     "id": "cf8ea74d-ad9b-489e-a083-539b6aa8648c",
     "scriptSignature": "",
@@ -34,5 +34,10 @@
 		"loginUrl": "https://passport.bilibili.com/h5-app/passport/login",
 		"cookiesToFind": ["SESSDATA"],
 		"userAgent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36"
-	}
+	},
+    "changelog": {
+        "24" : [
+            "Fix errors when searching"
+        ]
+    }
 }
