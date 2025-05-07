@@ -551,6 +551,55 @@ function extract_search_results(raw_response, type, page, page_size) {
         more: results.data.numResults > page * page_size
     };
 }
+/**
+ * Extracts plain text from HTML content using regex with entity handling
+ * @param html HTML content to parse
+ * @returns Plain text with entities decoded and whitespace normalized
+ */
+function parseTextFromHtml(html) {
+    if (!html?.trim())
+        return "";
+    try {
+        // First, remove HTML tags
+        let text = html.replace(/<[^>]*>/g, ' ');
+        // Handle common HTML entities
+        text = text
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&nbsp;/g, ' ');
+        // Handle numeric entities (decimal and hex)
+        text = text
+            .replace(/&#(\d+);/g, (_match, dec) => {
+            try {
+                return String.fromCharCode(parseInt(dec, 10));
+            }
+            catch (e) {
+                console.error(`Invalid decimal entity: &#${dec};`);
+                return '';
+            }
+        })
+            .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => {
+            try {
+                return String.fromCharCode(parseInt(hex, 16));
+            }
+            catch (e) {
+                console.error(`Invalid hex entity: &#x${hex};`);
+                return '';
+            }
+        });
+        // Normalize whitespace
+        return text.replace(/\s+/g, ' ').trim();
+    }
+    catch (error) {
+        log("BiliBili log: error parsing html");
+        log(error);
+        log(html);
+        return html;
+    }
+}
 function format_search_results(results) {
     return results.map(function (item) {
         switch (item.type) {
@@ -561,7 +610,7 @@ function format_search_results(results) {
                 const duration = parse_minutes_seconds(item.duration);
                 return new PlatformVideo({
                     id: video_id,
-                    name: item.title,
+                    name: parseTextFromHtml(item.title),
                     url: url,
                     thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, local_storage_cache.space_cache.get(item.mid)?.num_fans),
@@ -578,7 +627,7 @@ function format_search_results(results) {
                 const author_id = new PlatformID(PLATFORM, item.uid.toString(), plugin.config.id);
                 return new PlatformVideo({
                     id: video_id,
-                    name: item.title,
+                    name: parseTextFromHtml(item.title),
                     url: url,
                     thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(author_id, item.uname, `${SPACE_URL_PREFIX}${item.uid}`, `https:${item.uface}`, local_storage_cache.space_cache.get(item.uid)?.num_fans),
@@ -609,7 +658,7 @@ function format_search_results(results) {
                 const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id);
                 return new PlatformVideo({
                     id: video_id,
-                    name: item.title,
+                    name: parseTextFromHtml(item.title),
                     url: url,
                     // TODO figure out if we should include both thumbnails
                     thumbnails: new Thumbnails([
@@ -651,7 +700,7 @@ function format_search_results(results) {
                 }
                 return new PlatformVideo({
                     id: video_id,
-                    name: item.title,
+                    name: parseTextFromHtml(item.title),
                     url: url,
                     // TODO figure out if we should include both thumbnails
                     thumbnails: new Thumbnails(thumbnails),
@@ -3835,7 +3884,8 @@ function execute_requests(requests) {
 }
 //#endregion
 console.log(assert_never, log_passthrough);
+// export {};
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-// export { interleave_two, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never };
+// export { interleave_two, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never }
 //# sourceMappingURL=BiliBiliScript.js.map
