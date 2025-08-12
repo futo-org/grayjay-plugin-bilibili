@@ -1,5 +1,5 @@
 const PLATFORM = "BiliBili";
-const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www\.|live\.|t\.|m\.|)bilibili.com\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12}|av[0-9]{15})(\/|\?|$)/;
+const CONTENT_DETAIL_URL_REGEX = /^https:\/\/(www\.|live\.|t\.|m\.|)(bilibili\.com|b23\.tv)\/(bangumi\/play\/ep|video\/|opus\/|cheese\/play\/ep|)(\d+|[0-9a-zA-Z]{12}|av[0-9]{15})(\/|\?|$)/;
 const PLAYLIST_URL_REGEX = /^https:\/\/(www|space)\.bilibili.com\/(\d+|)(bangumi\/play\/ss|cheese\/play\/ss|medialist\/detail\/ml|festival\/|\/channel\/collectiondetail\?sid=|\/channel\/seriesdetail\?sid=|\/favlist\?fid=|watchlater\/)(\d+|[0-9a-zA-Z]+|.*#\/list)(\/|\?|$)/;
 const SPACE_URL_REGEX = /^https:\/\/space\.bilibili\.com\/(\d+)(\/|\?|$)/;
 const VIDEO_URL_PREFIX = "https://www.bilibili.com/video/";
@@ -551,55 +551,6 @@ function extract_search_results(raw_response, type, page, page_size) {
         more: results.data.numResults > page * page_size
     };
 }
-/**
- * Extracts plain text from HTML content using regex with entity handling
- * @param html HTML content to parse
- * @returns Plain text with entities decoded and whitespace normalized
- */
-function parseTextFromHtml(html) {
-    if (!html?.trim())
-        return "";
-    try {
-        // First, remove HTML tags
-        let text = html.replace(/<[^>]*>/g, ' ');
-        // Handle common HTML entities
-        text = text
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&apos;/g, "'")
-            .replace(/&nbsp;/g, ' ');
-        // Handle numeric entities (decimal and hex)
-        text = text
-            .replace(/&#(\d+);/g, (_match, dec) => {
-            try {
-                return String.fromCharCode(parseInt(dec, 10));
-            }
-            catch (e) {
-                console.error(`Invalid decimal entity: &#${dec};`);
-                return '';
-            }
-        })
-            .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => {
-            try {
-                return String.fromCharCode(parseInt(hex, 16));
-            }
-            catch (e) {
-                console.error(`Invalid hex entity: &#x${hex};`);
-                return '';
-            }
-        });
-        // Normalize whitespace
-        return text.replace(/\s+/g, ' ').trim();
-    }
-    catch (error) {
-        log("BiliBili log: error parsing html");
-        log(error);
-        log(html);
-        return html;
-    }
-}
 function format_search_results(results) {
     return results.map(function (item) {
         switch (item.type) {
@@ -610,7 +561,7 @@ function format_search_results(results) {
                 const duration = parse_minutes_seconds(item.duration);
                 return new PlatformVideo({
                     id: video_id,
-                    name: parseTextFromHtml(item.title),
+                    name: item.title,
                     url: url,
                     thumbnails: new Thumbnails([new Thumbnail(`https:${item.pic}`, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(author_id, item.author, `${SPACE_URL_PREFIX}${item.mid}`, item.upic, local_storage_cache.space_cache.get(item.mid)?.num_fans),
@@ -627,7 +578,7 @@ function format_search_results(results) {
                 const author_id = new PlatformID(PLATFORM, item.uid.toString(), plugin.config.id);
                 return new PlatformVideo({
                     id: video_id,
-                    name: parseTextFromHtml(item.title),
+                    name: item.title,
                     url: url,
                     thumbnails: new Thumbnails([new Thumbnail(`https:${item.user_cover}`, HARDCODED_THUMBNAIL_QUALITY)]),
                     author: new PlatformAuthorLink(author_id, item.uname, `${SPACE_URL_PREFIX}${item.uid}`, `https:${item.uface}`, local_storage_cache.space_cache.get(item.uid)?.num_fans),
@@ -658,7 +609,7 @@ function format_search_results(results) {
                 const video_id = new PlatformID(PLATFORM, first_episode.id.toString(), plugin.config.id);
                 return new PlatformVideo({
                     id: video_id,
-                    name: parseTextFromHtml(item.title),
+                    name: item.title,
                     url: url,
                     // TODO figure out if we should include both thumbnails
                     thumbnails: new Thumbnails([
@@ -700,7 +651,7 @@ function format_search_results(results) {
                 }
                 return new PlatformVideo({
                     id: video_id,
-                    name: parseTextFromHtml(item.title),
+                    name: item.title,
                     url: url,
                     // TODO figure out if we should include both thumbnails
                     thumbnails: new Thumbnails(thumbnails),
@@ -1066,6 +1017,8 @@ function format_space_collections(space_collections_response, space_id, space_in
         });
     }));
 }
+// @ts-expect-error unclear if bilibili has removed this functionality
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 class SpaceBangumiContentPager extends PlaylistPager {
     type;
     next_page;
@@ -1119,6 +1072,7 @@ class SpaceBangumiContentPager extends PlaylistPager {
         else {
             space_bangumi_response = JSON.parse(space_bangumi_request(space_id, initial_page, page_size, type).body);
         }
+        log(space_bangumi_response);
         const has_more = space_bangumi_response.data.total > space_bangumi_response.data.ps * space_bangumi_response.data.pn;
         super(format_space_bangumi(space_bangumi_response, space_id, space_info), has_more);
         this.type = type;
@@ -1129,6 +1083,7 @@ class SpaceBangumiContentPager extends PlaylistPager {
     }
     nextPage() {
         const space_bangumi_response = JSON.parse(space_bangumi_request(this.space_id, this.next_page, this.page_size, this.type).body);
+        log(space_bangumi_response);
         this.results = format_space_bangumi(space_bangumi_response, this.space_id, this.space_info);
         this.hasMore = space_bangumi_response.data.total > space_bangumi_response.data.ps * space_bangumi_response.data.pn;
         this.next_page += 1;
@@ -1781,9 +1736,12 @@ function getChannelPlaylists(url) {
     const favorites_pager = new PlaylistPager(formatted_favorites, false);
     const collections_pager = new SpaceCollectionsContentPager(space_id, 1, 20);
     const courses_pager = new SpaceCoursesContentPager(space_id, 1, 15);
-    const bangumi_pager_1 = new SpaceBangumiContentPager(space_id, 1, 24, 1);
-    const bangumi_pager_2 = new SpaceBangumiContentPager(space_id, 1, 24, 2);
-    return new CompositePlaylistPager([bangumi_pager_1, bangumi_pager_2, favorites_pager, collections_pager, courses_pager]);
+    // const bangumi_pager_1 = new SpaceBangumiContentPager(space_id, 1, 24, 1)
+    // const bangumi_pager_2 = new SpaceBangumiContentPager(space_id, 1, 24, 2)
+    return new CompositePlaylistPager([
+        // bangumi_pager_1, bangumi_pager_2, 
+        favorites_pager, collections_pager, courses_pager
+    ]);
 }
 //#endregion
 //#region content
@@ -1807,16 +1765,24 @@ function parse_content_details_url(url) {
         throw new ScriptException("unreachable regex error");
     }
     const subdomain = maybe_subdomain;
-    const maybe_content_type = regex_match_result[2];
+    const maybe_domain = regex_match_result[2];
+    if (maybe_domain === undefined) {
+        throw new ScriptException("unreachable regex error");
+    }
+    const domain = maybe_domain;
+    const maybe_content_type = regex_match_result[3];
     if (maybe_content_type === undefined) {
         throw new ScriptException("unreachable regex error");
     }
-    const content_type = maybe_content_type;
-    const maybe_content_id = regex_match_result[3];
+    let content_type = maybe_content_type;
+    const maybe_content_id = regex_match_result[4];
     if (maybe_content_id === undefined) {
         throw new ScriptException("unreachable regex error");
     }
     const content_id = maybe_content_id;
+    if (domain === "b23.tv") {
+        content_type = "video/";
+    }
     // handle weird url format
     if (content_type === "video/" && /^av[0-9]{15}$/.test(content_id)) {
         const new_url = local_http.GET(url, {}, false).body.match(/<meta data-vue-meta="true" itemprop="url" content="(.*?)">/)?.[1];
@@ -2057,7 +2023,6 @@ function get_video_details(content_type, content_id) {
                 // Note Grayjay doesn't support playlists as content recommendations so this does currently do anything
                 getContentRecommendations: function () {
                     return new PlaylistPager(season_response.data.recommend_seasons.map((season) => {
-                        log("hi");
                         return new PlatformPlaylist({
                             id: new PlatformID(PLATFORM, season.id.toString(), plugin.config.id),
                             name: season.title,
@@ -2539,6 +2504,7 @@ function format_sources(play_data) {
             height: video.height,
             container: video.mime_type,
             codec: video.codecs,
+            // frameRate: parseInt(video.frame_rate),
             name: name,
             bitrate: video.bandwidth,
             duration: play_data.dash.duration,
@@ -3884,8 +3850,7 @@ function execute_requests(requests) {
 }
 //#endregion
 console.log(assert_never, log_passthrough);
-// export {};
 // export statements are removed during build step
 // used for unit testing in BiliBiliScript.test.ts
-// export { interleave_two, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never }
+// export { interleave_two, getMixinKey, mixin_constant_request, process_mixin_constant, load_video_details, create_signed_url, nav_request, process_wbi_keys, init_local_storage, log_passthrough, assert_never };
 //# sourceMappingURL=BiliBiliScript.js.map

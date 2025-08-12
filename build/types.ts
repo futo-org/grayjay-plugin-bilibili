@@ -894,6 +894,7 @@ export type PlayDataDash = {
             readonly bandwidth: number
             readonly width: number
             readonly height: number
+            readonly frame_rate: string
             readonly codecid: number
             readonly id: number
             readonly segment_base: {
