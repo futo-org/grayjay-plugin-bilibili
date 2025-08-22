@@ -4146,7 +4146,7 @@ function getUserSubscriptions() {
     let page = 1
     const page_size = 20
     while (total > page * page_size) {
-        const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, 1, 20).body)
+        const subscriptions_response: UserSubscriptionsResponse = JSON.parse(user_subscriptions_request(nav_response.data.mid, page, 20).body)
         total = subscriptions_response.data.total
         subscriptions.push(...subscriptions_response.data.list.map(function (subscription) { return `${SPACE_URL_PREFIX}${subscription.mid}` }))
         page += 1
